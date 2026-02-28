@@ -3,8 +3,9 @@ version: '3.8'
 # SOL production deployment — Agent Framework
 #
 # Uses shared Docker infrastructure already running on the SOL server:
-#   - redis (redis:7-alpine) on the 'shared' network  → DB 3 messaging, DB 4 cache
-#   - agentfw-postgres (postgres:16-alpine) defined here, on the 'shared' network
+#   - redis (redis:7-alpine) on the 'shared' network  → DB 3 messaging, DB 4 cache, DB 5 RAG cache
+#   - agentfw-postgres (pgvector/pgvector:pg16) defined here, on the 'shared' network
+#   - ollama (ollama/ollama:latest) defined here, embedding + reranking models
 #
 # Required env file: docker/sol.env (not in VCS)
 #   ANTHROPIC_API_KEY=sk-ant-...
@@ -22,7 +23,7 @@ services:
 
   # ── Database ─────────────────────────────────────────────────────────────────
   agentfw-postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: agentfw-postgres
     networks: [shared]
     environment:
@@ -53,6 +54,7 @@ services:
       REDIS_HOST: redis       # container già in esecuzione su shared
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_BASE_URL: http://ollama:11434
     depends_on:
       agentfw-postgres:
         condition: service_healthy
@@ -136,4 +138,19 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
+  # ── Ollama — Local Embedding + Reranking Models ─────────────────────────────
+  # After first start: docker exec agentfw-ollama ollama pull mxbai-embed-large
+  #                    docker exec agentfw-ollama ollama pull qwen2.5:1.5b
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agentfw-ollama
+    networks: [shared]
+    volumes:
+      - /data/massimiliano/agent-framework/data/ollama:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 3G
     restart: unless-stopped

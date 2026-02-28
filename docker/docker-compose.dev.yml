@@ -2,10 +2,11 @@ version: '3.8'
 
 # Development dependencies for Agent Framework
 # Start with: docker compose -f docker/docker-compose.dev.yml up -d
-# Messaging: Redis Streams on DB 3 | Cache: Redis DB 4 | DB: PostgreSQL 16
+# Messaging: Redis Streams on DB 3 | Cache: Redis DB 4 | RAG Cache: Redis DB 5
+# DB: PostgreSQL 16 + pgvector | Embeddings: Ollama (mxbai-embed-large)
 
 services:
-  # Redis — messaging (Streams DB 3) + distributed cache (DB 4)
+  # Redis — messaging (Streams DB 3) + distributed cache (DB 4) + RAG cache (DB 5)
   # DB 0/1/2 reserved for Gitea (cache, sessions, queues) on SOL server
   redis:
     image: redis:7-alpine
@@ -16,9 +17,9 @@ services:
     volumes:
       - redis-data:/data
 
-  # PostgreSQL — application database
+  # PostgreSQL + pgvector — application database + vector store
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: agentfw-postgres
     ports:
       - "5432:5432"
@@ -29,6 +30,23 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  # Ollama — local embedding + reranking models
+  # After first start: docker exec agentfw-ollama ollama pull mxbai-embed-large
+  #                    docker exec agentfw-ollama ollama pull qwen2.5:1.5b
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agentfw-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+    restart: unless-stopped
+
 volumes:
   redis-data:
   postgres-data:
+  ollama-data:

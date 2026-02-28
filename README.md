@@ -30,6 +30,7 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 - **Missing-Context Feedback Loop**: workers signal `missing_context` in `AgentResult` → orchestrator auto-creates a `CONTEXT_MANAGER` task for the missing files → original item re-dispatched with enriched context.
 - **Auto-Retry with Backoff**: `AutoRetryScheduler` polls for failed items with `nextRetryAt` in the past; exponential backoff (`baseDelay × 2^(attempt-1)`); auto-pauses plan after `attemptsBeforePause` failures.
 - **TrackerSyncService**: external issue tracker synchronization, controlled by `tracker.sync.enabled` feature-flag (`@ConditionalOnProperty`, disabled by default).
+- **RAG Engine** (`shared/rag-engine`): ingestion pipeline with recursive code chunking (512 tok, 100 overlap) + proposition chunking for docs; contextual enrichment (Anthropic pattern); metadata extraction; pgvector storage (1024 dim, HNSW); Redis DB 5 embedding cache (24h TTL). Docker: `pgvector/pgvector:pg16` + Ollama (`mxbai-embed-large`).
 
 ## Architecture
 
@@ -197,6 +198,7 @@ sequenceDiagram
 | Path | Purpose |
 |---|---|
 | `agent-common/` | Shared library: `HookPolicy`, `ApprovalMode`, `RiskLevel` (`com.agentframework.common.policy`) |
+| `shared/rag-engine/` | RAG pipeline: ingestion (chunking, contextual enrichment), embedding cache (Redis DB 5), pgvector store (1024 dim, HNSW), search/reranking (Sessione 2) |
 | `agents/manifests/` | Source of truth for worker definitions (`*.agent.yml`) |
 | `.claude/agents/*/SKILL.md` | Worker system prompts — polyglot header format (YAML frontmatter for Claude Code + Markdown body for Java runtime via `SkillLoader`) |
 | `.claude/agents/` | 14 subagent definitions (Claude Code discovery): be, fe, contract, ai-task, context-manager, schema-manager, review, planner, be-go, be-node, be-rust, hook-manager, audit-manager, event-manager |
@@ -911,7 +913,9 @@ hooks:
 
 ## Test Coverage
 
-208 unit tests across 13 test classes (orchestrator module, JUnit 5 + Mockito):
+261 unit tests across 21 test classes (JUnit 5 + Mockito):
+
+### Orchestrator (208 tests, 13 classes)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
@@ -929,9 +933,29 @@ hooks:
 | `PromptLoaderTest` | 5 | classpath loading, caching, missing resource validation |
 | `AutoRetrySchedulerTest` | 5 | eligibility, retry timing, error isolation |
 
+### RAG Engine (53 tests, 8 classes)
+
+| Test Class | Tests | Scope |
+|-----------|-------|-------|
+| `RecursiveCodeChunkerTest` | 8 | language support, method boundary split, overlap, token estimate |
+| `CodeChunkTest` | 8 | enrichedContent, metadata, IngestionReport, SearchResult, SearchFilters |
+| `PropositionChunkerTest` | 6 | markdown headings, yaml, doc type classification |
+| `IngestionPipelineTest` | 6 | ingest, empty list, error recording, enricher, multi-doc |
+| `CodeDocumentReaderTest` | 6 | read java, skip unsupported/.git/large, extension mapping, Dockerfile |
+| `RagPropertiesTest` | 5 | default values, custom overrides, nested records |
+| `MetadataEnricherTest` | 5 | java entities, keyphrases, code/ADR classification |
+| `EmbeddingCacheServiceTest` | 5 | SHA-256 consistency, hex format, unicode |
+| `ContextualEnricherTest` | 4 | enrich prefix, empty input, fallback, truncation |
+
 ```bash
-# Run orchestrator tests
+# Run all tests
+mvn clean install -pl shared/rag-engine,control-plane/orchestrator -am
+
+# Run orchestrator tests only
 cd control-plane/orchestrator && mvn test
+
+# Run RAG engine tests only
+cd shared/rag-engine && mvn test
 ```
 
 ## Known Gaps
@@ -942,7 +966,9 @@ cd control-plane/orchestrator && mvn test
 
 - Java 17
 - Spring Boot 3.4.1
-- Spring AI 1.0.0 (Anthropic)
+- Spring AI 1.0.0 (Anthropic, Ollama, pgvector)
+- pgvector (vector similarity search, HNSW index, 1024 dim)
+- Ollama (mxbai-embed-large embedding, qwen2.5:1.5b reranking)
 - Azure Service Bus / Redis Streams / JMS Artemis
 - Maven plugin code generation (Mustache + SnakeYAML)
 - Custom MCP tools (`mcp-filesystem-tools`, `mcp-devops-tools`, `mcp-sql-tools`)
@@ -962,6 +988,7 @@ cd control-plane/orchestrator && mvn test
 | [MCP & Tools](mcp/README.md) | Server MCP, allowlist, sandbox, redaction |
 | [Configuration](config/README.md) | File YAML: profili, quality gate, policy, ambienti |
 | [Generated Workers](execution-plane/workers/README.md) | Struttura moduli generati, esecuzione locale |
+| [RAG Pipeline Plan](PIANO.md) | Piano 3 sessioni: infrastruttura, search pipeline, integrazione |
 
 ### Architecture Decision Records
 
