@@ -1,0 +1,61 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: be-rust-worker
+  displayName: "Backend Rust Worker"
+  description: >
+    Handles Rust backend tasks — Actix/Axum handlers, database access,
+    and tests.
+
+spec:
+  workerType: BE
+  workerProfile: be-rust
+  topic: agent-tasks
+  subscription: be-rust-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/be-rust/SKILL.md
+    skills:
+      - skills/rust-workflow-skills/
+      - skills/crosscutting/
+    instructions: |
+      Implement the backend task described above using Rust.
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
+
+  ownership:
+    ownsPaths:
+      - backend/
+      - templates/be/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 2

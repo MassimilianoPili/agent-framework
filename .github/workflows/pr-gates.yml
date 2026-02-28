@@ -1,0 +1,85 @@
+name: PR Gates
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+          cache: maven
+
+      - name: Build all modules
+        run: mvn clean compile -B -q
+
+      - name: Run unit tests
+        run: mvn test -B
+
+      - name: Run integration tests
+        run: mvn verify -B -DskipUnitTests
+        # TODO: Add Testcontainers for PostgreSQL + Service Bus emulator
+
+  lint-openapi:
+    name: Lint OpenAPI Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Spectral
+        run: npm install -g @stoplight/spectral-cli
+
+      - name: Validate OpenAPI spec
+        run: |
+          spectral lint contracts/openapi/v1.yaml \
+            --ruleset contracts/openapi/rules/openapi-style.yml
+
+  check-breaking-changes:
+    name: Check Breaking Changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install oasdiff
+        run: |
+          # TODO: Install oasdiff CLI
+          echo "oasdiff breaking change check placeholder"
+
+      - name: Check for breaking changes
+        run: |
+          # Compare base branch OpenAPI spec with PR branch
+          # oasdiff breaking \
+          #   <(git show origin/${{ github.base_ref }}:contracts/openapi/v1.yaml) \
+          #   contracts/openapi/v1.yaml
+          echo "Breaking change check placeholder — install oasdiff to enable"
+
+  validate-schemas:
+    name: Validate JSON Schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ajv-cli
+        run: npm install -g ajv-cli ajv-formats
+
+      - name: Validate all schemas are well-formed
+        run: |
+          for schema in contracts/agent-schemas/*.schema.json; do
+            echo "Validating: $schema"
+            ajv compile -s "$schema" --spec=draft2020 -c ajv-formats || exit 1
+          done

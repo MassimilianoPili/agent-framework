@@ -1,0 +1,57 @@
+# Environments — Deployment targets and their Azure resource mappings.
+# Each environment corresponds to a long-lived branch and a Service Bus namespace.
+
+environments:
+
+  develop:
+    branch: develop
+    purpose: Agent integration and early testing
+    azure:
+      resourceGroup: rg-agentframework-dev
+      serviceBusNamespace: sb-agentframework-dev
+      appServicePlan: asp-agentframework-dev
+      containerRegistry: acragentframeworkdev
+    autoDeployOnMerge: true
+    qualityGateProfile: standard   # All gates from quality-gates.yml
+
+  test:
+    branch: test
+    purpose: QA and functional validation
+    azure:
+      resourceGroup: rg-agentframework-test
+      serviceBusNamespace: sb-agentframework-test
+      appServicePlan: asp-agentframework-test
+      containerRegistry: acragentframeworkdev   # Same registry, different tag
+    autoDeployOnMerge: true
+    qualityGateProfile: standard
+
+  collaudo:
+    branch: test                   # Same branch as test; collaudo is a sign-off stage
+    purpose: User acceptance testing and formal sign-off before production
+    azure:
+      resourceGroup: rg-agentframework-coll
+      serviceBusNamespace: sb-agentframework-coll
+      appServicePlan: asp-agentframework-coll
+      containerRegistry: acragentframeworkdev
+    autoDeployOnMerge: false       # Manual promotion only
+    qualityGateProfile: strict     # Adds mandatory human approval
+    requiredSignOff:
+      - product-owner
+      - tech-lead
+
+  prod:
+    branch: main
+    purpose: Production
+    azure:
+      resourceGroup: rg-agentframework-prod
+      serviceBusNamespace: sb-agentframework-prod
+      appServicePlan: asp-agentframework-prod
+      containerRegistry: acragentframeworkprod
+    autoDeployOnMerge: false       # Manual promotion via release pipeline
+    qualityGateProfile: strict
+    requiredSignOff:
+      - product-owner
+      - tech-lead
+    rollback:
+      strategy: blue-green
+      automaticOnHealthCheckFailure: true

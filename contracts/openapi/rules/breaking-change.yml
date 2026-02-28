@@ -1,0 +1,37 @@
+# oasdiff breaking change detection rules.
+#
+# Usage:
+#   oasdiff breaking contracts/openapi/v1.yaml contracts/openapi/v1.yaml.new \
+#     --config contracts/openapi/rules/breaking-change.yml
+#
+# Reference: https://github.com/Tufin/oasdiff
+
+checks:
+  # Treat these as breaking changes (block PR merge)
+  breaking:
+    - api-path-removed
+    - api-operation-removed
+    - request-property-removed
+    - response-property-removed
+    - request-property-type-changed
+    - response-property-type-changed
+    - request-body-became-required
+    - response-required-property-removed
+    - request-parameter-removed
+    - request-parameter-became-required
+
+  # Treat these as warnings (allow merge with review)
+  warning:
+    - response-optional-property-removed
+    - response-property-became-optional
+    - request-property-became-optional
+    - api-tag-removed
+    - operation-id-changed
+
+  # Ignore these (non-breaking)
+  ignore:
+    - description-changed
+    - summary-changed
+    - example-changed
+    - response-optional-property-added
+    - request-optional-property-added

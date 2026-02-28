@@ -1,0 +1,92 @@
+# Service Bus Topic Topology
+# Maps topics to subscriptions and consumers.
+#
+# Subscription strategy: per-profile with SQL filter on workerProfile property.
+# Multi-stack worker types (BE, FE) have one subscription per profile, enabling
+# independent scaling per stack. Single-profile types filter by workerType.
+# Adding a new profile requires only a new subscription, not a new topic.
+#
+# Source of truth for naming: agents/manifests/*.agent.yml → config/worker-profiles.yml
+
+topics:
+
+  # ── Task dispatch topic (orchestrator → workers) ──
+  agent-tasks:
+    description: Task dispatch to all worker profiles, routed by SQL filter
+    subscriptions:
+      be-java-worker-sub:
+        consumer: be-java-worker
+        filter: "workerProfile = 'be-java'"
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        deadLetterOnExpiration: true
+
+      be-go-worker-sub:
+        consumer: be-go-worker
+        filter: "workerProfile = 'be-go'"
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        deadLetterOnExpiration: true
+
+      be-rust-worker-sub:
+        consumer: be-rust-worker
+        filter: "workerProfile = 'be-rust'"
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        deadLetterOnExpiration: true
+
+      be-node-worker-sub:
+        consumer: be-node-worker
+        filter: "workerProfile = 'be-node'"
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        deadLetterOnExpiration: true
+
+      fe-react-worker-sub:
+        consumer: fe-react-worker
+        filter: "workerProfile = 'fe-react'"
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        deadLetterOnExpiration: true
+
+      ai-task-worker-sub:
+        consumer: ai-task-worker
+        filter: "workerType = 'AI_TASK'"
+        maxDeliveryCount: 5
+        lockDuration: PT5M
+        deadLetterOnExpiration: true
+
+      contract-worker-sub:
+        consumer: contract-worker
+        filter: "workerType = 'CONTRACT'"
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        deadLetterOnExpiration: true
+
+  # ── Review topic (orchestrator → review-worker, separate for QoS isolation) ──
+  agent-reviews:
+    description: Code review and quality gate tasks
+    subscriptions:
+      review-worker-sub:
+        consumer: review-worker
+        filter: "workerType = 'REVIEW'"
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        deadLetterOnExpiration: true
+
+  # ── Results topic (workers → orchestrator) ──
+  agent-results:
+    description: Task completion results from all workers
+    subscriptions:
+      orchestrator:
+        consumer: orchestrator
+        maxDeliveryCount: 5
+        lockDuration: PT2M
+        deadLetterOnExpiration: true
+
+# Dead Letter Queue (DLQ) strategy:
+# - Each subscription has an auto-created DLQ
+# - Messages exceeding maxDeliveryCount are moved to DLQ
+# - DLQ messages can be replayed via scripts/servicebus/replay-dlq.sh
+# - lockDuration set to 5 min for worker tasks (LLM calls are slow)
+# - lockDuration set to 2 min for results (fast DB update)

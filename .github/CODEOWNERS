@@ -1,0 +1,39 @@
+# CODEOWNERS — Path-based ownership for pull request reviews
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: platform team reviews everything not otherwise specified
+*                                   @platform-team
+
+# Control plane (orchestrator, planner, messaging)
+/control-plane/                     @platform-team
+
+# Execution plane (worker SDK, worker implementations)
+/execution-plane/worker-sdk/        @platform-team
+/execution-plane/workers/           @platform-team
+
+# Contracts (OpenAPI, events, schemas)
+/contracts/                         @platform-team @api-reviewers
+
+# Infrastructure (Bicep, pipelines, runbooks)
+/infra/                             @platform-team @infra-team
+
+# Configuration and policies
+/config/                            @platform-team
+/mcp/                               @platform-team
+/.claude/                           @platform-team
+
+# CI/CD workflows
+/.github/workflows/                 @platform-team @infra-team
+
+# Agent definitions and prompts
+/agents/                            @platform-team
+/prompts/                           @platform-team
+/skills/                            @platform-team
+
+# Frontend templates
+/templates/fe/                      @frontend-team
+/frontend/                          @frontend-team
+
+# Backend templates
+/templates/be/                      @backend-team
+/backend/                           @backend-team

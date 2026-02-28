@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcp-git-tool-io.schema.json",
+  "title": "Git MCP Server Tool I/O",
+  "description": "Input/output contracts for the git MCP server tools",
+  "definitions": {
+    "GitCloneInput": {
+      "type": "object",
+      "required": ["repoUrl"],
+      "properties": {
+        "repoUrl": { "type": "string", "format": "uri" },
+        "branch": { "type": "string", "default": "main" },
+        "depth": { "type": "integer", "minimum": 1, "description": "Shallow clone depth" },
+        "targetDir": { "type": "string", "description": "Local directory to clone into" }
+      },
+      "additionalProperties": false
+    },
+    "GitCloneOutput": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "localPath": { "type": "string" },
+        "branch": { "type": "string" },
+        "headCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    },
+    "GitCommitInput": {
+      "type": "object",
+      "required": ["message"],
+      "properties": {
+        "message": { "type": "string", "minLength": 1 },
+        "files": { "type": "array", "items": { "type": "string" }, "description": "Files to stage; empty means all" },
+        "author": { "type": "string", "description": "Author in 'Name <email>' format" }
+      },
+      "additionalProperties": false
+    },
+    "GitCommitOutput": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "commitHash": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "filesChanged": { "type": "integer" }
+      }
+    },
+    "GitDiffInput": {
+      "type": "object",
+      "properties": {
+        "base": { "type": "string", "description": "Base ref (commit, branch, tag)" },
+        "head": { "type": "string", "description": "Head ref; defaults to working tree" },
+        "paths": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "GitDiffOutput": {
+      "type": "object",
+      "properties": {
+        "diff": { "type": "string" },
+        "filesChanged": { "type": "integer" },
+        "insertions": { "type": "integer" },
+        "deletions": { "type": "integer" }
+      }
+    },
+    "GitBranchInput": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": { "type": "string", "enum": ["create", "delete", "list", "checkout"] },
+        "name": { "type": "string" },
+        "startPoint": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GitBranchOutput": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "currentBranch": { "type": "string" },
+        "branches": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

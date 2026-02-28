@@ -1,0 +1,52 @@
+name: Deploy to Develop
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (default: latest)"
+        required: false
+        default: "latest"
+
+env:
+  AZURE_RESOURCE_GROUP: rg-agent-framework-dev
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/agent-framework
+
+jobs:
+  deploy:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    environment: develop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # TODO: Implement actual deployment steps
+      # Options:
+      #   1. az containerapp update (for long-running orchestrator)
+      #   2. az containerapp job update (for event-driven workers)
+      #   3. Bicep deployment via az deployment group create
+
+      - name: Deploy Orchestrator
+        run: |
+          echo "Deploying orchestrator to ${{ env.AZURE_RESOURCE_GROUP }}"
+          echo "Image: ${{ env.IMAGE_PREFIX }}/orchestrator:${{ inputs.image_tag }}"
+          # az containerapp update \
+          #   --name orchestrator \
+          #   --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          #   --image ${{ env.IMAGE_PREFIX }}/orchestrator:${{ inputs.image_tag }}
+
+      - name: Deploy Workers
+        run: |
+          for worker in be-worker fe-worker ai-task-worker contract-worker review-worker; do
+            echo "Deploying $worker to ${{ env.AZURE_RESOURCE_GROUP }}"
+            echo "Image: ${{ env.IMAGE_PREFIX }}/$worker:${{ inputs.image_tag }}"
+            # az containerapp job update \
+            #   --name $worker \
+            #   --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            #   --image ${{ env.IMAGE_PREFIX }}/$worker:${{ inputs.image_tag }}
+          done

@@ -1,0 +1,11 @@
+# Redis profile: Redis Streams for messaging + Redis for distributed caching
+messaging:
+  provider: redis
+  redis:
+    host: ${REDIS_HOST:redis}
+    port: ${REDIS_PORT:6379}
+    database: 3
+    cache-database: 4
+
+cache:
+  provider: redis

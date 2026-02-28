@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcp-azure-tool-io.schema.json",
+  "title": "Azure MCP Server Tool I/O",
+  "description": "Input/output contracts for the azure MCP server tools",
+  "definitions": {
+    "ServiceBusSendInput": {
+      "type": "object",
+      "required": ["topicName", "messageBody"],
+      "properties": {
+        "topicName": { "type": "string" },
+        "messageBody": { "type": "string", "description": "JSON string payload" },
+        "correlationId": { "type": "string", "format": "uuid" },
+        "properties": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ServiceBusSendOutput": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "messageId": { "type": "string" },
+        "sequenceNumber": { "type": "integer" }
+      }
+    },
+    "ServiceBusPeekDlqInput": {
+      "type": "object",
+      "required": ["topicName", "subscriptionName"],
+      "properties": {
+        "topicName": { "type": "string" },
+        "subscriptionName": { "type": "string" },
+        "maxMessages": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 }
+      },
+      "additionalProperties": false
+    },
+    "ServiceBusPeekDlqOutput": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "messageId": { "type": "string" },
+              "body": { "type": "string" },
+              "deadLetterReason": { "type": "string" },
+              "enqueuedTime": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
+        "count": { "type": "integer" }
+      }
+    },
+    "ContainerAppsJobStartInput": {
+      "type": "object",
+      "required": ["jobName", "resourceGroup"],
+      "properties": {
+        "jobName": { "type": "string" },
+        "resourceGroup": { "type": "string" },
+        "environmentVariables": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContainerAppsJobStartOutput": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "executionId": { "type": "string" },
+        "status": { "type": "string", "enum": ["Running", "Succeeded", "Failed", "Unknown"] }
+      }
+    },
+    "ContainerAppsJobStatusInput": {
+      "type": "object",
+      "required": ["jobName", "resourceGroup", "executionId"],
+      "properties": {
+        "jobName": { "type": "string" },
+        "resourceGroup": { "type": "string" },
+        "executionId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "ContainerAppsJobStatusOutput": {
+      "type": "object",
+      "properties": {
+        "executionId": { "type": "string" },
+        "status": { "type": "string", "enum": ["Running", "Succeeded", "Failed", "Unknown"] },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": ["string", "null"], "format": "date-time" }
+      }
+    }
+  }
+}

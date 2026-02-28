@@ -1,0 +1,60 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: fe-react-worker
+  displayName: "Frontend React Worker"
+  description: >
+    Handles React/TypeScript frontend tasks — components, hooks, pages,
+    API client integration, and Vitest tests.
+
+spec:
+  workerType: FE
+  workerProfile: fe-react
+  topic: agent-tasks
+  subscription: fe-react-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/fe/SKILL.md
+    skills:
+      - skills/react-workflow-skills/
+      - skills/crosscutting/
+    instructions: |
+      Implement the frontend task described above using React and TypeScript.
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+
+  ownership:
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

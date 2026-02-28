@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "AgentResult.schema.json",
+  "title": "AgentResult",
+  "description": "Result published by a worker after task execution",
+  "type": "object",
+  "required": ["planId", "itemId", "taskKey", "success", "durationMs", "provenance"],
+  "properties": {
+    "planId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "itemId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "taskKey": {
+      "type": "string",
+      "pattern": "^(BE|FE|AI|CT|RV)-[0-9]{3}$"
+    },
+    "success": {
+      "type": "boolean",
+      "description": "Whether the task completed successfully"
+    },
+    "resultJson": {
+      "type": ["string", "null"],
+      "description": "Agent's output artifacts as JSON string (null on failure)"
+    },
+    "failureReason": {
+      "type": ["string", "null"],
+      "description": "Error description if success is false"
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Execution duration in milliseconds"
+    },
+    "workerType": {
+      "type": ["string", "null"],
+      "enum": ["BE", "FE", "AI_TASK", "CONTRACT", "REVIEW", null],
+      "deprecated": true,
+      "description": "DEPRECATED: use provenance.workerType. Kept for backward compatibility."
+    },
+    "workerProfile": {
+      "type": ["string", "null"],
+      "deprecated": true,
+      "description": "DEPRECATED: use provenance.workerProfile. Kept for backward compatibility."
+    },
+    "modelId": {
+      "type": ["string", "null"],
+      "deprecated": true,
+      "description": "DEPRECATED: use provenance.model. Kept for backward compatibility."
+    },
+    "promptHash": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{64}$",
+      "deprecated": true,
+      "description": "DEPRECATED: use provenance.promptHash. Kept for backward compatibility."
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Structured execution provenance. Canonical source for worker identity, model, and tracing metadata.",
+      "properties": {
+        "workerType": { "type": ["string", "null"], "enum": ["BE", "FE", "AI_TASK", "CONTRACT", "REVIEW", null] },
+        "workerProfile": { "type": ["string", "null"] },
+        "attemptNumber": { "type": ["integer", "null"], "minimum": 1 },
+        "dispatchAttemptId": { "type": ["string", "null"], "format": "uuid" },
+        "dispatchedAt": { "type": ["string", "null"], "format": "date-time" },
+        "completedAt": { "type": ["string", "null"], "format": "date-time" },
+        "traceId": { "type": ["string", "null"], "format": "uuid" },
+        "model": { "type": ["string", "null"] },
+        "toolsUsed": { "type": ["array", "null"], "items": { "type": "string" } },
+        "promptHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "skillsHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "tokenUsage": {
+          "type": ["object", "null"],
+          "properties": {
+            "inputTokens": { "type": ["integer", "null"], "minimum": 0 },
+            "outputTokens": { "type": ["integer", "null"], "minimum": 0 },
+            "totalTokens": { "type": ["integer", "null"], "minimum": 0 }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

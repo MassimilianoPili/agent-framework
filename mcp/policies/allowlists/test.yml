@@ -1,0 +1,35 @@
+# Allowlist for MCP server: test
+# Lists the permitted test execution operations per worker type.
+
+server: test
+
+operations:
+
+  - name: maven_test
+    description: Run Maven test suite (mvn test or mvn verify)
+    allowedWorkers: [be-worker, ai-task-worker]
+    constraints:
+      - maxDurationSeconds: 300
+      - noModifySource: true
+
+  - name: npm_test
+    description: Run npm test suite (npm test or npm run test)
+    allowedWorkers: [fe-worker, ai-task-worker]
+    constraints:
+      - maxDurationSeconds: 300
+      - noModifySource: true
+
+  - name: coverage_report
+    description: Parse and return coverage report (JaCoCo XML or c8 JSON)
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, review-worker]
+
+  - name: test_results
+    description: Parse JUnit XML test results
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, review-worker]
+
+  - name: run_single_test
+    description: Run a single test class or file
+    allowedWorkers: [be-worker, fe-worker]
+    constraints:
+      - maxDurationSeconds: 60
+      - noModifySource: true

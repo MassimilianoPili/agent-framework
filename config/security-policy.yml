@@ -1,0 +1,60 @@
+# Security Policy — Rules that all workers MUST enforce.
+# Violations are hard-blocked: the task fails and requires human review.
+
+pii:
+  fields:
+    - codiceFiscale
+    - iban
+    - email
+    - phoneNumber
+    - dateOfBirth
+    - socialSecurityNumber
+    - creditCardNumber
+    - healthId
+  redaction:
+    logLevel: MASK          # PII in logs is masked to first/last char + asterisks
+    errorResponses: OMIT    # PII never appears in API error responses
+    testFixtures: SYNTHETIC # Tests use synthetic data, never real PII
+
+toolPolicy:
+  default: deny             # Any tool not in mcpAllowlist is denied
+  escalationOnDeny: log     # Log denied tool invocations for audit
+  humanOverride: true       # Human can grant one-time exceptions
+
+secrets:
+  neverCommitPatterns:
+    - "**/.env"
+    - "**/.env.*"
+    - "**/secrets.yml"
+    - "**/credentials.json"
+    - "**/*.pem"
+    - "**/*.key"
+    - "**/*.p12"
+    - "**/*.jks"
+    - "**/application-secrets*.yml"
+    - "**/application-secrets*.properties"
+  scanOnCommit: true        # Pre-commit hook runs gitleaks/trufflehog
+  blockOnDetection: true    # Hard block if secrets detected
+
+networkPolicy:
+  allowedOutbound:
+    - "*.azure.com"
+    - "*.windows.net"
+    - "registry.npmjs.org"
+    - "repo.maven.apache.org"
+    - "ghcr.io"
+  denyAllOther: true        # Workers cannot reach arbitrary endpoints
+
+dependencyPolicy:
+  allowedLicenses:
+    - MIT
+    - Apache-2.0
+    - BSD-2-Clause
+    - BSD-3-Clause
+    - ISC
+    - EPL-2.0
+  blockedLicenses:
+    - GPL-2.0-only
+    - GPL-3.0-only
+    - AGPL-3.0-only
+  requireLockfile: true     # pom.xml must use dependencyManagement; package-lock.json must exist

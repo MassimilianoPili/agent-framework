@@ -1,0 +1,139 @@
+version: '3.8'
+
+# SOL production deployment — Agent Framework
+#
+# Uses shared Docker infrastructure already running on the SOL server:
+#   - redis (redis:7-alpine) on the 'shared' network  → DB 3 messaging, DB 4 cache
+#   - agentfw-postgres (postgres:16-alpine) defined here, on the 'shared' network
+#
+# Required env file: docker/sol.env (not in VCS)
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   DB_PASSWORD=...
+#
+# Start:   docker compose -f docker/docker-compose.sol.yml --env-file docker/sol.env up -d
+# Stop:    docker compose -f docker/docker-compose.sol.yml down
+# Logs:    docker compose -f docker/docker-compose.sol.yml logs -f orchestrator
+
+networks:
+  shared:
+    external: true   # Rete Docker condivisa del server SOL
+
+services:
+
+  # ── Database ─────────────────────────────────────────────────────────────────
+  agentfw-postgres:
+    image: postgres:16-alpine
+    container_name: agentfw-postgres
+    networks: [shared]
+    environment:
+      POSTGRES_DB: agentframework
+      POSTGRES_USER: agentframework
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - /data/massimiliano/agent-framework/data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentframework"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Control Plane ────────────────────────────────────────────────────────────
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: control-plane/orchestrator/Dockerfile
+    container_name: agentfw-orchestrator
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      DB_HOST: agentfw-postgres
+      DB_USER: agentframework
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis       # container già in esecuzione su shared
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    depends_on:
+      agentfw-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Domain Workers ───────────────────────────────────────────────────────────
+  be-java-worker:
+    build:
+      context: ..
+      dockerfile: execution-plane/workers/be-java-worker/Dockerfile
+    container_name: agentfw-be-java-worker
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
+  fe-react-worker:
+    build:
+      context: ..
+      dockerfile: execution-plane/workers/fe-react-worker/Dockerfile
+    container_name: agentfw-fe-react-worker
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
+  contract-worker:
+    build:
+      context: ..
+      dockerfile: execution-plane/workers/contract-worker/Dockerfile
+    container_name: agentfw-contract-worker
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
+  review-worker:
+    build:
+      context: ..
+      dockerfile: execution-plane/workers/review-worker/Dockerfile
+    container_name: agentfw-review-worker
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
+  # ── Middle-layer Workers ─────────────────────────────────────────────────────
+  context-manager-worker:
+    build:
+      context: ..
+      dockerfile: execution-plane/workers/context-manager-worker/Dockerfile
+    container_name: agentfw-context-manager-worker
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
+  schema-manager-worker:
+    build:
+      context: ..
+      dockerfile: execution-plane/workers/schema-manager-worker/Dockerfile
+    container_name: agentfw-schema-manager-worker
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    restart: unless-stopped

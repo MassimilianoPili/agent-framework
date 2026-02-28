@@ -1,0 +1,63 @@
+# Branching Policy — Vertical-horizontal strategy for agent-driven development.
+#
+# "Vertical" = a feature slice (one plan) implemented on a short-lived branch.
+# "Horizontal" = long-lived environment branches where vertical slices merge.
+
+strategy: vertical-horizontal
+
+branches:
+  main:
+    protected: true
+    purpose: Production-ready code. Only receives merges from test (after collaudo sign-off).
+    mergeRequirements:
+      minHumanApprovals: 1
+      allQualityGatesMustPass: true
+      ciMustPass: true
+
+  develop:
+    protected: true
+    purpose: Integration branch. Agents merge feature branches here.
+    mergeRequirements:
+      minHumanApprovals: 0
+      agentReviewRequired: true
+      allQualityGatesMustPass: true
+
+  test:
+    protected: true
+    purpose: QA / collaudo environment. Merges from develop.
+    mergeRequirements:
+      minHumanApprovals: 1
+      allQualityGatesMustPass: true
+
+featureBranches:
+  prefix: feature/
+  agentPrefix: agent/
+  namingConvention: "agent/{planId}/{taskKey}"
+  # Example: agent/PLAN-42/be-user-service
+  maxLifetimeDays: 7         # Stale branches auto-flagged after 7 days
+  deleteAfterMerge: true
+
+cascadeMerge:
+  # After a merge to main, changes cascade downward to keep branches in sync.
+  order:
+    - main -> develop
+    - develop -> test
+  autoMerge: true             # Cascade merges are automatic (no PR needed)
+  conflictPolicy: halt        # On conflict, halt and notify human
+
+pullRequests:
+  titleFormat: "[{taskKey}] {summary}"
+  bodyTemplate: |
+    ## Context
+    Plan: {planId}
+    Task: {taskKey}
+    Worker: {workerName}
+
+    ## Changes
+    {generatedSummary}
+
+    ## Quality Gates
+    {qualityGateResults}
+  labels:
+    - agent-generated
+  autoAssignReviewWorker: true

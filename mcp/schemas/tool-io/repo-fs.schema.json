@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcp-repo-fs-tool-io.schema.json",
+  "title": "Repo Filesystem MCP Server Tool I/O",
+  "description": "Input/output contracts for the repo-fs MCP server tools",
+  "definitions": {
+    "ReadFileInput": {
+      "type": "object",
+      "required": ["filePath"],
+      "properties": {
+        "filePath": { "type": "string" },
+        "offset": { "type": "integer", "minimum": 0, "description": "Start line (0-based)" },
+        "limit": { "type": "integer", "minimum": 1, "description": "Number of lines to read" }
+      },
+      "additionalProperties": false
+    },
+    "ReadFileOutput": {
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "lineCount": { "type": "integer" },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "WriteFileInput": {
+      "type": "object",
+      "required": ["filePath", "content"],
+      "properties": {
+        "filePath": { "type": "string" },
+        "content": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "WriteFileOutput": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "bytesWritten": { "type": "integer" }
+      }
+    },
+    "EditFileInput": {
+      "type": "object",
+      "required": ["filePath", "oldString", "newString"],
+      "properties": {
+        "filePath": { "type": "string" },
+        "oldString": { "type": "string" },
+        "newString": { "type": "string" },
+        "replaceAll": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "EditFileOutput": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "replacementsCount": { "type": "integer" }
+      }
+    },
+    "GlobInput": {
+      "type": "object",
+      "required": ["pattern"],
+      "properties": {
+        "pattern": { "type": "string" },
+        "path": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GlobOutput": {
+      "type": "object",
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string" } },
+        "count": { "type": "integer" },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "GrepInput": {
+      "type": "object",
+      "required": ["pattern"],
+      "properties": {
+        "pattern": { "type": "string" },
+        "path": { "type": "string" },
+        "glob": { "type": "string" },
+        "caseSensitive": { "type": "boolean", "default": true },
+        "maxResults": { "type": "integer", "default": 200 }
+      },
+      "additionalProperties": false
+    },
+    "GrepOutput": {
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": { "type": "string" },
+              "line": { "type": "integer" },
+              "content": { "type": "string" }
+            }
+          }
+        },
+        "totalMatches": { "type": "integer" },
+        "truncated": { "type": "boolean" }
+      }
+    }
+  }
+}

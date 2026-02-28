@@ -1,0 +1,74 @@
+# Spectral ruleset for OpenAPI style enforcement.
+# Run: npx @stoplight/spectral-cli lint contracts/openapi/v1.yaml --ruleset contracts/openapi/rules/openapi-style.yml
+
+extends:
+  - spectral:oas
+
+rules:
+  # Enforce camelCase for property names
+  oas3-schema-properties-camelCase:
+    description: Schema property names must be camelCase
+    given: "$..properties.*~"
+    severity: error
+    then:
+      function: casing
+      functionOptions:
+        type: camel
+
+  # Require operationId on all operations
+  operation-operationId:
+    description: Every operation must have an operationId
+    given: "$.paths[*][get,post,put,patch,delete]"
+    severity: error
+    then:
+      field: operationId
+      function: truthy
+
+  # Require tags on all operations
+  operation-tags:
+    description: Every operation must have at least one tag
+    given: "$.paths[*][get,post,put,patch,delete]"
+    severity: warn
+    then:
+      field: tags
+      function: truthy
+
+  # Require description on all schemas
+  schema-description:
+    description: Top-level schemas should have descriptions
+    given: "$.components.schemas[*]"
+    severity: info
+    then:
+      field: description
+      function: truthy
+
+  # API version in path
+  path-version-prefix:
+    description: All paths must start with /api/v{N}
+    given: "$.paths.*~"
+    severity: error
+    then:
+      function: pattern
+      functionOptions:
+        match: "^/api/v[0-9]+"
+
+  # No trailing slashes
+  path-no-trailing-slash:
+    description: Paths must not have trailing slashes
+    given: "$.paths.*~"
+    severity: error
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/$"
+
+  # Error response schema
+  error-response-schema:
+    description: Error responses (4xx, 5xx) should reference ErrorResponse schema
+    given: "$.paths[*][*].responses[?(@property >= '400')].content.application/json.schema"
+    severity: warn
+    then:
+      field: "$ref"
+      function: pattern
+      functionOptions:
+        match: "ErrorResponse"

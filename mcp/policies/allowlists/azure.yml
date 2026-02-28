@@ -1,0 +1,42 @@
+# Allowlist for MCP server: azure
+# Lists the permitted Azure resource operations per worker type.
+
+server: azure
+
+operations:
+
+  - name: servicebus_send_message
+    description: Send a message to a Service Bus topic
+    allowedWorkers: [ai-task-worker]
+    constraints:
+      - allowedTopics: [agent-tasks-*, agent-reviews]
+
+  - name: servicebus_peek_dlq
+    description: Peek messages in a dead-letter queue
+    allowedWorkers: [ai-task-worker, review-worker]
+
+  - name: servicebus_list_topics
+    description: List Service Bus topics and subscriptions
+    allowedWorkers: [ai-task-worker, review-worker]
+
+  - name: container_apps_job_start
+    description: Start a Container Apps job execution
+    allowedWorkers: [ai-task-worker]
+    constraints:
+      - environments: [develop, test]  # No prod access for agents
+
+  - name: container_apps_job_status
+    description: Get status of a Container Apps job execution
+    allowedWorkers: [ai-task-worker, review-worker]
+
+  - name: keyvault_get_secret
+    description: Read a secret from Key Vault (read-only)
+    allowedWorkers: []  # No worker can read secrets; orchestrator injects them
+    constraints:
+      - readOnly: true
+
+  - name: resource_group_list
+    description: List resource groups in subscription
+    allowedWorkers: [ai-task-worker]
+    constraints:
+      - readOnly: true

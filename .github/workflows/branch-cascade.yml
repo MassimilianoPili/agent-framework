@@ -1,0 +1,52 @@
+name: Branch Cascade
+
+on:
+  push:
+    branches: [main]
+
+# Cascades changes from main → develop → test
+# following the vertical-horizontal branching strategy.
+
+jobs:
+  cascade-to-develop:
+    name: Cascade main → develop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge main into develop
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout develop
+          git merge origin/main --no-edit || {
+            echo "Merge conflict detected. Creating PR instead."
+            # TODO: Create PR from main to develop when conflicts arise
+            # gh pr create --base develop --head main --title "Cascade: main → develop (conflict)"
+            exit 1
+          }
+          git push origin develop
+
+  cascade-to-test:
+    name: Cascade develop → test
+    runs-on: ubuntu-latest
+    needs: cascade-to-develop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge develop into test
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout test
+          git merge origin/develop --no-edit || {
+            echo "Merge conflict detected. Creating PR instead."
+            exit 1
+          }
+          git push origin test

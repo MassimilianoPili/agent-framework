@@ -1,0 +1,24 @@
+# Sandbox Limits
+# Resource limits enforced on all MCP tool executions.
+
+limits:
+  maxFileSize: 102400          # 100 KB — max file size for read/write operations
+  maxRecursionDepth: 10        # Max directory recursion depth for glob/grep
+  maxToolCallsPerTask: 50      # Max total MCP tool invocations per agent task
+  timeoutSeconds: 300          # 5 minutes — max wall-clock time per tool call
+
+  # Additional resource constraints
+  maxFilesPerGlob: 500         # Max files returned by a single glob search
+  maxGrepMatches: 200          # Max matches returned by a single grep search
+  maxOutputBytes: 524288       # 512 KB — max tool output size before truncation
+  maxConcurrentTools: 3        # Max parallel tool calls per worker session
+
+# Per-server overrides (inherit from above unless specified)
+overrides:
+  test:
+    timeoutSeconds: 600        # Tests may take longer
+    maxOutputBytes: 1048576    # 1 MB — test output can be verbose
+
+  azure:
+    timeoutSeconds: 120        # Azure API calls should be quick
+    maxToolCallsPerTask: 20    # Limit Azure operations more strictly

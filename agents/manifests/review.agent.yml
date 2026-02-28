@@ -1,0 +1,61 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: review-worker
+  displayName: "Review Worker"
+  description: >
+    Performs automated code review against quality gates,
+    security policy, and architectural patterns. Runs after
+    a PR is opened or updated.
+
+spec:
+  workerType: REVIEW
+  topic: agent-reviews
+  subscription: review-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/review/SKILL.md
+    skills:
+      - skills/crosscutting/
+      - patterns/
+    instructions: |
+      Review all artifacts produced by upstream workers. Validate each
+      artifact against the original specification. Check for security
+      anti-patterns and vulnerabilities. Verify architectural patterns
+      and coding standards compliance. Ensure adequate test coverage
+      exists for all new code.
+    resultSchema: |
+      {
+        "issues_found": ["list of issues found"],
+        "severity": "overall severity (PASS, WARN, FAIL)",
+        "summary": "brief summary of the review findings",
+        "recommendations": ["actionable recommendations"]
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Glob
+      - Grep
+    mcpServers:
+      - git
+      - repo-fs
+      - test
+      - openapi
+
+  ownership:
+    ownsPaths:
+      - docs/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 2

@@ -1,0 +1,48 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: test-worker
+  displayName: "Test Worker"
+  description: "A test worker for unit testing the code generator."
+
+spec:
+  workerType: BE
+  workerProfile: test-profile
+  topic: agent-tasks
+  subscription: test-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 8192
+    temperature: 0.1
+
+  prompts:
+    systemPromptFile: skills/test-worker.agent.md
+    skills:
+      - skills/test-skills/
+    instructions: |
+      Implement the test task.
+      Use tools to read and write code.
+    resultSchema: |
+      {
+        "files_created": [],
+        "summary": ""
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Glob
+
+  ownership:
+    ownsPaths:
+      - src/
+    readOnlyPaths:
+      - contracts/
+
+  concurrency:
+    maxConcurrentCalls: 2

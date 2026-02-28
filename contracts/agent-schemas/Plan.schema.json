@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "Plan.schema.json",
+  "title": "Plan",
+  "description": "An execution plan decomposed from a specification into ordered tasks",
+  "type": "object",
+  "required": ["id", "status", "summary", "items", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "spec": {
+      "type": "string",
+      "description": "Original natural language specification"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED"]
+    },
+    "summary": {
+      "type": "string",
+      "description": "Short summary of what this plan accomplishes"
+    },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "PlanItem.schema.json" },
+      "minItems": 1,
+      "maxItems": 20,
+      "description": "Ordered list of tasks to execute"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completedAt": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "failureReason": {
+      "type": ["string", "null"],
+      "description": "Reason for failure if status is FAILED"
+    },
+    "councilReport": {
+      "type": ["string", "null"],
+      "description": "JSON-serialized CouncilReport from the pre-planning council session. Null when the council feature is disabled or not yet executed."
+    }
+  },
+  "additionalProperties": false
+}

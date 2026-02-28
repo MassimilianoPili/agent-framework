@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.agentframework</groupId>
+    <artifactId>agent-framework</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>Agent Framework</name>
+    <description>Multi-agent orchestration framework for AI-driven code generation</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <spring-ai.version>1.0.0</spring-ai.version>
+        <azure-servicebus.version>7.17.4</azure-servicebus.version>
+        <flyway.version>10.20.1</flyway.version>
+        <reactive-tools.version>0.2.0</reactive-tools.version>
+        <mcp-devops-tools.version>0.0.2</mcp-devops-tools.version>
+        <mcp-filesystem-tools.version>0.0.1</mcp-filesystem-tools.version>
+        <mcp-sql-tools.version>0.0.1</mcp-sql-tools.version>
+        <mcp-tracker-tools.version>0.0.1</mcp-tracker-tools.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <modules>
+        <!-- Shared domain types (single source of truth for HookPolicy et al.) -->
+        <module>agent-common</module>
+        <!-- Messaging SPI + providers -->
+        <module>messaging/messaging-api</module>
+        <module>messaging/messaging-jms</module>
+        <module>messaging/messaging-redis</module>
+        <module>messaging/messaging-servicebus</module>
+        <!-- Control Plane -->
+        <module>control-plane/orchestrator</module>
+        <!-- Execution Plane -->
+        <module>execution-plane/agent-compiler-maven-plugin</module>
+        <module>execution-plane/worker-sdk</module>
+        <!-- Generated workers (from agents/manifests/*.agent.yml via agent-compiler-maven-plugin) -->
+        <module>execution-plane/workers/be-java-worker</module>
+        <module>execution-plane/workers/be-go-worker</module>
+        <module>execution-plane/workers/be-rust-worker</module>
+        <module>execution-plane/workers/be-node-worker</module>
+        <module>execution-plane/workers/fe-react-worker</module>
+        <module>execution-plane/workers/ai-task-worker</module>
+        <module>execution-plane/workers/contract-worker</module>
+        <module>execution-plane/workers/review-worker</module>
+        <module>execution-plane/workers/task-manager-worker</module>
+        <module>execution-plane/workers/compensator-manager-worker</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Internal modules -->
+            <dependency>
+                <groupId>com.agentframework</groupId>
+                <artifactId>worker-sdk</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.agentframework</groupId>
+                <artifactId>messaging-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.agentframework</groupId>
+                <artifactId>messaging-jms</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.agentframework</groupId>
+                <artifactId>messaging-redis</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.agentframework</groupId>
+                <artifactId>messaging-servicebus</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Azure Service Bus -->
+            <dependency>
+                <groupId>com.azure</groupId>
+                <artifactId>azure-messaging-servicebus</artifactId>
+                <version>${azure-servicebus.version}</version>
+            </dependency>
+
+            <!-- Flyway -->
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-core</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-database-postgresql</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+
+            <!-- Reactive Tools -->
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>spring-ai-reactive-tools</artifactId>
+                <version>${reactive-tools.version}</version>
+            </dependency>
+
+            <!-- MCP Tool Starters -->
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>mcp-devops-tools</artifactId>
+                <version>${mcp-devops-tools.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>mcp-filesystem-tools</artifactId>
+                <version>${mcp-filesystem-tools.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>mcp-sql-tools</artifactId>
+                <version>${mcp-sql-tools.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>mcp-tracker-tools</artifactId>
+                <version>${mcp-tracker-tools.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <repositories>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+</project>

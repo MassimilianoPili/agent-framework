@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "AgentContext.schema.json",
+  "title": "AgentContext",
+  "description": "Fully assembled context for one agent execution, built by the worker SDK",
+  "type": "object",
+  "required": ["taskKey", "title", "description", "systemPrompt"],
+  "properties": {
+    "taskKey": {
+      "type": "string",
+      "pattern": "^(BE|FE|AI|CT|RV)-[0-9]{3}$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "spec": {
+      "type": "string",
+      "description": "Full original specification from the plan"
+    },
+    "systemPrompt": {
+      "type": "string",
+      "description": "Loaded from the worker's .agent.md skill file"
+    },
+    "dependencyResults": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Map of taskKey -> JSON result string for each completed dependency"
+    },
+    "skillsContent": {
+      "type": "string",
+      "description": "Concatenated content of relevant skill .md files"
+    },
+    "availableMcpTools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of MCP tool names available to this worker"
+    }
+  },
+  "additionalProperties": false
+}

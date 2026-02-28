@@ -1,0 +1,36 @@
+# Allowlist for MCP server: repo-fs
+# Lists the permitted filesystem operations per worker type.
+
+server: repo-fs
+
+operations:
+
+  - name: read_file
+    description: Read file contents from repository
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker, review-worker]
+
+  - name: write_file
+    description: Write a new file to repository
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker]
+    constraints:
+      - enforceOwnership: true  # Worker can only write to paths it owns (repo-layout.yml)
+      - maxFileSize: 102400
+
+  - name: edit_file
+    description: Edit an existing file with string replacement
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker]
+    constraints:
+      - enforceOwnership: true
+      - maxFileSize: 102400
+
+  - name: glob_search
+    description: Find files matching glob patterns
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker, review-worker]
+
+  - name: grep_search
+    description: Search file contents with regex
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker, review-worker]
+
+  - name: list_directory
+    description: List directory contents
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker, review-worker]

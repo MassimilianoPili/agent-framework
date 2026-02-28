@@ -1,0 +1,84 @@
+package com.agentframework.worker.context;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Loads Markdown skill files with filesystem override support.
+ *
+ * Resolution order:
+ * 1. Filesystem override: {@code ${FS_SKILLS_DIR}/<path>} if the env var is set and the file exists.
+ * 2. Classpath fallback: files packed into the worker JAR at build time.
+ * 3. If neither exists: throws RuntimeException (fail-fast at startup or first use).
+ *
+ * Results are cached in memory (skills are immutable at runtime).
+ */
+@Component
+public class SkillLoader {
+
+    private static final Logger log = LoggerFactory.getLogger(SkillLoader.class);
+    private final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
+
+    private final String skillsDir;
+
+    public SkillLoader(@Value("${FS_SKILLS_DIR:}") String skillsDir) {
+        this.skillsDir = skillsDir;
+    }
+
+    /**
+     * Loads a skill file by path (e.g., "skills/be-worker.agent.md").
+     * Tries filesystem override first, then classpath.
+     */
+    public String load(String resourcePath) {
+        return cache.computeIfAbsent(resourcePath, this::resolve);
+    }
+
+    private String resolve(String resourcePath) {
+        // 1. Filesystem override
+        if (skillsDir != null && !skillsDir.isBlank()) {
+            Path fsPath = Path.of(skillsDir, resourcePath);
+            if (Files.isRegularFile(fsPath)) {
+                try {
+                    String content = Files.readString(fsPath, StandardCharsets.UTF_8);
+                    log.info("Loaded '{}' from override ({})", resourcePath, fsPath);
+                    return stripFrontmatter(content);
+                } catch (IOException e) {
+                    log.warn("Filesystem override exists but failed to read: {}", fsPath, e);
+                    // Fall through to classpath
+                }
+            }
+        }
+
+        // 2. Classpath fallback
+        try {
+            ClassPathResource resource = new ClassPathResource(resourcePath);
+            String content = resource.getContentAsString(StandardCharsets.UTF_8);
+            log.info("Loaded '{}' from classpath", resourcePath);
+            return stripFrontmatter(content);
+        } catch (IOException e) {
+            throw new RuntimeException(
+                "Cannot load skill file '" + resourcePath + "' from filesystem or classpath. " +
+                "Set FS_SKILLS_DIR to a directory containing the file, or ensure it's in the JAR.", e);
+        }
+    }
+
+    /**
+     * Strips YAML frontmatter (--- ... ---) from a Markdown file so that only
+     * the body is passed to the LLM as the system prompt. Files without frontmatter
+     * are returned unchanged.
+     */
+    private static String stripFrontmatter(String content) {
+        if (!content.startsWith("---")) return content;
+        int end = content.indexOf("\n---", 3);
+        return end < 0 ? content : content.substring(end + 4).stripLeading();
+    }
+}

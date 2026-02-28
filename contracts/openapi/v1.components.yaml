@@ -1,0 +1,270 @@
+components:
+  parameters:
+    PlanId:
+      name: planId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique identifier of the execution plan
+
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique identifier of the plan item
+
+    SnapshotId:
+      name: snapshotId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique identifier of the plan snapshot
+
+  schemas:
+    PlanRequest:
+      type: object
+      required:
+        - spec
+      properties:
+        spec:
+          type: string
+          minLength: 10
+          description: Natural language specification of what to build
+        constraints:
+          type: object
+          additionalProperties: true
+          description: Optional constraints (database, auth, framework preferences)
+        tags:
+          type: array
+          items:
+            type: string
+          description: Optional tags for categorization
+
+    PlanResponse:
+      type: object
+      required:
+        - id
+        - status
+        - spec
+        - createdAt
+        - items
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/PlanStatus"
+        spec:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        failureReason:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanItemResponse"
+
+    PlanItemResponse:
+      type: object
+      required:
+        - id
+        - ordinal
+        - taskKey
+        - title
+        - workerType
+        - status
+        - dependsOn
+      properties:
+        id:
+          type: string
+          format: uuid
+        ordinal:
+          type: integer
+          minimum: 0
+        taskKey:
+          type: string
+          pattern: "^(BE|FE|AI|CT|RV)-[0-9]{3}$"
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        workerType:
+          $ref: "#/components/schemas/WorkerType"
+        workerProfile:
+          type: string
+          nullable: true
+          pattern: "^[a-z][a-z0-9-]*$"
+        status:
+          $ref: "#/components/schemas/ItemStatus"
+        dependsOn:
+          type: array
+          items:
+            type: string
+        dispatchedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        failureReason:
+          type: string
+          nullable: true
+
+    QualityGateReportResponse:
+      type: object
+      required:
+        - id
+        - planId
+        - passed
+        - generatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        passed:
+          type: boolean
+        summary:
+          type: string
+          nullable: true
+        findings:
+          type: array
+          items:
+            type: string
+        generatedAt:
+          type: string
+          format: date-time
+        metrics:
+          type: object
+          nullable: true
+          description: Quantitative quality metrics (null until metric collection is implemented)
+          properties:
+            testCoverage:
+              type: number
+              minimum: 0
+              maximum: 100
+            securityVulnerabilities:
+              type: integer
+              minimum: 0
+            contractBreakingChanges:
+              type: integer
+              minimum: 0
+            buildPassed:
+              type: boolean
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code (e.g. PLAN_NOT_FOUND, VALIDATION_ERROR)
+        message:
+          type: string
+          description: Human-readable error description
+        traceId:
+          type: string
+          description: Correlation ID for distributed tracing
+        details:
+          type: array
+          items:
+            type: string
+          description: Additional detail messages (e.g. field validation errors)
+
+    PlanStatus:
+      type: string
+      enum:
+        - PENDING
+        - RUNNING
+        - COMPLETED
+        - FAILED
+
+    ItemStatus:
+      type: string
+      enum:
+        - WAITING
+        - DISPATCHED
+        - RUNNING
+        - DONE
+        - FAILED
+
+    WorkerType:
+      type: string
+      enum:
+        - BE
+        - FE
+        - AI_TASK
+        - CONTRACT
+        - REVIEW
+
+    DispatchAttemptResponse:
+      type: object
+      required:
+        - id
+        - attemptNumber
+        - dispatchedAt
+        - success
+      properties:
+        id:
+          type: string
+          format: uuid
+        attemptNumber:
+          type: integer
+          minimum: 1
+        dispatchedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        success:
+          type: boolean
+        failureReason:
+          type: string
+          nullable: true
+        durationMs:
+          type: integer
+          format: int64
+          nullable: true
+
+    PlanSnapshotResponse:
+      type: object
+      required:
+        - id
+        - planId
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        label:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time

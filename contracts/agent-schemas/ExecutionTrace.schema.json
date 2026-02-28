@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ExecutionTrace.schema.json",
+  "title": "ExecutionTrace",
+  "description": "A single trace event within an agent's execution lifecycle",
+  "type": "object",
+  "required": ["traceId", "planId", "itemId", "event", "timestamp"],
+  "properties": {
+    "traceId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique trace event ID"
+    },
+    "planId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "itemId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event": {
+      "type": "string",
+      "enum": ["DISPATCHED", "RECEIVED", "TOOL_CALL", "LLM_CALL", "COMPLETED", "FAILED"],
+      "description": "Type of lifecycle event"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-specific data (tool name, LLM model, error message, etc.)",
+      "additionalProperties": true
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

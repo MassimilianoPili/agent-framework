@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: {{metadataName}}
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: {{modelName}}
+          max-tokens: {{modelMaxTokens}}
+          temperature: {{modelTemperature}}
+
+agent:
+  worker:
+    task-topic: {{topic}}
+    task-subscription: {{subscription}}
+    results-topic: agent-results
+    policy:
+      enabled: true
+      worker-profile: {{workerProfile}}
+      {{#hasOwnsPaths}}
+      owns-paths:
+        {{#ownsPathEntries}}
+        - {{path}}
+        {{/ownsPathEntries}}
+      {{/hasOwnsPaths}}
+      {{^hasOwnsPaths}}
+      owns-paths: []
+      {{/hasOwnsPaths}}
+      write-tool-names:
+        - Write
+        - Edit
+      audit:
+        enabled: true
+        include-input: false
+        max-input-length: 200
+
+logging:
+  level:
+    com.agentframework: INFO

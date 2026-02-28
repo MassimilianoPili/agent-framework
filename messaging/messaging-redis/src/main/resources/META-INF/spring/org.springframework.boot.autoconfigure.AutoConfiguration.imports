@@ -1,0 +1,2 @@
+com.agentframework.messaging.redis.RedisMessagingAutoConfiguration
+com.agentframework.messaging.redis.RedisCacheConfig

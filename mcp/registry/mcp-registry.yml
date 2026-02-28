@@ -1,0 +1,68 @@
+# MCP Server Registry
+# Defines available MCP servers, their transport, and the Maven Central packages
+# that provide the tool implementations.
+
+servers:
+
+  git:
+    description: >
+      Git operations — clone, checkout, commit, push, branch management,
+      diff, log, and merge conflict resolution.
+    transport: stdio
+    package: io.github.massimilianopili:mcp-devops-tools
+    notes: >
+      Part of the mcp-devops-tools multi-module artifact. Provides
+      GitCloneTool, GitCommitTool, GitBranchTool, GitDiffTool, etc.
+      Requires GITHUB_TOKEN or SSH key for remote operations.
+    enabled: true
+
+  repo-fs:
+    description: >
+      Repository filesystem operations — read, write, edit, glob, grep
+      scoped to the working repository. Enforces path ownership rules
+      from config/repo-layout.yml.
+    transport: stdio
+    package: io.github.massimilianopili:mcp-filesystem-tools
+    notes: >
+      Standalone artifact providing ReadFileTool, WriteFileTool,
+      EditFileTool, GlobTool, GrepTool. All operations are sandboxed
+      to the repository root directory. File size limits enforced
+      via mcp/policies/sandbox/limits.yml.
+    enabled: true
+
+  openapi:
+    description: >
+      OpenAPI contract tooling — Spectral lint, oasdiff breaking change
+      detection, schema validation, and client/server codegen trigger.
+    transport: stdio
+    package: io.github.massimilianopili:mcp-devops-tools
+    notes: >
+      Part of mcp-devops-tools. Provides SpectralLintTool,
+      OasdiffBreakingTool, OpenApiValidateTool. Requires Node.js
+      runtime for Spectral and oasdiff binary on PATH.
+    enabled: true
+
+  azure:
+    description: >
+      Azure resource management — Service Bus topic/subscription
+      operations, Container Apps job management, Key Vault secret
+      reads (no writes), and resource group queries.
+    transport: stdio
+    package: io.github.massimilianopili:mcp-devops-tools
+    notes: >
+      Part of mcp-devops-tools. Uses Azure SDK DefaultAzureCredential.
+      Write operations (create/delete) are restricted to non-production
+      environments via policy. Requires AZURE_SUBSCRIPTION_ID.
+    enabled: true
+
+  test:
+    description: >
+      Test execution and reporting — run Maven/Gradle tests, run npm
+      test, collect coverage reports, parse JUnit XML results.
+    transport: stdio
+    package: io.github.massimilianopili:mcp-devops-tools
+    notes: >
+      Part of mcp-devops-tools. Provides MavenTestTool, NpmTestTool,
+      CoverageReportTool. Test execution is sandboxed; the tool
+      cannot modify source files, only read test results.
+    enabled: true

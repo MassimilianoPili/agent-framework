@@ -1,0 +1,76 @@
+# Repo Layout — Path ownership and access control.
+# Defines which worker owns which directory and who can modify what.
+
+ownership:
+
+  - path: backend/
+    owner: be-workers
+    description: Backend application — implementation varies by stack profile
+    allowedWorkers:
+      - be-java-worker
+      - be-go-worker
+      - be-rust-worker
+      - be-node-worker
+      - review-worker    # Read-only for review
+    humanOnly: false
+
+  - path: frontend/
+    owner: fe-workers
+    description: Frontend application — implementation varies by stack profile
+    allowedWorkers:
+      - fe-react-worker
+      - review-worker
+    humanOnly: false
+
+  - path: contracts/
+    owner: contract-worker
+    description: OpenAPI specs, Spectral rules, codegen config
+    allowedWorkers:
+      - contract-worker
+      - review-worker
+    humanOnly: false
+
+  - path: infra/
+    owner: humans-only
+    description: Terraform, Bicep, Docker Compose, CI/CD pipelines
+    allowedWorkers: []
+    humanOnly: true
+    reason: Infrastructure changes require human review and approval
+
+  - path: control-plane/
+    owner: humans-only
+    description: Orchestrator, plan engine, Service Bus wiring
+    allowedWorkers: []
+    humanOnly: true
+    reason: Control plane changes affect all workers and require careful review
+
+  - path: config/
+    owner: humans-only
+    description: Agent registry, quality gates, policies
+    allowedWorkers: []
+    humanOnly: true
+    reason: Policy changes must be deliberate human decisions
+
+  - path: patterns/
+    owner: humans-only
+    description: Architectural pattern documentation
+    allowedWorkers:
+      - review-worker    # Read-only for review reference
+    humanOnly: true
+
+  - path: skills/
+    owner: humans-only
+    description: Skill files injected into worker context
+    allowedWorkers: []
+    humanOnly: true
+
+  - path: scripts/
+    owner: humans-only
+    description: Utility scripts for local dev and CI
+    allowedWorkers: []
+    humanOnly: true
+
+# Paths not listed here default to:
+defaults:
+  humanOnly: true
+  allowedWorkers: []

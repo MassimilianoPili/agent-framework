@@ -1,0 +1,49 @@
+# Allowlist for MCP server: git
+# Lists the permitted tool operations per worker type.
+
+server: git
+
+operations:
+
+  - name: git_clone
+    description: Clone a repository to local workspace
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker]
+
+  - name: git_checkout
+    description: Checkout a branch or create a new one
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker]
+
+  - name: git_commit
+    description: Stage and commit changes
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker]
+
+  - name: git_push
+    description: Push commits to remote
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker]
+    constraints:
+      - neverForcePush: true
+      - protectedBranches: [main, develop, release/*]
+
+  - name: git_branch
+    description: Create, list, or delete branches
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker]
+    constraints:
+      - cannotDelete: [main, develop]
+
+  - name: git_diff
+    description: Show diff between refs or working tree
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker, review-worker]
+
+  - name: git_log
+    description: Show commit log
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker, review-worker]
+
+  - name: git_merge
+    description: Merge branches
+    allowedWorkers: [ai-task-worker]
+    constraints:
+      - requireNoConflicts: true
+
+  - name: git_status
+    description: Show working tree status
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, contract-worker, review-worker]

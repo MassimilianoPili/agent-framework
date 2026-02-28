@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: compensator-manager-worker
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: claude-sonnet-4-6
+          max-tokens: 8192
+          temperature: 0.1   # Low temperature: deterministic rollback, not creative writing
+
+agent:
+  worker:
+    task-topic: agent-tasks
+    task-subscription: compensator-manager-worker-sub
+    results-topic: agent-results
+    policy:
+      enabled: true
+      worker-profile: compensator-manager
+      owns-paths:
+        - "."        # COMPENSATOR_MANAGER may restore any file in the workspace
+      write-tool-names:
+        - "git_revert"
+        - "git_checkout"
+        - "git_stash"
+        - "write_file"
+      audit:
+        enabled: true     # All git mutations must be auditable
+        include-input: true
+        max-input-length: 500
+
+logging:
+  level:
+    com.agentframework: INFO

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "QualityGateReport.schema.json",
+  "title": "QualityGateReport",
+  "description": "Quality gate assessment generated after all plan tasks complete",
+  "type": "object",
+  "required": ["id", "planId", "passed", "summary", "generatedAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "planId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "passed": {
+      "type": "boolean",
+      "description": "Overall pass/fail based on quality thresholds"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Claude-generated quality summary"
+    },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Individual findings — each a human-readable observation"
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "testCoverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "securityVulnerabilities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contractBreakingChanges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "buildPassed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
