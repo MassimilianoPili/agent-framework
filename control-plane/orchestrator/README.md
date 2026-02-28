@@ -204,6 +204,7 @@ tramite `SseEmitterRegistry.broadcast()`.
 | V12 | (alter) `plan_items` + `plans` | SUB_PLAN: `child_plan_id`, `await_completion`, `sub_plan_spec`; gerarchie: `depth`, `parent_plan_id` |
 | V13 | (alter) `plans` | `council_report` (TEXT) — output del pre-planning council session |
 | V14 | (alter) `plan_items` + `worker_elo_stats` + `preference_pairs` | Reward signal: 4 colonne su plan_items (`review_score`, `process_score`, `aggregated_reward`, `reward_sources`); tabella ELO stats per profilo; tabella DPO preference pairs |
+| V15 | `vector_store` + estensione pgvector | RAG: tabella `vector_store` con `vector(1024)`, indice HNSW (cosine), GIN su metadata JSONB e tsvector FTS, trigger auto-update `search_vector` |
 
 ## Feature avanzate
 

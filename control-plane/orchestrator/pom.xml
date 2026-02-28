@@ -24,6 +24,12 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- RAG Engine (optional — auto-configures when present) -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>rag-engine</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

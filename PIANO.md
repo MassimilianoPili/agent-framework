@@ -350,3 +350,377 @@ HookPolicy extensions (10) ───► Token budget (6) — maxTokenBudget task
 | 10 | HookPolicy extensions | 2g | Alto | — |
 | 4 | COMPENSATOR_MANAGER | 2g | Medio | — |
 | lib | Modulo agent-common (HookPolicy) | 0.5g | Medio | — |
+| **RAG** | **RAG Pipeline + Graph RAG (3 sessioni)** | **10g** | **Molto alto** | — |
+
+---
+---
+
+# RAG Pipeline + Graph RAG — Piano Dettagliato (3 Sessioni)
+
+> Riferimento unico per le 3 sessioni di implementazione. Aggiunge ricerca semantica,
+> graph RAG e un worker dedicato `RAG_MANAGER` al framework.
+
+## Contesto RAG
+
+Il `CONTEXT_MANAGER` oggi usa retrieval puramente file-based (Glob/Grep/Read). Non scala su
+codebase grandi e non cattura relazioni semantiche. L'obiettivo e' una pipeline RAG completa
+con graph RAG ibrido, integrata come `RAG_MANAGER` worker dedicato nel DAG dei task.
+
+## Decisioni Architetturali RAG
+
+| Aspetto | Scelta | Motivazione |
+|---|---|---|
+| **Vector DB** | pgvector (tabella unica + tsvector BM25) | Zero nuovi container, riusa PostgreSQL, hybrid search in 1 query SQL |
+| **Cache** | Redis DB 5 | Riusa Redis esistente, embedding cache (24h TTL) + search cache (1h TTL) |
+| **Embedding** | `mxbai-embed-large` via Ollama (1024 dim) | Top MTEB 64.68, retrieval 54.39, batte OpenAI. 670MB modello |
+| **Reranking** | Cascata: cosine re-scoring → LLM scorer (`qwen2.5:1.5b`) | Stage 1 veloce (~1ms, top 20→10), stage 2 preciso (~100ms, top 10→5-8) |
+| **Grafi** | Apache AGE su PostgreSQL, 2 grafi | `knowledge_graph` (chunk + task + decisioni) + `code_graph` (strutturale) |
+| **Chunking** | Recursive per codice, proposition per docs | Doppia strategia per tipo file. Recursive = 69% accuracy (benchmark) |
+| **Integrazione** | `RAG_MANAGER` worker dedicato | Risultati via dependencyResults (zero modifiche ad AgentContext) |
+| **Ingestion** | API + PlanCompletedEvent + file watcher | Manuale, automatica su plan complete, incrementale su cambio file |
+| **Architettura** | Modulare (Spring AI abstractions) | Swap embedding/vectorstore/reranker cambiando solo YAML |
+
+### Perche' RAG_MANAGER come worker dedicato
+
+Si integra nel DAG dei task come `CONTEXT_MANAGER` e `SCHEMA_MANAGER`. I risultati fluiscono
+ai domain worker via `dependencyResults` (meccanismo gia' esistente). **Zero modifiche** al
+record `AgentContext`, al `WorkerInterceptor`, o al `buildStandardUserPrompt()`.
+
+### Perche' 2 grafi e non 3
+
+`knowledge_graph` e `task_graph` sono sovrapponibili: i task sono nodi nel grafo della conoscenza.
+I cluster di task emergono dalla topologia del grafo (community detection).
+Il `code_graph` e' separato ma correlato via `filePath`.
+
+---
+
+## Struttura Modulo `shared/rag-engine`
+
+Libreria condivisa (non Spring Boot app), usata da orchestrator e worker.
+Auto-configuration + `@ConfigurationProperties("rag")`.
+
+```
+shared/rag-engine/
+├── pom.xml
+└── src/
+    ├── main/java/com/agentframework/rag/
+    │   ├── config/
+    │   │   ├── RagAutoConfiguration.java           # @AutoConfiguration master
+    │   │   ├── RagProperties.java                  # @ConfigurationProperties("rag")
+    │   │   ├── PgVectorStoreConfig.java            # VectorStore bean (pgvector, 1024 dim)
+    │   │   ├── OllamaEmbeddingConfig.java          # EmbeddingModel bean (mxbai-embed-large)
+    │   │   └── RagCacheConfig.java                 # Redis DB 5
+    │   ├── ingestion/
+    │   │   ├── IngestionPipeline.java              # Orchestratore 5 fasi
+    │   │   ├── IngestionService.java               # API alto livello + trigger
+    │   │   ├── CodeDocumentReader.java             # DocumentReader per file code
+    │   │   ├── FileWatcherService.java             # inotify/polling + debounce
+    │   │   ├── chunking/
+    │   │   │   ├── ChunkingStrategy.java           # sealed interface
+    │   │   │   ├── RecursiveCodeChunker.java       # .java/.go/.rs — 512 tok, confini metodo
+    │   │   │   └── PropositionChunker.java         # .md/.yml — fatti atomici via LLM
+    │   │   └── enrichment/
+    │   │       ├── ContextualEnricher.java         # Pattern Anthropic: contesto 50-100 tok
+    │   │       └── MetadataEnricher.java           # Entities, language, docType
+    │   ├── search/                                  # ← Sessione 2
+    │   │   ├── RagSearchService.java               # API unificata
+    │   │   ├── HybridSearchService.java            # pgvector + FTS + RRF
+    │   │   ├── HydeQueryTransformer.java           # Risposta ipotetica → embedding → search
+    │   │   └── reranking/
+    │   │       ├── Reranker.java                   # Interface
+    │   │       ├── CascadeReranker.java            # Cosine → LLM (2 stage)
+    │   │       ├── CosineReranker.java             # Stage 1 (~1ms)
+    │   │       ├── LlmReranker.java                # Stage 2 (~100ms)
+    │   │       └── NoOpReranker.java               # Passthrough
+    │   ├── graph/                                   # ← Sessione 2
+    │   │   ├── GraphService.java                   # API alto livello
+    │   │   ├── KnowledgeGraphService.java          # CRUD knowledge_graph (AGE + Cypher)
+    │   │   ├── CodeGraphService.java               # CRUD code_graph + AST-like analysis
+    │   │   └── GraphRagService.java                # Cross-graph queries
+    │   ├── model/
+    │   │   ├── CodeChunk.java                      # Record: content, contextPrefix, metadata
+    │   │   ├── ChunkMetadata.java                  # Record: filePath, language, entities, docType
+    │   │   ├── SearchResult.java                   # Record: chunks, scores, searchMode
+    │   │   ├── SearchFilters.java                  # Record: language, filePathPattern, maxResults
+    │   │   ├── ScoredChunk.java                    # Record: chunk, score, rerankerStage
+    │   │   └── IngestionReport.java                # Record: filesProcessed, chunksCreated, errors
+    │   ├── cache/
+    │   │   └── EmbeddingCacheService.java          # Redis: embedding (24h) + search (1h)
+    │   └── tool/                                    # ← Sessione 3
+    │       └── SemanticSearchTool.java             # @ReactiveTool
+    └── main/resources/META-INF/spring/
+        └── org.springframework.boot.autoconfigure.AutoConfiguration.imports
+```
+
+---
+
+## Sessione 1 — Infrastruttura + Ingestion Pipeline ✅ COMPLETATA
+
+> **Stato**: completata il 2026-02-28. 53 test verdi in `shared/rag-engine`, 208 in orchestrator (261 totali).
+> Build verificata: `mvn clean install -pl shared/rag-engine,control-plane/orchestrator -am`
+
+### S1-A. Docker Compose
+
+**`docker/docker-compose.dev.yml`** e **`docker-compose.sol.yml`**:
+- `postgres:16-alpine` → `pgvector/pgvector:pg16`
+- Aggiungere servizio `ollama`
+
+```yaml
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agentfw-ollama
+    networks: [shared]
+    ports: ["11434:11434"]
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+    restart: unless-stopped
+```
+
+SOL: aggiungere `OLLAMA_BASE_URL=http://ollama:11434` ai worker RAG.
+
+### S1-B. Flyway V15 — pgvector + BM25
+
+`control-plane/orchestrator/src/main/resources/db/migration/V15__enable_pgvector_and_rag.sql`
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS vector_store (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    content       TEXT NOT NULL,
+    metadata      JSONB DEFAULT '{}',
+    embedding     vector(1024),          -- mxbai-embed-large: 1024 dimensioni
+    search_vector tsvector               -- BM25 full-text search
+);
+
+CREATE INDEX idx_vector_store_embedding ON vector_store
+    USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 200);
+CREATE INDEX idx_vector_store_metadata ON vector_store
+    USING gin (metadata jsonb_path_ops);
+CREATE INDEX idx_vector_store_fts ON vector_store
+    USING gin (search_vector);
+
+CREATE OR REPLACE FUNCTION update_search_vector() RETURNS trigger AS $$
+BEGIN
+    NEW.search_vector := to_tsvector('english', NEW.content);
+    RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_search_vector
+    BEFORE INSERT OR UPDATE OF content ON vector_store
+    FOR EACH ROW EXECUTE FUNCTION update_search_vector();
+```
+
+### S1-C. Modulo Maven `shared/rag-engine`
+
+Root `pom.xml`: `<module>shared/rag-engine</module>` + dependency management.
+
+Dipendenze:
+- `spring-ai-pgvector-store-spring-boot-starter`
+- `spring-ai-ollama-spring-boot-starter`
+- `spring-boot-starter-data-redis`
+- `spring-boot-starter-data-jdbc`
+- `io.github.massimilianopili:spring-ai-reactive-tools`
+
+### S1-D. RagProperties
+
+```java
+@ConfigurationProperties("rag")
+public record RagProperties(
+    boolean enabled,                        // true
+    Ingestion ingestion,
+    Search search,
+    Ollama ollama,
+    Cache cache
+) {
+    public record Ingestion(
+        int chunkSize,                      // 512
+        int chunkOverlap,                   // 100
+        boolean contextualEnrichment,       // true
+        int maxFileSizeKb,                  // 500
+        List<String> includeExtensions,     // [java, yml, yaml, md, xml, json, go, rs, js, ts, py, sql]
+        boolean fileWatcherEnabled          // false
+    ) {}
+    public record Search(
+        boolean hybridEnabled,              // true
+        boolean hydeEnabled,                // true
+        String rerankerType,                // "cascade"
+        int topK,                           // 20
+        int finalK,                         // 8
+        double similarityThreshold,         // 0.5
+        int rrfK                            // 60
+    ) {}
+    public record Ollama(
+        String embeddingModel,              // mxbai-embed-large
+        String rerankingModel,              // qwen2.5:1.5b
+        String baseUrl                      // http://ollama:11434
+    ) {}
+    public record Cache(
+        int redisDb,                        // 5
+        int embeddingTtlHours,              // 24
+        int searchResultTtlMinutes          // 60
+    ) {}
+}
+```
+
+### S1-E. Ingestion Components
+
+| Classe | Responsabilita' |
+|---|---|
+| `CodeDocumentReader` | Scansiona directory, filtra estensione/size, crea `Document` Spring AI |
+| `RecursiveCodeChunker` | `.java/.go/.rs/.js/.ts/.py` — 512 tok, 100 overlap, confini metodo |
+| `PropositionChunker` | `.md/.yml/.xml` — fatti atomici via LLM, fallback split per headers |
+| `ContextualEnricher` | Pattern Anthropic: Claude genera 50-100 tok contesto, prepend a chunk |
+| `MetadataEnricher` | Language, entities (classi/package), docType, keyphrases |
+| `IngestionPipeline` | Orchestra 5 fasi: extract → chunk → enrich → embed → index |
+| `IngestionService` | API + `@EventListener(PlanCompletedEvent)` + scheduling |
+| `FileWatcherService` | WatchService NIO (inotify Linux), debounce 5s |
+
+### S1-F. Test (~43)
+
+`RagPropertiesTest` (5), `RecursiveCodeChunkerTest` (8), `PropositionChunkerTest` (6),
+`ContextualEnricherTest` (4), `MetadataEnricherTest` (5), `IngestionPipelineTest` (6),
+`EmbeddingCacheServiceTest` (5), `CodeDocumentReaderTest` (4).
+
+---
+
+## Sessione 2 — Search Pipeline + Apache AGE Graphs
+
+### S2-A. Search Pipeline
+
+| Classe | Responsabilita' |
+|---|---|
+| `HybridSearchService` | pgvector similarity + PostgreSQL FTS + RRF fusion (k=60) |
+| `HydeQueryTransformer` | Claude genera risposta ipotetica → embedda → cerca |
+| `CascadeReranker` | Compone: CosineReranker (top 10) → LlmReranker (top 5-8) |
+| `RagSearchService` | Pipeline: query → [HyDE] → hybrid → cascade rerank → risultati |
+
+**RRF**: `score(d) = 1/(k + rank_vector(d)) + 1/(k + rank_bm25(d))`, k=60
+
+### S2-B. Flyway V16 — Apache AGE
+
+```sql
+CREATE EXTENSION IF NOT EXISTS age;
+LOAD 'age';
+SET search_path = ag_catalog, "$user", public;
+SELECT create_graph('knowledge_graph');
+SELECT create_graph('code_graph');
+```
+
+### S2-C. Graph Services
+
+| Classe | Responsabilita' |
+|---|---|
+| `KnowledgeGraphService` | Nodi: Chunk, Concept, Decision, Task. Archi: REFERENCES, DEPENDS_ON, SIMILAR_TO |
+| `CodeGraphService` | Nodi: File, Class, Method, Package. Archi: IMPORTS, EXTENDS, CALLS, CONTAINS |
+| `GraphRagService` | Cross-graph: knowledge ↔ code via filePath |
+
+### S2-D. Test (~47)
+
+`HybridSearchServiceTest` (7), `HydeQueryTransformerTest` (4), `CascadeRerankerTest` (6),
+`CosineRerankerTest` (3), `LlmRerankerTest` (5), `RagSearchServiceTest` (6),
+`KnowledgeGraphServiceTest` (6), `CodeGraphServiceTest` (6), `GraphRagServiceTest` (4).
+
+---
+
+## Sessione 3 — RAG_MANAGER Worker + Integrazione Completa
+
+### S3-A. RAG_MANAGER Worker
+
+Output JSON:
+```json
+{
+  "semantic_chunks": [{"content": "...", "filePath": "...", "score": 0.87, "context": "..."}],
+  "graph_insights": [{"type": "code_dependency", "source": "...", "target": "...", "relation": "IMPORTS"}],
+  "related_files": ["path/to/file1.java"],
+  "search_metadata": {"mode": "hybrid+hyde+cascade", "totalCandidates": 20, "rerankStages": 2}
+}
+```
+
+### S3-B. SemanticSearch MCP Tool
+
+`@ReactiveTool(name="SemanticSearch")` per CONTEXT_MANAGER e RAG_MANAGER.
+
+### S3-C. Council Enrichment
+
+`CouncilRagEnricher`: cerca decisioni passate dal knowledge_graph.
+`CouncilService`: inietta `Optional<CouncilRagEnricher>`.
+
+### S3-D. Orchestrator Integration
+
+- `RAG_MANAGER` in `WorkerProfileRegistry` e `PlannerService`
+- Dispatch via messaging (come qualsiasi worker)
+
+### S3-E. Test (~23)
+
+`SemanticSearchToolTest` (4), `RagManagerWorkerTest` (6), `CouncilRagEnricherTest` (4),
+`FileWatcherServiceTest` (4), `IngestionServiceTest` (5).
+
+---
+
+## Riepilogo File per Sessione
+
+| Sessione | File nuovi | File mod | Test nuovi | Test totali |
+|---|---|---|---|---|
+| **S1** (Infra + Ingestion) ✅ | 25 | 5 | 53 | 261 |
+| **S2** (Search + Graph) | ~15 | ~1 | ~47 | 298 |
+| **S3** (RAG_MANAGER + Integ.) | ~10 | ~5 | ~23 | 321 |
+
+---
+
+## Configurazione YAML RAG
+
+```yaml
+rag:
+  enabled: true
+  ollama:
+    embedding-model: mxbai-embed-large
+    reranking-model: qwen2.5:1.5b
+    base-url: ${OLLAMA_BASE_URL:http://ollama:11434}
+  ingestion:
+    chunk-size: 512
+    chunk-overlap: 100
+    contextual-enrichment: true
+    max-file-size-kb: 500
+    include-extensions: [java, yml, yaml, md, xml, json, go, rs, js, ts, py, sql]
+    file-watcher-enabled: false
+  search:
+    hybrid-enabled: true
+    hyde-enabled: true
+    reranker-type: cascade
+    top-k: 20
+    final-k: 8
+    similarity-threshold: 0.5
+    rrf-k: 60
+  cache:
+    redis-db: 5
+    embedding-ttl-hours: 24
+    search-result-ttl-minutes: 60
+```
+
+---
+
+## Verifica End-to-End (post Sessione 3)
+
+1. `mvn clean install` — ~321 test verdi
+2. `docker compose -f docker/docker-compose.dev.yml up -d` — pgvector, redis, ollama
+3. `docker exec agentfw-ollama ollama pull mxbai-embed-large && ollama pull qwen2.5:1.5b`
+4. Flyway applica V15 (pgvector) + V16 (AGE) al boot
+5. Ingestion di `execution-plane/worker-sdk/src/` → chunk + grafi
+6. Semantic search: "bounded thread pool executor" → CouncilService, AsyncConfig
+7. Graph query: "classi che estendono AbstractWorker" → lista worker dal code_graph
+8. RAG_MANAGER produce dependency result → domain worker riceve contesto arricchito
+
+## Fonti RAG
+
+- [Ollama Embedding Models Guide (2025)](https://collabnix.com/ollama-embedded-models-the-complete-technical-guide-for-2025-enterprise-deployment/)
+- [Best Embedding Models 2026](https://elephas.app/blog/best-embedding-models)
+- [MTEB Benchmark Rankings](https://supermemory.ai/blog/best-open-source-embedding-models-benchmarked-and-ranked/)
+- [mxbai-embed-large su Ollama](https://ollama.com/library/mxbai-embed-large)
+- [Anthropic Contextual Retrieval](https://docs.anthropic.com/en/docs/build-with-claude/retrieval-augmented-generation)
+- [Apache AGE — Graph Extension for PostgreSQL](https://age.apache.org/)
+- [Spring AI VectorStore Documentation](https://docs.spring.io/spring-ai/reference/api/vectordbs.html)
