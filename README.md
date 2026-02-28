@@ -18,13 +18,18 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 - Messaging is pluggable (`redis` default, `jms`, `servicebus`).
 - Structured execution provenance (`Provenance` record) attached to every `AgentResult`: token usage, tools used, prompt/skills hashes, trace correlation, timing.
 - Dispatch metadata (`attemptNumber`, `dispatchAttemptId`, `traceId`, `dispatchedAt`) propagated from orchestrator to worker via `AgentTask`.
-- REST API with 13+ endpoints: plan CRUD, quality gate, retry, dispatch attempts, snapshots, restore, SSE event streaming, resume, human approval, compensation.
+- REST API with 20+ endpoints: plan CRUD, quality gate, retry, dispatch attempts, snapshots, restore, SSE event streaming, resume, human approval, compensation, council report, issue snapshots, rewards, ELO stats, DPO pairs.
 - **Token Budget**: per-plan token ceiling via `PlanRequest.Budget` (onExceeded: `FAIL_FAST` | `NO_NEW_DISPATCH` | `SOFT_LIMIT`); PostgreSQL tracking via `plan_token_usage` table.
 - **SSE Event Streaming**: `GET /api/v1/plans/{id}/events` — Server-Sent Events with late-join replay via `Last-Event-ID`; backed by append-only `PlanEvent` log (hybrid event sourcing).
 - **Human Approval (AWAITING_APPROVAL)**: tasks with `riskLevel=CRITICAL` are held before dispatch; released via `POST .../items/{itemId}/approve` or failed via `POST .../items/{itemId}/reject`.
 - **COMPENSATOR_MANAGER**: saga-based compensating transactions via dedicated worker; triggered via `POST .../items/{itemId}/compensate`.
 - **SUB_PLAN**: orchestrator-inline hierarchical sub-plans; depth-guarded (default max-depth: 3); `awaitCompletion` flag controls fire-and-forget vs blocking dispatch.
 - **agent-common module**: canonical `HookPolicy`, `ApprovalMode`, `RiskLevel` in `com.agentframework.common.policy` — single source of truth shared by orchestrator and worker-sdk.
+- **Reward Signal System**: multi-source Bayesian scoring per `PlanItem` (`reviewScore` weight 0.50 + `processScore` weight 0.30 + `qualityGateScore` fallback 0.20); ELO ratings per worker profile (K=32, chess-like) and DPO preference pairs generated automatically at plan completion. Zero additional LLM calls.
+- **Council System**: pre-planning advisory sessions with dynamic member selection (`MANAGER` + `SPECIALIST` workers via `COUNCIL_MANAGER`); `CouncilReport` (8-field record) injected into `PlannerService` to guide task decomposition.
+- **Missing-Context Feedback Loop**: workers signal `missing_context` in `AgentResult` → orchestrator auto-creates a `CONTEXT_MANAGER` task for the missing files → original item re-dispatched with enriched context.
+- **Auto-Retry with Backoff**: `AutoRetryScheduler` polls for failed items with `nextRetryAt` in the past; exponential backoff (`baseDelay × 2^(attempt-1)`); auto-pauses plan after `attemptsBeforePause` failures.
+- **TrackerSyncService**: external issue tracker synchronization, controlled by `tracker.sync.enabled` feature-flag (`@ConditionalOnProperty`, disabled by default).
 
 ## Architecture
 
@@ -43,6 +48,7 @@ sequenceDiagram
     participant W as BE / FE / AI_TASK
     participant RW as REVIEW
     participant QG as Quality Gate
+    participant RS as Reward System
 
     User->>API: POST /api/v1/plans {spec, budget?}
     API->>Planner: decompose(spec)
@@ -90,6 +96,13 @@ sequenceDiagram
     W-->>Orch: AgentResult {files_created, files_modified, tokenUsage}
 
     Orch->>DB: mark DONE · record token usage · trigger dependents
+    Orch->>RS: computeProcessScore(item, result)
+    Note over RS: tokenEff · retryPenalty · durationEff → processScore [0,1]
+
+    alt workerType == REVIEW
+        Orch->>RS: distributeReviewScore(reviewItem)
+        Note over RS: parse per_task JSON → reviewScore per item [-1,+1]
+    end
 
     alt All items terminal
         Orch->>QG: evaluate plan
@@ -97,6 +110,12 @@ sequenceDiagram
         SB->>RW: review task
         RW-->>Orch: QualityGateReport
         Orch-->>User: plan complete (SSE: PLAN_COMPLETED)
+        QG->>RS: distributeQualityGateSignal(planId, passed)
+        Note over RS: fallback qualityGateScore for items without reviewScore
+        RS->>RS: EloRatingService.updateRatingsForPlan()
+        Note over RS: pairwise ELO update (K=32) per workerType group
+        RS->>RS: PreferencePairGenerator.generateForPlan()
+        Note over RS: DPO pairs: cross-profile + retry (deltaReward ≥ 0.3)
     else Item FAILED (retry budget > 0)
         Orch->>SB: re-dispatch with attemptNumber++
     else Compensation requested
@@ -104,6 +123,59 @@ sequenceDiagram
         Orch->>SB: AgentTask(COMPENSATOR_MANAGER)
         Note over SB,W: git_revert · git_checkout to roll back workspace
     end
+```
+
+### Pipeline Overview
+
+```text
+┌─────────┐     ┌──────────┐     ┌──────────┐
+│  User    │────▶│ REST API │────▶│ Planner  │
+│ (spec)   │     │ POST /   │     │ (Claude) │
+└─────────┘     └──────────┘     └────┬─────┘
+                                      │ decompose
+                                      ▼
+                              ┌───────────────┐
+                              │  Plan + Items  │
+                              │  (PostgreSQL)  │
+                              └───────┬───────┘
+                                      │ dispatch ready items
+                    ┌─────────────────┼─────────────────┐
+                    ▼                 ▼                  ▼
+            ┌──────────────┐ ┌──────────────┐   ┌─────────────┐
+            │   CONTEXT    │ │    SCHEMA    │   │   (other    │
+            │   MANAGER    │ │    MANAGER   │   │   items…)   │
+            │ Glob·Grep·   │ │ interfaces·  │   │             │
+            │ Read         │ │ DTOs·schemas │   │             │
+            └──────┬───────┘ └──────┬───────┘   └─────────────┘
+                   │                │
+                   └───────┬────────┘
+                           ▼
+                   ┌──────────────┐
+                   │ HOOK MANAGER │
+                   │  per-task    │
+                   │  HookPolicy  │
+                   └──────┬───────┘
+                          │
+            ┌─────────────┼─────────────────┐
+            │             │                 │
+            ▼             ▼                 ▼
+    ┌─────────────┐ ┌──────────┐   ┌──────────────┐
+    │ BE Worker   │ │ FE Worker│   │  AI_TASK /   │
+    │ (java/go/   │ │ (react)  │   │  CONTRACT    │
+    │  rust/node) │ │          │   │              │
+    └──────┬──────┘ └────┬─────┘   └──────┬───────┘
+           │             │                │
+           └─────────────┼────────────────┘
+                         ▼
+                 ┌──────────────┐
+                 │   REVIEW     │
+                 │ Quality Gate │
+                 └──────┬───────┘
+                        ▼
+                ┌───────────────┐
+                │ Reward System │
+                │  ELO · DPO   │
+                └───────────────┘
 ```
 
 1. `POST /api/v1/plans` creates a plan request (or `GET` to list, `GET /{planId}` to fetch).
@@ -159,10 +231,15 @@ sequenceDiagram
 | Task Manager | `TASK_MANAGER` | n/a | `agent-tasks` | `task-manager-worker-sub` | `issues/` |
 | Compensator | `COMPENSATOR_MANAGER` | n/a | `agent-tasks` | `compensator-manager-worker-sub` | `.` |
 | Sub-Plan | `SUB_PLAN` | — | — | — | — (handled inline by orchestrator) |
+| Council Manager | `COUNCIL_MANAGER` | n/a | — | — | — (in-process, pre-planning) |
+| Manager (Advisory) | `MANAGER` | n/a | `agent-advisory` | — | (none, read-only) |
+| Specialist (Advisory) | `SPECIALIST` | n/a | `agent-advisory` | — | (none, read-only) |
 
 `CONTEXT_MANAGER` and `SCHEMA_MANAGER` workers have read-only access to the full repository (`readOnlyPaths: ["."]`). They use `Glob`, `Grep`, and `Read` to explore and produce structured context for downstream workers. Domain workers (BE/FE/AI_TASK) no longer have `Glob` or `Grep` in their allowlist — all file discovery is delegated to these managers.
 
 `HOOK_MANAGER` runs after `SCHEMA_MANAGER` and before domain workers. It receives the CM and SM results as context and produces a `{"policies": {taskKey → HookPolicy}}` map that the orchestrator injects into subsequent `AgentTask` messages. `AUDIT_MANAGER` and `EVENT_MANAGER` are optional plan stages that respectively generate audit reports and react to hook violations.
+
+`COUNCIL_MANAGER` runs in-process (no message broker hop) during pre-planning. It dynamically selects `MANAGER` and `SPECIALIST` advisory workers based on the plan specification, consults them in parallel via the `agent-advisory` topic, and synthesizes their recommendations into a `CouncilReport`. See the [Council System](#council-system-advisory-pre-planning) section below.
 
 All task workers share the unified `agent-tasks` topic. Azure Service Bus routes messages
 to the correct worker subscription via SQL filter: multi-stack types (BE, FE) filter on
@@ -222,6 +299,11 @@ spec:
       - Bash
     # Note: Glob and Grep are NOT listed — domain workers delegate file discovery
     # to CONTEXT_MANAGER and SCHEMA_MANAGER dependency tasks.
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
 
   ownership:
     ownsPaths:
@@ -240,6 +322,7 @@ Key sections:
 - `spec.ownership.ownsPaths` — runtime write enforcement via `PolicyProperties`
 - `spec.ownership.readOnlyPaths` — additional readable paths (empty for domain workers; `["."]` for `CONTEXT_MANAGER`)
 - `spec.tools.dependencies` — Maven coordinates of MCP tool starters added to generated `pom.xml`
+- `spec.tools.mcpServers` — logical MCP server names (from `mcp/registry/mcp-registry.yml`); when `SPRING_PROFILES_ACTIVE=mcp`, the worker connects to these servers via SSE transport instead of using in-process tool libraries
 
 ## Agent Compiler Plugin
 
@@ -270,7 +353,8 @@ Generated artifacts per worker module:
 - `src/main/java/.../XxxWorker.java` — `AbstractWorker` subclass with tool allowlist, skills, instructions
 - `src/main/java/.../XxxWorkerApplication.java` — Spring Boot entry point
 - `src/main/resources/application.yml` — Spring config with model, messaging, and policy settings
-- `pom.xml` — Maven descriptor with tool dependencies
+- `src/main/resources/application-mcp.yml` — Spring AI MCP client config (activated via `mcp` profile); only generated when `mcpServers` is declared in the manifest
+- `pom.xml` — Maven descriptor with tool dependencies (includes `spring-ai-starter-mcp-client` when `mcpServers` is present)
 - `Dockerfile` — Container image build descriptor
 
 ## Policy Enforcement
@@ -363,6 +447,73 @@ agent.worker.policy:
 
 Override at deploy time via env vars: `AGENT_WORKER_POLICY_OWNS_PATHS_0=backend/`.
 
+## MCP Client Mode
+
+Workers can consume tools in two modes, selectable at deploy time via Spring Boot profiles:
+
+### Mode A: In-Process (default)
+
+Tool libraries are embedded in the worker JVM as Maven dependencies (`mcp-devops-tools`, `mcp-filesystem-tools`, etc.). Their `@ReactiveTool` beans are classpath-scanned and registered as `ToolCallbackProvider` beans. This is the default behavior when no `mcp` profile is active.
+
+### Mode B: External MCP Server (profile `mcp`)
+
+Workers connect to external MCP server(s) via SSE transport. Spring AI's `spring-ai-starter-mcp-client` auto-registers `SyncMcpToolCallbackProvider` beans that implement `ToolCallbackProvider` — they enter the `WorkerChatClientFactory` pipeline identically to in-process tools. Allowlist filtering and `PolicyEnforcingToolCallback` work without changes.
+
+Activated with `SPRING_PROFILES_ACTIVE=mcp`.
+
+```
+Worker JVM                              External MCP Server
+  |                                       |
+  +-- spring-ai-starter-mcp-client        +-- @ReactiveTool beans
+  |       SSE connection ----------------->      (all tools)
+  |       SyncMcpToolCallbackProvider     |
+  |                                       +-- /sse endpoint
+  +-- WorkerChatClientFactory (unchanged)
+  |       allowlist filter -> PolicyEnforcingToolCallback wrapper
+  |
+  v
+ChatClient -> Claude -> tool calls -> SSE -> MCP server -> results
+```
+
+### Mode C: Hybrid (profile `mcp` + partial in-process)
+
+Some tools come from external MCP servers, others remain in-process. The compiler generates `application-mcp.yml` with `spring.autoconfigure.exclude` entries only for packages whose ALL servers are covered by MCP connections. Tools from uncovered packages stay in-process.
+
+```
+Worker JVM                              External MCP Server
+  |                                       |
+  +-- In-process tools (e.g., sql)        +-- MCP tools (e.g., git, repo-fs)
+  |       ToolCallbackProvider            |       via SSE
+  |                                       |
+  +-- SyncMcpToolCallbackProvider -------->
+  |
+  +-- WorkerChatClientFactory (both providers merged, zero duplicates)
+  |
+  v
+ChatClient -> Claude -> tool calls -> in-process OR SSE -> results
+```
+
+### Activation
+
+| Variable | Description |
+|----------|-------------|
+| `SPRING_PROFILES_ACTIVE=mcp` | Enable MCP client mode |
+| `MCP_GIT_URL` | Override git server URL (default: `http://mcp-server:8080`) |
+| `MCP_REPO_FS_URL` | Override repo-fs server URL |
+| `MCP_OPENAPI_URL` | Override openapi server URL |
+| `MCP_TEST_URL` | Override test server URL |
+| `MCP_AZURE_URL` | Override azure server URL |
+
+Without the `mcp` profile, all tools run in-process (Mode A) — zero behavioral change.
+
+### Deduplication
+
+When Mode C (hybrid) is active, the compiler excludes in-process auto-configurations for packages fully covered by MCP connections. For example, if `be-java-worker` declares `mcpServers: [git, repo-fs, openapi, test]` and `git`, `openapi`, `test` all map to `mcp-devops-tools`, but `azure` (same package) is missing, only `FileSystemToolsAutoConfiguration` is excluded — `DevOpsToolsAutoConfiguration` stays in-process because `azure` is not covered.
+
+**Rule**: exclude a package's auto-configuration only if ALL servers mapping to that package are in the worker's `mcpServers` list.
+
+For full architecture diagrams and MCP server setup: [MCP Usage Guide](mcp/docs/usage.md).
+
 ## Messaging SPI
 
 Transport-agnostic messaging with three provider implementations:
@@ -425,6 +576,39 @@ Token consumption is tracked in `plan_token_usage` (PostgreSQL). Each `AgentResu
 `Provenance.tokenUsage`; `TokenBudgetService` aggregates and enforces per-plan and per-worker-type
 limits before each dispatch.
 
+### Missing-Context Feedback Loop
+
+When a worker cannot complete a task because it lacks necessary context (e.g. unknown interfaces,
+missing file references), it signals `missing_context` in the `AgentResult` along with a list of
+files or symbols it needs.
+
+The orchestrator handles this automatically:
+1. `extractMissingContext(result)` parses the missing file paths from the worker output.
+2. `handleMissingContext(item, missingFiles)` creates a new `CONTEXT_MANAGER` task scoped to the
+   missing files — the CM worker explores and returns the needed content.
+3. The original item's `contextJson` is enriched with the new CM result and the item is
+   re-dispatched to the same worker.
+4. `PlanItem.contextRetries` tracks how many context-enrichment cycles have occurred (capped to
+   prevent infinite loops).
+
+This eliminates the need for workers to have `Glob`/`Grep` tools — if context is insufficient,
+the framework automatically supplies more.
+
+### Auto-Retry with Exponential Backoff
+
+Failed items are not immediately abandoned. `AutoRetryScheduler` (a `@Scheduled` component) polls
+for items in `FAILED` status whose `nextRetryAt` timestamp has passed:
+
+- **Backoff formula**: `baseDelay × 2^(attemptNumber - 1)` — e.g. 30s, 60s, 120s, 240s.
+- **Retry limit**: configurable per plan via `maxRetries` (default: 3).
+- **Auto-pause**: after `attemptsBeforePause` consecutive failures on the same item, the plan
+  transitions to `PAUSED` status. This prevents runaway retries consuming budget.
+- **Manual resume**: `POST /api/v1/plans/{planId}/resume` transitions a PAUSED plan back to
+  RUNNING and re-dispatches eligible items.
+
+The scheduler runs on a fixed interval (default: 30s) and processes all eligible items across
+all active plans in a single sweep.
+
 ### Human Approval (AWAITING_APPROVAL)
 
 When the `HOOK_MANAGER` assigns `riskLevel=CRITICAL` or `requiredHumanApproval=BLOCK` to a task,
@@ -461,6 +645,57 @@ The orchestrator creates a new `PlanItem` of type `COMPENSATOR_MANAGER`, which t
 worker picks up. If `shouldSnapshot=true` was set in `HookPolicy`, a snapshot was captured before
 execution and the compensator can restore it.
 
+### Reward Signal System
+
+After each plan completes, the framework automatically computes a multi-source reward signal
+for every `PlanItem` — zero additional LLM calls. The signal drives ELO ratings per worker
+profile and generates DPO preference pairs for offline fine-tuning.
+
+#### Reward sources
+
+| Source | Weight | When available |
+|--------|--------|----------------|
+| `reviewScore` | 0.50 | After REVIEW worker completes (parsed from `per_task` JSON or global `severity`) |
+| `processScore` | 0.30 | Immediately after each DONE transition (deterministic from `Provenance`) |
+| `qualityGateScore` | 0.20 | After plan completion — fallback for items without `reviewScore` |
+
+Weights are re-normalised when sources are unavailable (e.g. plan without a REVIEW task).
+
+**processScore formula** (deterministic, no LLM):
+```
+tokenEff     = 1 / log₁₀(tokensUsed + 10)    — penalises verbosity logarithmically
+retryPenalty = max(0, 1 − retries × 0.25)    — each context retry costs 0.25 points
+durationEff  = sigmoid(−(ms − 60_000)/30_000) — ≈1.0 if <1 min, ≈0.5 at 2 min, ≈0 after 5 min
+processScore = tokenEff×0.4 + retryPenalty×0.3 + durationEff×0.3
+```
+
+#### ELO ratings (`/api/v1/rewards/stats`)
+
+`EloRatingService` runs once per plan after all rewards are assigned. Profiles that executed
+tasks of the same `workerType` within the plan are compared pairwise (K=32, chess-like ELO,
+starting rating: 1600).
+
+```bash
+GET /api/v1/rewards/stats
+# → [{"workerProfile":"be-java","eloRating":1643,"matchCount":12,"avgReward":0.78}]
+```
+
+#### DPO preference pairs (`/api/v1/rewards/preference-pairs`)
+
+`PreferencePairGenerator` produces pairs via two strategies:
+- **same_plan_cross_profile** — two profiles competing on the same `workerType` within the same plan
+- **retry_comparison** — failed attempt (missing_context) vs successful retry of the same item
+
+Only pairs with `deltaReward ≥ 0.3` are persisted (near-identical pairs degrade preference learning).
+
+```bash
+GET /api/v1/rewards/preference-pairs?minDelta=0.3&limit=500
+# → NDJSON: {"prompt":"…","chosen":"…","rejected":"…","deltaReward":0.55,…}
+
+GET /api/v1/rewards?planId={planId}
+# → NDJSON: {"taskKey":"BE-001","aggregatedReward":0.72,"reviewScore":0.8,"processScore":0.6,…}
+```
+
 ### SUB_PLAN (Hierarchical Plans)
 
 A `PlanItem` of type `SUB_PLAN` is handled inline by the orchestrator — no message broker hop.
@@ -474,6 +709,53 @@ When the item is ready for dispatch, `OrchestrationService.handleSubPlan()`:
 
 The `@EventListener onChildPlanCompleted()` in `OrchestrationService` handles the async
 notification when a child plan reaches a terminal state.
+
+### Council System (Advisory Pre-Planning)
+
+Before the planner decomposes a specification into tasks, an optional **council session** consults
+domain-expert advisory workers to gather architectural insights, security considerations, and
+testing strategy recommendations.
+
+**How it works:**
+
+1. `CouncilService.runPrePlanningSession(spec)` analyses the specification and dynamically selects
+   relevant council members from two pools:
+   - **MANAGER** workers — domain-level architectural advisors (4 roles: backend, frontend, infrastructure, data)
+   - **SPECIALIST** workers — cross-cutting experts (4 roles: security, performance, testing, observability)
+2. Selected members are consulted in parallel via the `agent-advisory` topic (handled by the
+   `AdvisoryWorker`). Each member receives the spec + a role-specific prompt loaded by
+   `CouncilPromptLoader` from `resources/prompts/council/`.
+3. The `COUNCIL_MANAGER` synthesizes all advisory responses into a `CouncilReport` record:
+
+| CouncilReport field | Description |
+|---------------------|-------------|
+| `architectureDecisions` | Key architectural choices and rationale |
+| `securityConsiderations` | Security risks and mitigations |
+| `testingStrategy` | Recommended testing approach |
+| `performanceConsiderations` | Performance risks and optimizations |
+| `dataModelDecisions` | Data model design choices |
+| `infrastructureNotes` | Deployment and infrastructure guidance |
+| `crossCuttingConcerns` | Logging, monitoring, error handling patterns |
+| `summary` | Executive summary of all recommendations |
+
+4. The report is persisted on the `Plan` entity (`council_report` TEXT column, Flyway V13) and
+   injected into `PlannerService.decompose()` to guide task decomposition.
+
+**Configuration** (`application.yml`):
+```yaml
+council:
+  enabled: true
+  max-members: 6
+  pre-planning-enabled: true
+  task-session-enabled: false    # per-task sessions (optional, higher cost)
+```
+
+**Task-level sessions** (when `task-session-enabled=true`): `CouncilService.runTaskSession(item)`
+can also be called during plan execution for complex individual tasks, providing targeted advice
+before dispatch.
+
+**Endpoint**: `GET /api/v1/plans/{planId}/council-report` returns the stored report (200 JSON,
+204 if council was disabled, 404 if plan not found).
 
 ### agent-common Module
 
@@ -546,6 +828,11 @@ curl -X POST http://localhost:8080/api/v1/plans \
 | `POST` | `/events/violation` | Receive hook violation event from shell script (EventManagerService) |
 | `GET`  | `/events/violations?taskKey=` | Query violations per task |
 | `GET`  | `/events/health` | Violation count summary |
+| `GET` | `/api/v1/rewards` | Per-task reward records, NDJSON (`?planId=` optional) |
+| `GET` | `/api/v1/rewards/stats` | ELO leaderboard per worker profile (JSON) |
+| `GET` | `/api/v1/rewards/preference-pairs` | DPO preference pairs, NDJSON (`?minDelta=0.3&limit=500`) |
+| `GET` | `/api/v1/plans/{planId}/council-report` | Get pre-planning council advisory report |
+| `PUT` | `/api/v1/plans/{planId}/items/{itemId}/issue-snapshot` | Store issue snapshot from TASK_MANAGER |
 
 Attempts and snapshots endpoints return DTOs (`DispatchAttemptResponse`, `PlanSnapshotResponse`), not JPA entities.
 
@@ -622,6 +909,31 @@ hooks:
 
 ---
 
+## Test Coverage
+
+208 unit tests across 13 test classes (orchestrator module, JUnit 5 + Mockito):
+
+| Test Class | Tests | Scope |
+|-----------|-------|-------|
+| `RewardComputationServiceTest` | 45 | processScore, reviewScore, qualityGate, Bayesian aggregation |
+| `OrchestrationServiceTest` | 29 | createAndStart, onTaskCompleted, missing-context, SUB_PLAN, approval, compensation |
+| `CouncilServiceTest` | 23 | pre-planning, task sessions, member selection, synthesis, feature flags, executor bounds |
+| `WorkerProfileRegistryTest` | 18 | profile lookup, multi-profile types, fallback routing |
+| `PlanGraphServiceTest` | 17 | Mermaid/JSON DAG, edge labels, duration formatting |
+| `TokenBudgetServiceTest` | 15 | FAIL_FAST, NO_NEW_DISPATCH, SOFT_LIMIT enforcement |
+| `SseEmitterRegistryTest` | 15 | subscribe, late-join replay, broadcast, dead emitter cleanup |
+| `QualityGateServiceTest` | 10 | async annotations, report generation, reward signals, error handling |
+| `EloRatingServiceTest` | 10 | pairwise ELO, multi-type, new profile bootstrap |
+| `PlanSnapshotServiceTest` | 9 | restore COMPLETED→RUNNING, mixed states, forceStatus validation |
+| `PlanEventStoreTest` | 7 | sequence numbering, payload serialization, error fallback |
+| `PromptLoaderTest` | 5 | classpath loading, caching, missing resource validation |
+| `AutoRetrySchedulerTest` | 5 | eligibility, retry timing, error isolation |
+
+```bash
+# Run orchestrator tests
+cd control-plane/orchestrator && mvn test
+```
+
 ## Known Gaps
 
 - `Provenance.model` field is populated as `null` — requires extracting model identifier from `ChatResponse` metadata (Spring AI does not expose it uniformly across providers yet).
@@ -634,6 +946,7 @@ hooks:
 - Azure Service Bus / Redis Streams / JMS Artemis
 - Maven plugin code generation (Mustache + SnakeYAML)
 - Custom MCP tools (`mcp-filesystem-tools`, `mcp-devops-tools`, `mcp-sql-tools`)
+- Spring AI MCP Client (SSE transport for external MCP servers, activated via `mcp` profile)
 
 ## Documentation
 
@@ -662,7 +975,8 @@ hooks:
 
 | Documento | Descrizione |
 |-----------|-------------|
-| [Architecture Overview](docs/architecture/overview.md) | Diagrammi architetturali |
+| [Architecture Overview](docs/architecture/overview.md) | Diagrammi architetturali (panoramica) |
+| [Architecture Diagrams](docs/architecture/architecture-diagram.md) | 8 diagrammi Mermaid dettagliati (orchestrazione, dispatch, reward, event sourcing, missing-context, SUB_PLAN, auto-retry, token budget) |
 | [Branching Flow](docs/branching/flow-vertical-horizontal.md) | Strategia branching vertical-horizontal |
 
 ## License

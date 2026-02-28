@@ -22,5 +22,6 @@ public record AgentTask(
     UUID dispatchAttemptId,     // dispatch metadata (null if unknown)
     UUID traceId,               // dispatch metadata (null if unknown)
     String dispatchedAt,        // ISO-8601, dispatch metadata (null if unknown)
-    HookPolicy policy           // task-level hook policy set by HOOK_MANAGER (null = use static config)
+    HookPolicy policy,          // task-level hook policy set by HOOK_MANAGER (null = use static config)
+    String councilContext       // JSON CouncilReport from pre-planning session (null if council disabled)
 ) {}

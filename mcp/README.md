@@ -8,32 +8,38 @@ di policy per controllare accesso, limiti, e redazione dell'output.
 ```
 Worker Session (Claude AI)
     │
+    ├── Mode A: In-process tools (default, classpath @ReactiveTool beans)
+    │   └── ToolCallbackProvider → WorkerChatClientFactory
+    │
+    ├── Mode B/C: External MCP Server (profile mcp)
+    │   └── spring-ai-mcp-client → SSE → MCP Server → tool results
+    │
     ├── PreToolUse Hook: enforce-mcp-allowlist.sh
     │   └── Controlla AGENT_WORKER_TYPE vs allowlists/*.yml
     │
     ▼
-MCP Server (stdio transport)
+WorkerChatClientFactory
     │
+    ├── Allowlist filter (ToolAllowlist.Explicit)
+    ├── PolicyEnforcingToolCallback (ownership, audit, tracking)
     ├── Sandbox: limits.yml (file size, timeout, recursion)
-    │
-    ▼
-Tool Result
-    │
     ├── Redaction: redaction-rules.yml (secrets, PII)
     │
     ▼
-LLM Context (output pulito)
+ChatClient → Claude → tool calls → results (output pulito)
 ```
+
+Modalita' di attivazione: vedi [MCP Usage Guide](docs/usage.md).
 
 ## MCP Servers
 
 | Server | Package | Transport | Scopo |
 |--------|---------|-----------|-------|
-| `git` | `mcp-devops-tools` | stdio | Operazioni Git (clone, commit, push, diff, log, merge) |
-| `repo-fs` | `mcp-filesystem-tools` | stdio | Filesystem (read, write, edit, glob, grep) con sandboxing |
-| `openapi` | `mcp-devops-tools` | stdio | Validazione OpenAPI (Spectral lint, oasdiff breaking, generate) |
-| `azure` | `mcp-devops-tools` | stdio | Risorse Azure (Service Bus, Container Apps, Key Vault) |
-| `test` | `mcp-devops-tools` | stdio | Esecuzione test (Maven, npm, coverage report) |
+| `git` | `mcp-devops-tools` | sse / stdio | Operazioni Git (clone, commit, push, diff, log, merge) |
+| `repo-fs` | `mcp-filesystem-tools` | sse / stdio | Filesystem (read, write, edit, glob, grep) con sandboxing |
+| `openapi` | `mcp-devops-tools` | sse / stdio | Validazione OpenAPI (Spectral lint, oasdiff breaking, generate) |
+| `azure` | `mcp-devops-tools` | sse / stdio | Risorse Azure (Service Bus, Container Apps, Key Vault) |
+| `test` | `mcp-devops-tools` | sse / stdio | Esecuzione test (Maven, npm, coverage report) |
 
 Registry: `mcp/registry/mcp-registry.yml`
 

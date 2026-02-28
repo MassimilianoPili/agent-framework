@@ -1,0 +1,28 @@
+# MCP Client profile — activated via SPRING_PROFILES_ACTIVE=mcp
+# Connects the worker to external MCP server(s) via SSE transport.
+# When active, in-process tool auto-configurations for covered packages
+# are excluded to prevent duplicate tool name registration.
+#
+# Override MCP server URLs via environment variables:
+# #   MCP_REPO_FS_URL  (default: http://mcp-server:8080)
+# #   MCP_OPENAPI_URL  (default: http://mcp-server:8080)
+# 
+
+spring:
+  autoconfigure:
+    exclude:
+      - io.github.massimilianopili.mcp.filesystem.FileSystemToolsAutoConfiguration
+  ai:
+    mcp:
+      client:
+        enabled: true
+        type: SYNC
+        request-timeout: 30s
+        toolcallback:
+          enabled: true
+        sse:
+          connections:
+            repo-fs:
+              url: ${MCP_REPO_FS_URL:http://mcp-server:8080}
+            openapi:
+              url: ${MCP_OPENAPI_URL:http://mcp-server:8080}

@@ -114,6 +114,12 @@ public class Plan {
         this.status = target;
     }
 
+    /**
+     * Bypasses the state machine to set an arbitrary status.
+     * Reserved for snapshot restore and data migration — normal code must use {@link #transitionTo}.
+     */
+    public void forceStatus(PlanStatus status) { this.status = status; }
+
     public Instant getCreatedAt() { return createdAt; }
 
     public Instant getCompletedAt() { return completedAt; }

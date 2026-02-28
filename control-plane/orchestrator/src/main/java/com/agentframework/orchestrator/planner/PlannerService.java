@@ -45,7 +45,7 @@ public class PlannerService {
         log.info("Calling planner agent for plan {}", plan.getId());
 
         String systemPrompt = promptLoader.load("prompts/planner.agent.md");
-        String userPrompt = promptLoader.renderPlanTasksPrompt(plan.getSpec());
+        String userPrompt = promptLoader.renderPlanTasksPrompt(plan.getSpec(), plan.getCouncilReport());
 
         BeanOutputConverter<PlanSchema> converter = new BeanOutputConverter<>(PlanSchema.class);
 

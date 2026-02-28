@@ -1,0 +1,36 @@
+# Azure Container Apps Job: hook-manager-worker
+apiVersion: "2023-05-01"
+kind: ContainerAppsJob
+metadata:
+  name: hook-manager-worker
+  resourceGroup: rg-agent-framework-{env}
+properties:
+  configuration:
+    triggerType: Event
+    replicaTimeout: 600
+    replicaRetryLimit: 1
+    eventTriggerConfig:
+      scale:
+        minExecutions: 0
+        maxExecutions: 1
+      rules:
+        - name: servicebus-trigger
+          type: azure-servicebus
+          metadata:
+            topicName: agent-tasks
+            subscriptionName: hook-manager-worker-sub
+            messageCount: "1"
+  template:
+    containers:
+      - name: hook-manager-worker
+        image: ghcr.io/agent-framework/hook-manager-worker:{imageTag}
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: AGENT_WORKER_TYPE
+            value: HOOK_MANAGER
+          - name: AGENT_WORKER_PROFILE
+            value: hook-manager
+          - name: SPRING_PROFILES_ACTIVE
+            value: "{env}"

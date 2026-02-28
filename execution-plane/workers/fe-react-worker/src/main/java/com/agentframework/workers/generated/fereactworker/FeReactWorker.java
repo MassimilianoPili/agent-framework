@@ -35,8 +35,6 @@ public class FeReactWorker extends AbstractWorker {
         "Read",
         "Write",
         "Edit",
-        "Glob",
-        "Grep",
         "Bash"
     );
 
@@ -74,7 +72,7 @@ public class FeReactWorker extends AbstractWorker {
 
     @Override
     protected String systemPromptFile() {
-        return "agents/fe.agent.md";
+        return ".claude/agents/fe/SKILL.md";
     }
 
     @Override

@@ -124,6 +124,12 @@ public class PlanItem {
         this.status = target;
     }
 
+    /**
+     * Bypasses the state machine to set an arbitrary status.
+     * Reserved for snapshot restore and data migration — normal code must use {@link #transitionTo}.
+     */
+    public void forceStatus(ItemStatus status) { this.status = status; }
+
     public String getResult() { return result; }
     public void setResult(String result) { this.result = result; }
 

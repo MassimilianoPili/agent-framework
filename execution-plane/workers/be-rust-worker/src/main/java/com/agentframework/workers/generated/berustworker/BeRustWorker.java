@@ -35,8 +35,6 @@ public class BeRustWorker extends AbstractWorker {
         "Read",
         "Write",
         "Edit",
-        "Glob",
-        "Grep",
         "Bash"
     );
 
@@ -74,7 +72,7 @@ public class BeRustWorker extends AbstractWorker {
 
     @Override
     protected String systemPromptFile() {
-        return "agents/be.agent.md";
+        return ".claude/agents/be-rust/SKILL.md";
     }
 
     @Override

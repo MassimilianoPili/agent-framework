@@ -55,19 +55,26 @@ public class SkillLoader {
                     log.warn("Filesystem override exists but failed to read: {}", fsPath, e);
                     // Fall through to classpath
                 }
+            } else if (Files.exists(fsPath)) {
+                log.warn("Filesystem override path '{}' exists but is not a regular file "
+                         + "(directory?), falling through to classpath", fsPath);
             }
         }
 
         // 2. Classpath fallback
+        ClassPathResource resource = new ClassPathResource(resourcePath);
+        if (!resource.exists()) {
+            throw new RuntimeException(
+                "Skill file not found: '" + resourcePath + "'. "
+                + "Not found on filesystem (FS_SKILLS_DIR=" + (skillsDir.isBlank() ? "<unset>" : skillsDir)
+                + ") nor on classpath. Ensure the file is in the JAR or set FS_SKILLS_DIR.");
+        }
         try {
-            ClassPathResource resource = new ClassPathResource(resourcePath);
             String content = resource.getContentAsString(StandardCharsets.UTF_8);
             log.info("Loaded '{}' from classpath", resourcePath);
             return stripFrontmatter(content);
         } catch (IOException e) {
-            throw new RuntimeException(
-                "Cannot load skill file '" + resourcePath + "' from filesystem or classpath. " +
-                "Set FS_SKILLS_DIR to a directory containing the file, or ensure it's in the JAR.", e);
+            throw new RuntimeException("Failed to read skill file from classpath: " + resourcePath, e);
         }
     }
 

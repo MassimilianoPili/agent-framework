@@ -35,8 +35,6 @@ public class BeNodeWorker extends AbstractWorker {
         "Read",
         "Write",
         "Edit",
-        "Glob",
-        "Grep",
         "Bash"
     );
 
@@ -74,7 +72,7 @@ public class BeNodeWorker extends AbstractWorker {
 
     @Override
     protected String systemPromptFile() {
-        return "agents/be.agent.md";
+        return ".claude/agents/be-node/SKILL.md";
     }
 
     @Override

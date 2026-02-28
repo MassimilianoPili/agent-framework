@@ -27,7 +27,8 @@ public record AgentContext(
     Map<String, String> dependencyResults,
     String skillsContent,
     List<String> relevantFiles,
-    HookPolicy policy
+    HookPolicy policy,
+    String councilGuidance         // JSON CouncilReport from pre-planning or task-level council session (nullable)
 ) {
     /** Returns true if this context carries an explicit file allowlist from CONTEXT_MANAGER. */
     public boolean hasRelevantFiles() {
@@ -37,5 +38,10 @@ public record AgentContext(
     /** Returns true if this context carries a task-level HookPolicy from HOOK_MANAGER. */
     public boolean hasPolicy() {
         return policy != null;
+    }
+
+    /** Returns true if this context carries council guidance from a council session. */
+    public boolean hasCouncilGuidance() {
+        return councilGuidance != null && !councilGuidance.isBlank();
     }
 }

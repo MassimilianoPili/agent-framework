@@ -44,6 +44,27 @@ topics:
         maxDeliveryCount: 3
         lockDuration: PT5M
         sqlFilter: "workerType = 'CONTRACT'"
+      # ── Manager workers (filter by workerType — single profile per type) ──
+      - name: task-manager-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerType = 'TASK_MANAGER'"
+      - name: compensator-manager-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerType = 'COMPENSATOR_MANAGER'"
+      - name: hook-manager-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerType = 'HOOK_MANAGER'"
+      - name: audit-manager-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerType = 'AUDIT_MANAGER'"
+      - name: event-manager-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerType = 'EVENT_MANAGER'"
 
   - name: agent-reviews
     maxSizeInMegabytes: 256

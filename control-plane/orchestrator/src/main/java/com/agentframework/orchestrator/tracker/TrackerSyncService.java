@@ -3,6 +3,7 @@ package com.agentframework.orchestrator.tracker;
 import com.agentframework.orchestrator.event.SpringPlanEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,9 @@ import org.springframework.stereotype.Service;
  * The external tracker is eventually consistent — this service propagates changes
  * asynchronously without blocking the orchestration thread.</p>
  *
+ * <p>Activated only when {@code tracker.sync.enabled=true} in application configuration.
+ * When disabled (the default), no listener is registered and no log noise is produced.</p>
+ *
  * <p>The MCP tool invocation ({@code tracker-mcp}) is a placeholder: the actual
  * tool call will be implemented when the {@code tracker-mcp} MCP server is available.
  * Until then, this service logs the events it would sync.</p>
@@ -22,6 +26,7 @@ import org.springframework.stereotype.Service;
  * propagate to the orchestration transaction.</p>
  */
 @Service
+@ConditionalOnProperty(name = "tracker.sync.enabled", havingValue = "true")
 public class TrackerSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(TrackerSyncService.class);

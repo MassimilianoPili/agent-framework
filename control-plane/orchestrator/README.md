@@ -21,8 +21,13 @@ l'esecuzione rispettando dipendenze e profili worker.
 | `GET` | `/api/v1/plans/{id}/snapshots` | 200 | Lista snapshot Memento del piano |
 | `POST` | `/api/v1/plans/{id}/restore/{snapshotId}` | 200 | Ripristina piano da snapshot |
 | `GET` | `/api/v1/plans/{id}/quality-gate` | 200 | Report quality gate per piano completato |
+| `GET` | `/api/v1/rewards` | 200 | Reward records per task, NDJSON (`?planId=` opzionale) |
+| `GET` | `/api/v1/rewards/stats` | 200 | ELO leaderboard per worker profile |
+| `GET` | `/api/v1/rewards/preference-pairs` | 200 | DPO preference pairs NDJSON (`?minDelta=0.3&limit=500`) |
+| `PUT` | `/api/v1/plans/{id}/items/{itemId}/issue-snapshot` | 200 | Salva snapshot issue tracker su item (TASK_MANAGER) |
+| `GET` | `/api/v1/plans/{id}/council-report` | 200 | Report pre-planning council session |
 
-Controller: `api/PlanController.java`
+Controller: `api/PlanController.java` (17 endpoint), `reward/RewardController.java` (3 endpoint), `hooks/AuditManagerService.java` (3 endpoint), `hooks/EventManagerService.java` (3 endpoint)
 
 ## Domain Model
 
@@ -59,6 +64,10 @@ Controller: `api/PlanController.java`
 | childPlanId | UUID | UUID del piano figlio creato inline (SUB_PLAN, nullable) |
 | awaitCompletion | boolean | Se true, item rimane DISPATCHED finché il child plan termina (SUB_PLAN) |
 | subPlanSpec | String (TEXT) | Specifica del sub-plan da scomporre (SUB_PLAN, nullable) |
+| reviewScore | Float | Score [-1.0, +1.0] assegnato dal worker REVIEW; null fino al completamento del REVIEW task |
+| processScore | Float | Score [0.0, 1.0] deterministico da metriche Provenance (token, retry, durata); null fino a DONE |
+| aggregatedReward | Float | Aggregazione Bayesiana pesata di tutte le fonti disponibili; null se nessuna fonte ancora disponibile |
+| rewardSources | String (TEXT) | JSON snapshot dei valori per fonte e pesi effettivi (`{"review":0.8,"process":0.6,"quality_gate":null,"weights":{…}}`) |
 
 ### PlanEvent (Event Sourcing — append-only)
 
@@ -193,6 +202,8 @@ tramite `SseEmitterRegistry.broadcast()`.
 | V10 | (alter) `plans` | `source_commit`, `working_tree_diff_hash` (git state) |
 | V11 | `plan_event` | Log append-only eventi (event sourcing + SSE replay) |
 | V12 | (alter) `plan_items` + `plans` | SUB_PLAN: `child_plan_id`, `await_completion`, `sub_plan_spec`; gerarchie: `depth`, `parent_plan_id` |
+| V13 | (alter) `plans` | `council_report` (TEXT) — output del pre-planning council session |
+| V14 | (alter) `plan_items` + `worker_elo_stats` + `preference_pairs` | Reward signal: 4 colonne su plan_items (`review_score`, `process_score`, `aggregated_reward`, `reward_sources`); tabella ELO stats per profilo; tabella DPO preference pairs |
 
 ## Feature avanzate
 
@@ -309,7 +320,7 @@ mvn spring-boot:run -pl control-plane/orchestrator -Dspring-boot.run.profiles=de
 
 | Path | Scopo |
 |------|-------|
-| `api/PlanController.java` | REST controller (7 endpoint) |
+| `api/PlanController.java` | REST controller (17 endpoint: plan CRUD, retry, approve/reject, compensate, snapshots, SSE, graph, council) |
 | `orchestration/OrchestrationService.java` | Logica di orchestrazione |
 | `orchestration/WorkerProfileRegistry.java` | Registro profili con validazione @PostConstruct |
 | `planner/PlannerService.java` | Decomposizione spec → plan via Claude |
@@ -324,6 +335,14 @@ mvn spring-boot:run -pl control-plane/orchestrator -Dspring-boot.run.profiles=de
 | `specification/CompositeSpec.java` | Specification pattern (AND composito) |
 | `event/*.java` | 4 Spring Application Events |
 | `hooks/HookPolicy.java` | **@Deprecated stub** — usare `com.agentframework.common.policy.HookPolicy` |
+| `reward/RewardComputationService.java` | Logica core: processScore + reviewScore + qualityGateScore + aggregazione Bayesiana |
+| `reward/EloRatingService.java` | Aggiornamento ELO pairwise per piano (K=32) — eseguito una volta a piano completato |
+| `reward/WorkerEloStats.java` | Entity ELO rating per profilo worker (`worker_elo_stats`) |
+| `reward/WorkerEloStatsRepository.java` | Repository JPA; `findAllByOrderByEloRatingDesc()` per leaderboard |
+| `reward/PreferencePairGenerator.java` | Generazione DPO pair: cross-profile (stesso workerType, reward diverso) + retry comparison |
+| `reward/PreferencePair.java` | Entity coppia preferenza DPO (`preference_pairs`) |
+| `reward/PreferencePairRepository.java` | Repository con query `findByMinDelta(float, int)` |
+| `reward/RewardController.java` | REST `/api/v1/rewards/*` — 3 endpoint NDJSON export (reward records, ELO stats, DPO pairs) |
 | `hooks/HookManagerService.java` | Cache policy per-plan; `storePolicies` / `resolvePolicy` / `evictPlan` |
 | `hooks/HookPolicyResolver.java` | Fallback statico: risolve `HookPolicy` per `WorkerType` da `WorkerProfileRegistry` |
 | `hooks/AuditManagerService.java` | `@RestController` `/audit` — riceve e storicizza eventi audit da `audit-log.sh` |
@@ -331,3 +350,9 @@ mvn spring-boot:run -pl control-plane/orchestrator -Dspring-boot.run.profiles=de
 | `eventsourcing/PlanEvent.java` | Entity append-only per event sourcing + SSE replay |
 | `eventsourcing/PlanEventStore.java` | `append()` con `Propagation.MANDATORY`; `findByPlanId()` per replay |
 | `sse/SseEmitterRegistry.java` | Registry SSE emitter con late-join replay dei `PlanEvent` passati |
+| `council/CouncilService.java` | Orchestrazione sessioni council: pre-planning (globale) + task-level (per-item) |
+| `council/CouncilReport.java` | Record 8 campi (architectureDecisions, securityConsiderations, testingStrategy, etc.) |
+| `council/CouncilProperties.java` | Config: enabled, max-members, pre-planning-enabled, task-session-enabled |
+| `config/AsyncConfig.java` | Thread pool condiviso `orchestratorAsyncExecutor` per quality gate e snapshot |
+| `service/PlanSnapshotListener.java` | Listener asincrono: crea snapshot a `PlanCreated` e `PlanCompleted` |
+| `orchestration/QualityGateService.java` | Genera report quality gate via LLM al completamento piano (asincrono) |

@@ -46,6 +46,13 @@ components:
           items:
             type: string
           description: Optional tags for categorization
+        budget:
+          $ref: "#/components/schemas/Budget"
+        maxDepth:
+          type: integer
+          minimum: 1
+          default: 3
+          description: Maximum nesting depth for SUB_PLAN items. A plan at this depth cannot spawn further sub-plans.
 
     PlanResponse:
       type: object
@@ -77,6 +84,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PlanItemResponse"
+        councilReport:
+          type: string
+          nullable: true
+          description: JSON CouncilReport from the pre-planning council session. Null if council was disabled or the plan predates the council feature.
 
     PlanItemResponse:
       type: object
@@ -97,7 +108,7 @@ components:
           minimum: 0
         taskKey:
           type: string
-          pattern: "^(BE|FE|AI|CT|RV)-[0-9]{3}$"
+          pattern: "^(BE|FE|AI|CT|RV|CM|SM|HM|TM|MG|SP|CL)-[0-9]{3}$"
         title:
           type: string
         description:
@@ -126,6 +137,27 @@ components:
         failureReason:
           type: string
           nullable: true
+        issueSnapshot:
+          type: string
+          nullable: true
+          description: |
+            JSON snapshot of the issue from the external tracker, populated by the
+            TASK_MANAGER worker. Null until TASK_MANAGER completes.
+        aggregatedReward:
+          type: number
+          format: float
+          nullable: true
+          minimum: -1.0
+          maximum: 1.0
+          description: |
+            Bayesian-weighted aggregate of reviewScore (0.50), processScore (0.30),
+            and qualityGateScore (0.20). Null until at least one source is available.
+        rewardSources:
+          type: string
+          nullable: true
+          description: |
+            JSON breakdown of individual reward source values and their effective weights.
+            Example: {"review":0.8,"process":0.6,"quality_gate":null,"weights":{"review":0.625,...}}
 
     QualityGateReportResponse:
       type: object
@@ -199,6 +231,7 @@ components:
         - RUNNING
         - COMPLETED
         - FAILED
+        - PAUSED
 
     ItemStatus:
       type: string
@@ -208,6 +241,7 @@ components:
         - RUNNING
         - DONE
         - FAILED
+        - AWAITING_APPROVAL
 
     WorkerType:
       type: string
@@ -217,6 +251,57 @@ components:
         - AI_TASK
         - CONTRACT
         - REVIEW
+        - CONTEXT_MANAGER
+        - SCHEMA_MANAGER
+        - HOOK_MANAGER
+        - TASK_MANAGER
+        - COMPENSATOR_MANAGER
+        - SUB_PLAN
+        - COUNCIL_MANAGER
+        - MANAGER
+        - SPECIALIST
+
+    CouncilReport:
+      type: object
+      description: Structured advisory output produced by the pre-planning or task-level council session.
+      properties:
+        selectedMembers:
+          type: array
+          items:
+            type: string
+          description: Profiles of council members that participated (e.g. be-manager, security-specialist)
+        architectureDecisions:
+          type: array
+          items:
+            type: string
+          description: Binding architectural decisions the council reached consensus on
+        techStackRationale:
+          type: string
+          nullable: true
+          description: Rationale for the chosen technology stack
+        securityConsiderations:
+          type: array
+          items:
+            type: string
+          description: Security constraints and requirements identified by the council
+        dataModelingGuidelines:
+          type: string
+          nullable: true
+          description: Data modeling conventions and constraints
+        apiDesignGuidelines:
+          type: string
+          nullable: true
+          description: API design conventions and requirements
+        testingStrategy:
+          type: string
+          nullable: true
+          description: Test strategy recommended by the council
+        memberInsights:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: string
+          description: Per-member raw insights keyed by profile name
 
     DispatchAttemptResponse:
       type: object
@@ -268,3 +353,52 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    Budget:
+      type: object
+      description: |
+        Per-workerType token limits and the enforcement policy when limits are exceeded.
+      properties:
+        onExceeded:
+          type: string
+          enum:
+            - FAIL_FAST
+            - NO_NEW_DISPATCH
+            - SOFT_LIMIT
+          description: |
+            Enforcement mode: FAIL_FAST (dispatch blocked, item → FAILED),
+            NO_NEW_DISPATCH (dispatch skipped, item stays WAITING),
+            SOFT_LIMIT (warning logged, dispatch proceeds).
+        perWorkerType:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+          description: Token limit per worker type (e.g. {"BE": 50000, "CONTEXT_MANAGER": 20000})
+
+    EloStatResponse:
+      type: object
+      required:
+        - workerProfile
+        - eloRating
+        - matchCount
+        - winCount
+        - avgReward
+      properties:
+        workerProfile:
+          type: string
+          description: Worker profile identifier (e.g. "be-java", "be-go")
+        eloRating:
+          type: number
+          format: double
+          description: Current ELO rating (starts at 1600)
+        matchCount:
+          type: integer
+          description: Total number of pairwise comparisons
+        winCount:
+          type: integer
+          description: Number of comparisons won
+        avgReward:
+          type: number
+          format: double
+          description: Running average of aggregatedReward across all tasks

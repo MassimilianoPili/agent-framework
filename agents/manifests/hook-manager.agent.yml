@@ -1,0 +1,59 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: hook-manager-worker
+  displayName: "Hook Manager Worker"
+  description: >
+    Analyzes the full plan and generates contextual HookPolicy for every downstream task.
+    Produces a JSON map of taskKey → HookPolicy (allowedTools, ownedPaths, allowedMcpServers).
+    Runs after CONTEXT_MANAGER and SCHEMA_MANAGER, before domain workers (BE/FE/AI_TASK).
+
+spec:
+  workerType: HOOK_MANAGER
+  topic: agent-tasks
+  subscription: hook-manager-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 8192
+    temperature: 0.1
+
+  prompts:
+    systemPromptFile: .claude/agents/hook-manager/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Read the plan spec and all available dependency results (CM, SM outputs).
+      For each downstream task, determine the appropriate tool restrictions
+      and path ownership boundaries. Output a JSON map of taskKey → HookPolicy.
+    resultSchema: |
+      {
+        "policies": {
+          "<taskKey>": {
+            "allowedTools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
+            "ownedPaths": ["backend/src/main/"],
+            "allowedMcpServers": ["git", "repo-fs"]
+          }
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Glob
+      - Grep
+    mcpServers: []
+
+  ownership:
+    readOnlyPaths:
+      - "."
+
+  concurrency:
+    maxConcurrentCalls: 1
+
+  retry:
+    maxAttempts: 2
+    backoffMs: 3000

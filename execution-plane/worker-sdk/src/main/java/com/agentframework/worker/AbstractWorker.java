@@ -90,6 +90,17 @@ public abstract class AbstractWorker {
     protected abstract String systemPromptFile();
 
     /**
+     * Resolves the system prompt file for the given task.
+     *
+     * <p>Override this method (instead of {@link #systemPromptFile()}) when the system prompt
+     * depends on the incoming task — for example, to route by {@code workerProfile}.
+     * The default implementation ignores the task and delegates to {@link #systemPromptFile()}.</p>
+     */
+    protected String resolveSystemPromptFile(AgentTask task) {
+        return systemPromptFile();
+    }
+
+    /**
      * Core execution logic.
      *
      * @param context    fully assembled context including system prompt, spec, and dependency results
@@ -156,6 +167,13 @@ public abstract class AbstractWorker {
             prompt.add("## Specification\n" + context.spec());
         }
 
+        // Council guidance from pre-planning or task-level council session
+        if (context.hasCouncilGuidance()) {
+            prompt.add("## Council Guidance\n" + context.councilGuidance()
+                + "\n\n> The council has deliberated on the architecture for this plan. "
+                + "Honor their decisions as hard constraints in your implementation.");
+        }
+
         Map<String, String> deps = context.dependencyResults();
         if (deps != null && !deps.isEmpty()) {
             StringJoiner depSection = new StringJoiner("\n\n");
@@ -185,7 +203,7 @@ public abstract class AbstractWorker {
         AgentContext context = null;
         PolicyEnforcingToolCallback.resetToolNames();
         try {
-            context = contextBuilder.build(task, systemPromptFile(), skillPaths());
+            context = contextBuilder.build(task, resolveSystemPromptFile(task), skillPaths());
             PolicyEnforcingToolCallback.setContextFiles(context.relevantFiles());
             PolicyEnforcingToolCallback.setTaskPolicy(context.policy()); // task-level HookPolicy (may be null)
 
@@ -239,9 +257,8 @@ public abstract class AbstractWorker {
                 task.workerProfile(),   // provenance (flat, kept for backward compat)
                 null,                   // modelId: reserved
                 promptHashValue,
-                provenance
-            ),
-                tokenUsage != null ? tokenUsage.total() : null   // tokensUsed
+                provenance,
+                tokenUsage != null ? tokenUsage.totalTokens() : null   // tokensUsed
             );
             log.info("[{}] Task {} completed in {}ms (profile={})",
                      workerType(), task.taskKey(), result.durationMs(), task.workerProfile());
@@ -286,8 +303,7 @@ public abstract class AbstractWorker {
                 task.workerProfile(),   // provenance (flat, kept for backward compat)
                 null,                   // modelId: reserved
                 null,
-                provenance
-            ),
+                provenance,
                 null                    // tokensUsed: unavailable on failure
             );
         } finally {

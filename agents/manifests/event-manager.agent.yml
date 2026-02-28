@@ -1,0 +1,61 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: event-manager-worker
+  displayName: "Event Manager Worker"
+  description: >
+    Analyzes hook violation patterns from the event log and proposes policy adjustments
+    for future plan executions. Can recommend tightening or relaxing HookPolicy constraints
+    based on observed behavior across multiple plan runs.
+
+spec:
+  workerType: EVENT_MANAGER
+  topic: agent-tasks
+  subscription: event-manager-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 8192
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/event-manager/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Read the event log (hook violations, policy decisions) from recent plan executions.
+      Identify recurring patterns: tools that are frequently blocked but needed,
+      paths that are accessed outside ownership boundaries, etc.
+      Propose specific HookPolicy adjustments with justifications.
+    resultSchema: |
+      {
+        "patterns": [{ "pattern": "", "frequency": 0, "severity": "" }],
+        "proposedAdjustments": [
+          {
+            "workerProfile": "",
+            "field": "allowedTools|ownedPaths|allowedMcpServers",
+            "action": "add|remove",
+            "value": "",
+            "justification": ""
+          }
+        ]
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+    mcpServers: []
+
+  ownership:
+    readOnlyPaths:
+      - "."
+
+  concurrency:
+    maxConcurrentCalls: 1
+
+  retry:
+    maxAttempts: 1
+    backoffMs: 5000

@@ -20,6 +20,7 @@ import com.agentframework.orchestrator.planner.PlannerService;
 import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
+import com.agentframework.orchestrator.reward.RewardComputationService;
 import com.agentframework.orchestrator.specification.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -79,6 +80,7 @@ public class OrchestrationService {
     private final PlanEventStore eventStore;
     private final CouncilService councilService;
     private final CouncilProperties councilProperties;
+    private final RewardComputationService rewardComputationService;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -92,7 +94,8 @@ public class OrchestrationService {
                                 TokenBudgetService tokenBudgetService,
                                 PlanEventStore eventStore,
                                 CouncilService councilService,
-                                CouncilProperties councilProperties) {
+                                CouncilProperties councilProperties,
+                                RewardComputationService rewardComputationService) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -106,6 +109,7 @@ public class OrchestrationService {
         this.eventStore = eventStore;
         this.councilService = councilService;
         this.councilProperties = councilProperties;
+        this.rewardComputationService = rewardComputationService;
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -207,6 +211,14 @@ public class OrchestrationService {
             item.setNextRetryAt(null);
             log.info("Task {} completed successfully (plan={}, profile={}, duration={}ms)",
                      result.taskKey(), result.planId(), item.getWorkerProfile(), result.durationMs());
+
+            // Reward signal — point 1: compute processScore from Provenance (zero LLM cost)
+            rewardComputationService.computeProcessScore(item, result);
+
+            // Reward signal — point 2: if REVIEW worker, distribute per-task review scores
+            if (item.getWorkerType() == WorkerType.REVIEW) {
+                rewardComputationService.distributeReviewScore(item);
+            }
 
             // Store per-task policies emitted by the Hook Manager worker so
             // subsequent dispatchReadyItems() calls can inject them into AgentTask.

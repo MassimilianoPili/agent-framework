@@ -73,7 +73,7 @@ public class ReviewWorker extends AbstractWorker {
 
     @Override
     protected String systemPromptFile() {
-        return "agents/review.agent.md";
+        return ".claude/agents/review/SKILL.md";
     }
 
     @Override

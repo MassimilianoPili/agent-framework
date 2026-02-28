@@ -35,8 +35,6 @@ public class AiTaskWorker extends AbstractWorker {
         "Read",
         "Write",
         "Edit",
-        "Glob",
-        "Grep",
         "Bash"
     );
 
@@ -74,7 +72,7 @@ public class AiTaskWorker extends AbstractWorker {
 
     @Override
     protected String systemPromptFile() {
-        return "agents/ai-task.agent.md";
+        return ".claude/agents/ai-task/SKILL.md";
     }
 
     @Override
