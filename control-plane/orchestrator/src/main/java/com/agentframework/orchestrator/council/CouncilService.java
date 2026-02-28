@@ -9,13 +9,18 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PreDestroy;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
@@ -39,9 +44,11 @@ public class CouncilService {
 
     private static final Logger log = LoggerFactory.getLogger(CouncilService.class);
 
-    /** Virtual thread executor for parallel member consultations. */
+    /** Bounded thread pool for parallel member consultations (max 8 threads, queue 20). */
     private static final ExecutorService COUNCIL_EXECUTOR =
-        Executors.newVirtualThreadPerTaskExecutor();
+        new ThreadPoolExecutor(2, 8, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(20));
+
+    private static final long MEMBER_CONSULTATION_TIMEOUT_SECONDS = 120;
 
     private final ChatClient chatClient;
     private final CouncilPromptLoader promptLoader;
@@ -56,6 +63,19 @@ public class CouncilService {
         this.promptLoader = promptLoader;
         this.properties = properties;
         this.objectMapper = objectMapper;
+    }
+
+    @PreDestroy
+    void shutdownExecutor() {
+        COUNCIL_EXECUTOR.shutdown();
+        try {
+            if (!COUNCIL_EXECUTOR.awaitTermination(10, TimeUnit.SECONDS)) {
+                COUNCIL_EXECUTOR.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            COUNCIL_EXECUTOR.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     // ─── Public API ────────────────────────────────────────────────────────────
@@ -176,14 +196,30 @@ public class CouncilService {
             }, COUNCIL_EXECUTOR))
             .toList();
 
-        return futures.stream()
-            .map(CompletableFuture::join)
-            .collect(Collectors.toMap(
-                Map.Entry::getKey,
-                Map.Entry::getValue,
-                (a, b) -> a,
-                LinkedHashMap::new
-            ));
+        // Wait for all members with a global timeout to prevent indefinite hang
+        try {
+            CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+                .get(MEMBER_CONSULTATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            log.warn("Council consultation timed out after {}s, proceeding with completed members",
+                     MEMBER_CONSULTATION_TIMEOUT_SECONDS);
+        } catch (Exception e) {
+            log.warn("Council consultation interrupted: {}", e.getMessage());
+        }
+
+        // Collect completed results, use fallback for timed-out members
+        Map<String, String> results = new LinkedHashMap<>();
+        for (int i = 0; i < profiles.size(); i++) {
+            String profile = profiles.get(i);
+            CompletableFuture<Map.Entry<String, String>> future = futures.get(i);
+            if (future.isDone() && !future.isCompletedExceptionally()) {
+                results.put(profile, future.join().getValue());
+            } else {
+                log.warn("Council member {} did not complete in time, using fallback", profile);
+                results.put(profile, "(member timed out)");
+            }
+        }
+        return results;
     }
 
     /**

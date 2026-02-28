@@ -1,0 +1,36 @@
+# Azure Container Apps Job: compensator-manager-worker
+apiVersion: "2023-05-01"
+kind: ContainerAppsJob
+metadata:
+  name: compensator-manager-worker
+  resourceGroup: rg-agent-framework-{env}
+properties:
+  configuration:
+    triggerType: Event
+    replicaTimeout: 600
+    replicaRetryLimit: 1
+    eventTriggerConfig:
+      scale:
+        minExecutions: 0
+        maxExecutions: 2
+      rules:
+        - name: servicebus-trigger
+          type: azure-servicebus
+          metadata:
+            topicName: agent-tasks
+            subscriptionName: compensator-manager-worker-sub
+            messageCount: "1"
+  template:
+    containers:
+      - name: compensator-manager-worker
+        image: ghcr.io/agent-framework/compensator-manager-worker:{imageTag}
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: AGENT_WORKER_TYPE
+            value: COMPENSATOR_MANAGER
+          - name: AGENT_WORKER_PROFILE
+            value: compensator-manager
+          - name: SPRING_PROFILES_ACTIVE
+            value: "{env}"

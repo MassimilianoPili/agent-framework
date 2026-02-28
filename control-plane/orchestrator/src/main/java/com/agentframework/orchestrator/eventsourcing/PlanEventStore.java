@@ -46,7 +46,7 @@ public class PlanEventStore {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public PlanEvent append(UUID planId, UUID itemId, String eventType, Object payload) {
-        long seq = repository.countByPlanId(planId) + 1;
+        long seq = repository.nextSequence(planId);
 
         String payloadJson;
         try {

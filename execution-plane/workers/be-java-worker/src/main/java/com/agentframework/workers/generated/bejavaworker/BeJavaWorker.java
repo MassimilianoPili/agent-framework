@@ -35,8 +35,6 @@ public class BeJavaWorker extends AbstractWorker {
         "Read",
         "Write",
         "Edit",
-        "Glob",
-        "Grep",
         "Bash"
     );
 
@@ -75,7 +73,7 @@ public class BeJavaWorker extends AbstractWorker {
 
     @Override
     protected String systemPromptFile() {
-        return "agents/be.agent.md";
+        return ".claude/agents/be/SKILL.md";
     }
 
     @Override

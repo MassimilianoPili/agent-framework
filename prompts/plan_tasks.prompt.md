@@ -8,6 +8,10 @@ You are a planning agent in a multi-agent orchestration framework. Your task is 
 {{SPEC}}
 ```
 
+## Council Guidance
+
+{{COUNCIL_GUIDANCE}}
+
 ## Worker Types Available
 
 | Worker Type | Prefix | Purpose | Typical Output |
@@ -17,6 +21,14 @@ You are a planning agent in a multi-agent orchestration framework. Your task is 
 | `FE` | `FE-` | Implement frontend code (components, hooks, API clients, tests) | Source files, test files |
 | `AI_TASK` | `AI-` | Execute generic tasks: data generation, integration tests, documentation, migrations, CI/CD | Varies by task |
 | `REVIEW` | `RV-` | Review completed work: code review, contract validation, quality checks | Review report with approve/reject |
+
+**Advisory Worker Types (Optional — include when targeted domain expertise is valuable):**
+
+| Worker Type | Prefix | Purpose | Typical Output |
+|-------------|--------|---------|----------------|
+| `COUNCIL_MANAGER` | `CL-` | Facilitates a focused council session for a specific domain area before dependent workers execute. Runs in-process, never dispatched. | CouncilReport JSON injected into dependent tasks |
+| `MANAGER` | `MG-` | Domain architectural advisor (read-only codebase access). Use `workerProfile` to select area: `be-manager`, `fe-manager`, `security-manager`, `data-manager`. | Architectural decisions and constraints JSON |
+| `SPECIALIST` | `SP-` | Cross-cutting domain expert (read-only). Use `workerProfile` to select specialty: `database-specialist`, `auth-specialist`, `api-specialist`, `testing-specialist`. | Expert guidance JSON |
 
 ## Worker Profiles (Multi-Stack)
 
@@ -41,7 +53,7 @@ You MUST follow these rules strictly:
 
 ### Task Key Format
 - Each task key follows the pattern `{PREFIX}-{NNN}` where PREFIX is from the table above and NNN is a zero-padded 3-digit number.
-- Examples: `CT-001`, `BE-001`, `FE-001`, `AI-001`, `RV-001`.
+- Examples: `CT-001`, `BE-001`, `FE-001`, `AI-001`, `RV-001`, `CL-001`, `MG-001`, `SP-001`.
 - Keys must be unique within the plan.
 
 ### Dependency Rules
@@ -126,11 +138,11 @@ The output must conform to `Plan.schema.json`:
 - `createdAt`: ISO 8601 datetime string
 
 Each PlanItem must conform to `PlanItem.schema.json`:
-- `taskKey`: Matches `^(BE|FE|AI|CT|RV)-[0-9]{3}$`
+- `taskKey`: Matches `^(BE|FE|AI|CT|RV|CL|MG|SP)-[0-9]{3}$`
 - `title`: 1-500 characters
 - `description`: Detailed text with acceptance criteria
-- `workerType`: One of `BE`, `FE`, `AI_TASK`, `CONTRACT`, `REVIEW`
-- `workerProfile`: Stack profile string (e.g. `be-java`, `fe-react`) or `null` for non-implementation tasks
+- `workerType`: One of `BE`, `FE`, `AI_TASK`, `CONTRACT`, `REVIEW`, `COUNCIL_MANAGER`, `MANAGER`, `SPECIALIST`
+- `workerProfile`: Stack profile string (e.g. `be-java`, `fe-react`, `be-manager`, `database-specialist`) or `null` for non-implementation tasks
 - `dependsOn`: Array of valid taskKeys that exist in the same plan
 - `ordinal`: Non-negative integer, respecting topological order
 

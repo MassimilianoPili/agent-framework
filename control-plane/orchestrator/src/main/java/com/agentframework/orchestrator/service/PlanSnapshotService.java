@@ -76,7 +76,12 @@ public class PlanSnapshotService {
             Plan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new IllegalStateException("Plan not found: " + planId));
 
-            plan.transitionTo(PlanStatus.valueOf(planStatus));
+            PlanStatus targetPlanStatus = PlanStatus.valueOf(planStatus);
+            if (plan.getStatus() == PlanStatus.COMPLETED) {
+                log.warn("Restoring COMPLETED plan {} to {} — this re-opens a terminal plan",
+                         planId, targetPlanStatus);
+            }
+            plan.forceStatus(targetPlanStatus);
             planRepository.save(plan);
 
             var itemsNode = root.get("items");
@@ -87,8 +92,7 @@ public class PlanSnapshotService {
                     if (item == null) continue;
 
                     ItemStatus targetStatus = ItemStatus.valueOf(itemNode.get("status").asText());
-                    // Force-set status for restore (bypass state machine)
-                    item.transitionTo(targetStatus);
+                    item.forceStatus(targetStatus);
 
                     item.setResult(itemNode.has("result") && !itemNode.get("result").isNull()
                             ? itemNode.get("result").asText() : null);

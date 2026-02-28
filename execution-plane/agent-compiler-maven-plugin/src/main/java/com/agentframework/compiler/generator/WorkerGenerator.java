@@ -1,6 +1,8 @@
 package com.agentframework.compiler.generator;
 
 import com.agentframework.compiler.manifest.AgentManifest;
+import com.agentframework.compiler.registry.McpRegistryLoader;
+import com.agentframework.compiler.registry.McpRegistryLoader.McpServerEntry;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
@@ -9,10 +11,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Generates a complete worker Maven module from an AgentManifest.
@@ -29,9 +28,11 @@ import java.util.Map;
 public class WorkerGenerator {
 
     private final MustacheFactory mustacheFactory;
+    private final McpRegistryLoader mcpRegistry;
 
-    public WorkerGenerator() {
+    public WorkerGenerator(McpRegistryLoader mcpRegistry) {
         this.mustacheFactory = new DefaultMustacheFactory("templates");
+        this.mcpRegistry = mcpRegistry;
     }
 
     /**
@@ -72,6 +73,12 @@ public class WorkerGenerator {
 
         // Generate Dockerfile
         writeTemplate("Dockerfile.mustache", context, moduleDir.resolve("Dockerfile"));
+
+        // Generate application-mcp.yml (MCP client profile, activated via SPRING_PROFILES_ACTIVE=mcp)
+        if (Boolean.TRUE.equals(context.get("hasMcpServers"))) {
+            writeTemplate("application-mcp.yml.mustache", context,
+                    resourcesDir.resolve("application-mcp.yml"));
+        }
 
         return moduleDir;
     }
@@ -173,6 +180,9 @@ public class WorkerGenerator {
         }
         ctx.put("ownsPathEntries", ownsPathEntries);
 
+        // --- MCP client configuration (for application-mcp.yml profile) ---
+        buildMcpContext(spec, ctx);
+
         return ctx;
     }
 
@@ -182,6 +192,72 @@ public class WorkerGenerator {
         StringWriter writer = new StringWriter();
         mustache.execute(writer, context).flush();
         Files.writeString(outputFile, writer.toString());
+    }
+
+    /**
+     * Builds MCP client context variables for Mustache templates.
+     *
+     * <p>Resolves each declared {@code mcpServers} entry against the registry,
+     * produces SSE connection entries for {@code application-mcp.yml}, and computes
+     * auto-configuration exclusions for hybrid dedup.</p>
+     *
+     * <p>Dedup rule: exclude an in-process auto-configuration only if ALL servers
+     * that share the same Maven package are covered by MCP client connections.
+     * This prevents removing in-process tools that are still needed.</p>
+     */
+    private void buildMcpContext(AgentManifest.Spec spec, Map<String, Object> ctx) {
+        List<String> mcpServerNames = spec.getTools().getMcpServers();
+
+        if (mcpRegistry == null || mcpServerNames.isEmpty()) {
+            ctx.put("hasMcpServers", false);
+            ctx.put("mcpConnectionEntries", List.of());
+            ctx.put("mcpExcludedAutoConfigs", List.of());
+            return;
+        }
+
+        // Resolve each declared server against the registry
+        List<Map<String, Object>> mcpConnectionEntries = new ArrayList<>();
+        Set<String> mcpCoveredPackages = new LinkedHashSet<>();
+
+        for (String serverName : mcpServerNames) {
+            McpServerEntry entry = mcpRegistry.get(serverName);
+            if (entry == null || !entry.enabled()) {
+                continue;
+            }
+
+            Map<String, Object> conn = new HashMap<>();
+            conn.put("name", serverName);
+            conn.put("nameUpper", serverName.replace("-", "_").toUpperCase());
+
+            // SSE connection URL (default transport for Docker deployments)
+            var sseConn = entry.connections().get("sse");
+            conn.put("sseUrl", sseConn != null ? sseConn.url() : "http://mcp-server:8080");
+
+            mcpConnectionEntries.add(conn);
+            if (entry.packageId() != null) {
+                mcpCoveredPackages.add(entry.packageId());
+            }
+        }
+
+        ctx.put("hasMcpServers", !mcpConnectionEntries.isEmpty());
+        ctx.put("mcpConnectionEntries", mcpConnectionEntries);
+
+        // Dedup: compute auto-configurations to exclude when the mcp profile is active.
+        // Exclude only if ALL servers of a package are covered by MCP connections.
+        List<Map<String, String>> excludedAutoConfigs = new ArrayList<>();
+        for (String pkg : mcpCoveredPackages) {
+            List<String> serversForPackage = mcpRegistry.getServersByPackage(pkg);
+            if (mcpServerNames.containsAll(serversForPackage)) {
+                String autoConfig = mcpRegistry.getAutoConfiguration(pkg);
+                if (autoConfig != null) {
+                    Map<String, String> entry = new HashMap<>();
+                    entry.put("fqcn", autoConfig);
+                    excludedAutoConfigs.add(entry);
+                }
+            }
+        }
+        ctx.put("mcpExcludedAutoConfigs", excludedAutoConfigs);
+        ctx.put("hasMcpExcludes", !excludedAutoConfigs.isEmpty());
     }
 
     /**

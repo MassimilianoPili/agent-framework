@@ -35,8 +35,6 @@ public class BeGoWorker extends AbstractWorker {
         "Read",
         "Write",
         "Edit",
-        "Glob",
-        "Grep",
         "Bash"
     );
 
@@ -74,7 +72,7 @@ public class BeGoWorker extends AbstractWorker {
 
     @Override
     protected String systemPromptFile() {
-        return "agents/be.agent.md";
+        return ".claude/agents/be-go/SKILL.md";
     }
 
     @Override

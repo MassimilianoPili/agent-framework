@@ -35,7 +35,7 @@
             <artifactId>spring-ai-starter-model-anthropic</artifactId>
         </dependency>
 
-        <!-- MCP Tool Starters -->
+        <!-- MCP Tool Starters (in-process, disabled when profile 'mcp' excludes their auto-config) -->
         <dependency>
             <groupId>io.github.massimilianopili</groupId>
             <artifactId>mcp-devops-tools</artifactId>
@@ -43,6 +43,18 @@
         <dependency>
             <groupId>io.github.massimilianopili</groupId>
             <artifactId>mcp-filesystem-tools</artifactId>
+        </dependency>
+
+        <!-- MCP Client (activated via SPRING_PROFILES_ACTIVE=mcp) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-client</artifactId>
+        </dependency>
+
+        <!-- Redis Streams messaging provider -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>messaging-redis</artifactId>
         </dependency>
 
         <!-- Reactive Tools (parallel tool calling) -->

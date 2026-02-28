@@ -22,6 +22,9 @@ spring:
   ai:
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          timeout: 120s
 
 # Messaging SPI — provider: redis (default), jms, servicebus
 # JMS/Artemis: activate profile 'jms' (application-jms.yml)
@@ -68,6 +71,31 @@ worker-profiles:
       topic: agent-tasks
       subscription: fe-react-worker-sub
       displayName: "Frontend React"
+    task-manager:
+      workerType: TASK_MANAGER
+      topic: agent-tasks
+      subscription: task-manager-worker-sub
+      displayName: "Task Manager"
+    compensator-manager:
+      workerType: COMPENSATOR_MANAGER
+      topic: agent-tasks
+      subscription: compensator-manager-worker-sub
+      displayName: "Compensator Manager"
+    hook-manager:
+      workerType: HOOK_MANAGER
+      topic: agent-tasks
+      subscription: hook-manager-worker-sub
+      displayName: "Hook Manager"
+    audit-manager:
+      workerType: AUDIT_MANAGER
+      topic: agent-tasks
+      subscription: audit-manager-worker-sub
+      displayName: "Audit Manager"
+    event-manager:
+      workerType: EVENT_MANAGER
+      topic: agent-tasks
+      subscription: event-manager-worker-sub
+      displayName: "Event Manager"
   defaults:
     BE: be-java
     FE: fe-react
@@ -76,6 +104,14 @@ worker-profiles:
     REVIEW: ~           # Nessun profilo — usa WorkerType.topicName() (agent-reviews)
     CONTEXT_MANAGER: ~  # Nessun profilo — usa WorkerType.topicName() (agent-tasks)
     SCHEMA_MANAGER: ~   # Nessun profilo — usa WorkerType.topicName() (agent-tasks)
+    TASK_MANAGER: task-manager
+    COMPENSATOR_MANAGER: compensator-manager
+    HOOK_MANAGER: hook-manager
+    AUDIT_MANAGER: audit-manager
+    EVENT_MANAGER: event-manager
+    MANAGER: ~          # Advisory manager — usa WorkerType.topicName() (agent-advisory)
+    SPECIALIST: ~       # Advisory specialist — usa WorkerType.topicName() (agent-advisory)
+    COUNCIL_MANAGER: ~  # Intercettato in-process — mai dispatched
 
 server:
   port: 8080
@@ -88,6 +124,20 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+# Council System — advisory pre-planning and in-plan council sessions
+# Set council.enabled=false for backward compatibility (plan executes without council)
+council:
+  enabled: true
+  max-members: 5
+  pre-planning-enabled: true    # Run council before PlannerService.decompose()
+  task-session-enabled: true    # Handle COUNCIL_MANAGER tasks in-process
+
+# External issue tracker sync — propagates plan events to external tracker via MCP tool.
+# Disabled by default: enable when the tracker-mcp server is deployed and reachable.
+tracker:
+  sync:
+    enabled: false
 
 logging:
   level:

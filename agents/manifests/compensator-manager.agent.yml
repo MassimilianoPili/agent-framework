@@ -1,0 +1,60 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: compensator-manager-worker
+  displayName: "Compensator Manager Worker"
+  description: >
+    Executes rollback operations (git revert, file restore) to undo the effect of a
+    previously completed task. Uses the git-mcp tool set to operate on the workspace.
+    Triggered via POST .../items/{itemId}/compensate.
+
+spec:
+  workerType: COMPENSATOR_MANAGER
+  topic: agent-tasks
+  subscription: compensator-manager-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 8192
+    temperature: 0.0
+
+  prompts:
+    systemPromptFile: .claude/agents/compensator-manager/SKILL.md
+    skills: []
+    instructions: |
+      Receive the context of a previously completed task that needs to be rolled back.
+      Use git operations to revert the changes: identify the relevant commits,
+      perform git revert or file restore, and verify the workspace is clean.
+      Report what was reverted and any conflicts encountered.
+    resultSchema: |
+      {
+        "revertedCommits": ["sha1", "sha2"],
+        "restoredFiles": ["path/to/file"],
+        "conflicts": [],
+        "summary": "Rollback completed successfully"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Glob
+      - Grep
+      - Bash
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - "."
+
+  concurrency:
+    maxConcurrentCalls: 1
+
+  retry:
+    maxAttempts: 1
+    backoffMs: 5000

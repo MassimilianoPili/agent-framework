@@ -1,6 +1,8 @@
 package com.agentframework.orchestrator.hooks;
 
+import com.agentframework.common.policy.ApprovalMode;
 import com.agentframework.common.policy.HookPolicy;
+import com.agentframework.common.policy.RiskLevel;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.orchestration.WorkerProfileRegistry;
 import org.slf4j.Logger;
@@ -74,6 +76,8 @@ public class HookPolicyResolver {
         }
 
         log.debug("Resolved static HookPolicy for {}: tools={}, paths={}", workerType, allowedTools, ownedPaths);
-        return Optional.of(new HookPolicy(allowedTools, ownedPaths, allowedMcpServers, true));
+        return Optional.of(new HookPolicy(
+                allowedTools, ownedPaths, allowedMcpServers, true,
+                null, List.of(), ApprovalMode.NONE, 0, RiskLevel.LOW, null, false));
     }
 }

@@ -30,12 +30,26 @@ resource agentTasksTopic 'Microsoft.ServiceBus/namespaces/topics@2022-10-01-prev
   }
 }
 
-// Per-workerType subscriptions with SQL filters on the workerType message property
+// Per-profile subscriptions with SQL filters.
+// Multi-profile types (BE, FE) filter on workerProfile; single-profile types filter on workerType.
+// Source of truth: config/worker-profiles.yml + config/agent-registry.yml
 var taskSubscriptions = [
-  { name: 'be-worker',       filter: "workerType = 'BE'",       maxDelivery: 3 }
-  { name: 'fe-worker',       filter: "workerType = 'FE'",       maxDelivery: 3 }
-  { name: 'ai-task-worker',  filter: "workerType = 'AI_TASK'",  maxDelivery: 5 }
-  { name: 'contract-worker', filter: "workerType = 'CONTRACT'", maxDelivery: 3 }
+  // ── BE profiles (one subscription per stack) ──
+  { name: 'be-java-worker-sub',   filter: "workerProfile = 'be-java'",  maxDelivery: 3 }
+  { name: 'be-go-worker-sub',     filter: "workerProfile = 'be-go'",    maxDelivery: 3 }
+  { name: 'be-rust-worker-sub',   filter: "workerProfile = 'be-rust'",  maxDelivery: 3 }
+  { name: 'be-node-worker-sub',   filter: "workerProfile = 'be-node'",  maxDelivery: 3 }
+  // ── FE profiles ──
+  { name: 'fe-react-worker-sub',  filter: "workerProfile = 'fe-react'", maxDelivery: 3 }
+  // ── Single-profile types (filter by workerType) ──
+  { name: 'ai-task-worker-sub',   filter: "workerType = 'AI_TASK'",     maxDelivery: 5 }
+  { name: 'contract-worker-sub',  filter: "workerType = 'CONTRACT'",    maxDelivery: 3 }
+  // ── Manager workers ──
+  { name: 'task-manager-worker-sub',        filter: "workerType = 'TASK_MANAGER'",        maxDelivery: 3 }
+  { name: 'compensator-manager-worker-sub', filter: "workerType = 'COMPENSATOR_MANAGER'", maxDelivery: 3 }
+  { name: 'hook-manager-worker-sub',        filter: "workerType = 'HOOK_MANAGER'",        maxDelivery: 3 }
+  { name: 'audit-manager-worker-sub',       filter: "workerType = 'AUDIT_MANAGER'",       maxDelivery: 3 }
+  { name: 'event-manager-worker-sub',       filter: "workerType = 'EVENT_MANAGER'",       maxDelivery: 3 }
 ]
 
 resource taskSubscriptionResources 'Microsoft.ServiceBus/namespaces/topics/subscriptions@2022-10-01-preview' = [for sub in taskSubscriptions: {
@@ -72,7 +86,7 @@ resource agentReviewsTopic 'Microsoft.ServiceBus/namespaces/topics@2022-10-01-pr
 
 resource reviewSubscription 'Microsoft.ServiceBus/namespaces/topics/subscriptions@2022-10-01-preview' = {
   parent: agentReviewsTopic
-  name: 'review-worker'
+  name: 'review-worker-sub'
   properties: {
     lockDuration: 'PT5M'
     maxDeliveryCount: 3

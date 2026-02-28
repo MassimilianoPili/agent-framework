@@ -1,0 +1,36 @@
+# Azure Container Apps Job: audit-manager-worker
+apiVersion: "2023-05-01"
+kind: ContainerAppsJob
+metadata:
+  name: audit-manager-worker
+  resourceGroup: rg-agent-framework-{env}
+properties:
+  configuration:
+    triggerType: Event
+    replicaTimeout: 600
+    replicaRetryLimit: 1
+    eventTriggerConfig:
+      scale:
+        minExecutions: 0
+        maxExecutions: 1
+      rules:
+        - name: servicebus-trigger
+          type: azure-servicebus
+          metadata:
+            topicName: agent-tasks
+            subscriptionName: audit-manager-worker-sub
+            messageCount: "1"
+  template:
+    containers:
+      - name: audit-manager-worker
+        image: ghcr.io/agent-framework/audit-manager-worker:{imageTag}
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: AGENT_WORKER_TYPE
+            value: AUDIT_MANAGER
+          - name: AGENT_WORKER_PROFILE
+            value: audit-manager
+          - name: SPRING_PROFILES_ACTIVE
+            value: "{env}"

@@ -20,7 +20,7 @@ class WorkerGeneratorTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        generator = new WorkerGenerator();
+        generator = new WorkerGenerator(null);
         manifest = new ManifestLoader().load(
             Path.of("src/test/resources/valid-manifest.agent.yml"));
     }

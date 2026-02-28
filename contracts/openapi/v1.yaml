@@ -217,3 +217,414 @@ paths:
             application/json:
               schema:
                 $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/resume:
+    post:
+      operationId: resumePlan
+      summary: Resume a paused plan
+      description: |
+        Transitions the plan from PAUSED back to RUNNING and re-triggers
+        the dispatch wave. Auto-retry failures that exceeded the threshold
+        pause the plan automatically; this endpoint allows manual resumption.
+      tags:
+        - Plans
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+      responses:
+        "202":
+          description: Plan resumed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: resuming
+                  planId:
+                    type: string
+                    format: uuid
+        "400":
+          description: Plan is not in PAUSED state
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/items/{itemId}/issue-snapshot:
+    put:
+      operationId: saveIssueSnapshot
+      summary: Save issue tracker snapshot on a plan item
+      description: |
+        Internal endpoint called by the TASK_MANAGER worker to persist the
+        JSON snapshot fetched from the external issue tracker. Not intended
+        for external callers.
+      tags:
+        - Plans
+        - Internal
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+        - $ref: "v1.components.yaml#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - snapshotJson
+              properties:
+                snapshotJson:
+                  type: string
+                  description: JSON string of the issue snapshot from the tracker
+      responses:
+        "200":
+          description: Snapshot saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: saved
+                  itemId:
+                    type: string
+                    format: uuid
+        "404":
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/items/{itemId}/approve:
+    post:
+      operationId: approveItem
+      summary: Approve a task held in AWAITING_APPROVAL
+      description: |
+        Approves a task that was classified as high-risk (CRITICAL) by the
+        HOOK_MANAGER. Transitions AWAITING_APPROVAL → WAITING and triggers
+        a new dispatch wave.
+      tags:
+        - Plans
+        - Approval
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+        - $ref: "v1.components.yaml#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Item approved and re-queued for dispatch
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: approved
+                  itemId:
+                    type: string
+                    format: uuid
+        "400":
+          description: Item is not in AWAITING_APPROVAL state
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+        "404":
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/items/{itemId}/reject:
+    post:
+      operationId: rejectItem
+      summary: Reject a task held in AWAITING_APPROVAL
+      description: |
+        Rejects a task that was classified as high-risk. Transitions
+        AWAITING_APPROVAL → FAILED with the provided reason.
+      tags:
+        - Plans
+        - Approval
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+        - $ref: "v1.components.yaml#/components/parameters/ItemId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for rejection (defaults to "Rejected by human reviewer")
+      responses:
+        "200":
+          description: Item rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: rejected
+                  itemId:
+                    type: string
+                    format: uuid
+        "400":
+          description: Item is not in AWAITING_APPROVAL state
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+        "404":
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/items/{itemId}/compensate:
+    post:
+      operationId: compensateItem
+      summary: Create a compensation task for a plan item
+      description: |
+        Creates a COMPENSATOR_MANAGER task to undo the effects of the
+        specified item (e.g. git revert). The compensation task is added
+        to the plan and dispatched immediately.
+      tags:
+        - Plans
+        - Compensation
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+        - $ref: "v1.components.yaml#/components/parameters/ItemId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for compensation (defaults to "Manual compensation requested")
+      responses:
+        "202":
+          description: Compensation task created and dispatched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: compensation_started
+                  compensationItemId:
+                    type: string
+                    format: uuid
+                  compensationKey:
+                    type: string
+                    description: Task key of the compensation task (e.g. "CP-001")
+                  planId:
+                    type: string
+                    format: uuid
+        "400":
+          description: Compensation not possible for this item
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/events:
+    get:
+      operationId: streamPlanEvents
+      summary: Subscribe to real-time plan events via SSE
+      description: |
+        Returns a Server-Sent Events stream of plan state changes.
+        On connection, all past events for the plan are replayed (late-join replay),
+        then live events are streamed as they occur.
+        The connection stays open for up to 5 minutes (clients should reconnect after timeout).
+      tags:
+        - Plans
+        - Events
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Each SSE event has `data` containing a JSON PlanEvent:
+                  {"planId":"...","itemId":"...","eventType":"TASK_COMPLETED","payload":"...","occurredAt":"..."}
+
+  /api/v1/plans/{planId}/graph:
+    get:
+      operationId: getPlanGraph
+      summary: Get task DAG as Mermaid diagram or JSON
+      description: |
+        Returns the task dependency graph (DAG) of a plan. Each node includes
+        taskKey, workerType, status, duration, and token usage (when available).
+        Edges represent dependsOn relationships with inferred labels.
+
+        The Mermaid output can be embedded directly in Gitea/GitHub Markdown
+        inside a ```mermaid``` code block.
+      tags:
+        - Plans
+        - Graph
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - mermaid
+              - json
+            default: mermaid
+          description: Output format (mermaid for text diagram, json for adjacency list)
+      responses:
+        "200":
+          description: Plan graph
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Mermaid graph diagram (when format=mermaid)
+            application/json:
+              schema:
+                type: string
+                description: JSON adjacency list (when format=json)
+        "404":
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/council-report:
+    get:
+      operationId: getCouncilReport
+      summary: Get the pre-planning council report for a plan
+      description: |
+        Returns the JSON CouncilReport produced by the pre-planning council session,
+        or 204 No Content if council was disabled or the plan predates the council feature.
+      tags:
+        - Plans
+        - Council
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+      responses:
+        "200":
+          description: Council report JSON
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/CouncilReport"
+        "204":
+          description: No council report (council disabled or plan predates the feature)
+        "404":
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  # ── Reward System ─────────────────────────────────────────────────────
+
+  /api/v1/rewards:
+    get:
+      operationId: exportRewards
+      summary: Export per-task reward records as NDJSON
+      description: |
+        Returns per-task reward records as NDJSON (one JSON object per line).
+        Optionally filtered by planId. Only items with at least one reward signal
+        are returned. Format is DPO-ready: includes task metadata, result, and
+        all reward components.
+      tags:
+        - Rewards
+      parameters:
+        - name: planId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter rewards by plan ID
+      responses:
+        "200":
+          description: NDJSON stream of reward records
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+                description: |
+                  One JSON object per line with fields: taskKey, workerType,
+                  workerProfile, status, aggregatedReward, reviewScore,
+                  processScore, rewardSources, result
+
+  /api/v1/rewards/stats:
+    get:
+      operationId: getRewardStats
+      summary: Get ELO leaderboard per worker profile
+      description: |
+        Returns one entry per worker profile, sorted by ELO rating descending.
+        ELO is computed using the standard Chess formula (K=32) with pairwise
+        comparisons of profiles that executed tasks of the same workerType.
+      tags:
+        - Rewards
+      responses:
+        "200":
+          description: ELO leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "v1.components.yaml#/components/schemas/EloStatResponse"
+
+  /api/v1/rewards/preference-pairs:
+    get:
+      operationId: exportPreferencePairs
+      summary: Export DPO preference pairs as NDJSON
+      description: |
+        Returns DPO-format preference pairs as NDJSON. Each pair contains
+        a chosen (higher reward) and rejected (lower reward) response for the
+        same task type, suitable for offline preference learning.
+      tags:
+        - Rewards
+      parameters:
+        - name: minDelta
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+            default: 0.3
+          description: Minimum reward delta for inclusion
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 500
+          description: Maximum number of pairs to return
+      responses:
+        "200":
+          description: NDJSON stream of preference pairs
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+                description: |
+                  One JSON object per line with fields: id, planId, taskKey,
+                  workerType, prompt, chosen, rejected, chosenReward,
+                  rejectedReward, deltaReward, generationSource, createdAt

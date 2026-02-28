@@ -84,6 +84,9 @@ dell'orchestrator. Non serve inizializzazione manuale.
 | `ARTEMIS_HOST` | `localhost` | No | Host broker Artemis |
 | `ARTEMIS_USER` | `admin` | No | Utente broker |
 | `ARTEMIS_PASSWORD` | `admin` | No | Password broker |
+| `SPRING_PROFILES_ACTIVE` | — | No | Profili Spring Boot (es. `mcp` per MCP client, `jms` per Artemis) |
+| `MCP_GIT_URL` | `http://mcp-server:8080` | No | URL server MCP per tool Git (solo con profile `mcp`) |
+| `MCP_REPO_FS_URL` | `http://mcp-server:8080` | No | URL server MCP per tool filesystem (solo con profile `mcp`) |
 
 Configurazione minima per ambiente locale:
 
@@ -146,6 +149,21 @@ Worker disponibili:
 | AI Task | `mvn spring-boot:run -pl execution-plane/workers/ai-task-worker` |
 | Contract | `mvn spring-boot:run -pl execution-plane/workers/contract-worker` |
 | Review | `mvn spring-boot:run -pl execution-plane/workers/review-worker` |
+
+### Modalita' MCP Client (opzionale)
+
+Per connettere i worker a un server MCP esterno invece di usare i tool in-process:
+
+1. Avviare un MCP server con endpoint SSE (es. `java -jar mcp-server.jar`)
+2. Avviare il worker con il profile `mcp`:
+
+```bash
+SPRING_PROFILES_ACTIVE=mcp MCP_GIT_URL=http://localhost:8080 \
+  mvn spring-boot:run -pl execution-plane/workers/be-java-worker
+```
+
+Senza il profile `mcp`, i tool girano in-process (comportamento default).
+Per dettagli sulle 3 modalita' (in-process, external, hybrid): [MCP Usage Guide](mcp/docs/usage.md).
 
 ## 6. Primo Plan — End-to-End
 

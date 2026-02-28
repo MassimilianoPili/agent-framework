@@ -13,7 +13,8 @@ public record PlanResponse(
     Instant createdAt,
     Instant completedAt,
     String failureReason,
-    List<PlanItemResponse> items
+    List<PlanItemResponse> items,
+    String councilReport        // JSON CouncilReport from pre-planning session (null if council disabled)
 ) {
 
     public static PlanResponse from(Plan plan) {
@@ -28,7 +29,8 @@ public record PlanResponse(
             plan.getCreatedAt(),
             plan.getCompletedAt(),
             plan.getFailureReason(),
-            itemResponses
+            itemResponses,
+            plan.getCouncilReport()
         );
     }
 }

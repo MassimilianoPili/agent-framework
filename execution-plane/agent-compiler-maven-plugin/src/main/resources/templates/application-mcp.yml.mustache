@@ -1,0 +1,32 @@
+# MCP Client profile — activated via SPRING_PROFILES_ACTIVE=mcp
+# Connects the worker to external MCP server(s) via SSE transport.
+# When active, in-process tool auto-configurations for covered packages
+# are excluded to prevent duplicate tool name registration.
+#
+# Override MCP server URLs via environment variables:
+# {{#mcpConnectionEntries}}
+#   MCP_{{nameUpper}}_URL  (default: {{sseUrl}})
+# {{/mcpConnectionEntries}}
+
+spring:
+  {{#hasMcpExcludes}}
+  autoconfigure:
+    exclude:
+      {{#mcpExcludedAutoConfigs}}
+      - {{fqcn}}
+      {{/mcpExcludedAutoConfigs}}
+  {{/hasMcpExcludes}}
+  ai:
+    mcp:
+      client:
+        enabled: true
+        type: SYNC
+        request-timeout: 30s
+        toolcallback:
+          enabled: true
+        sse:
+          connections:
+            {{#mcpConnectionEntries}}
+            {{name}}:
+              url: ${MCP_{{nameUpper}}_URL:{{sseUrl}}}
+            {{/mcpConnectionEntries}}

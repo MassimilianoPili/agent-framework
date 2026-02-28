@@ -1,0 +1,55 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: audit-manager-worker
+  displayName: "Audit Manager Worker"
+  description: >
+    Optional final step in the plan pipeline. Reads audit events collected during execution
+    and produces a human-readable audit report summarizing tool usage, path accesses, and
+    policy decisions across all tasks in the plan.
+
+spec:
+  workerType: AUDIT_MANAGER
+  topic: agent-tasks
+  subscription: audit-manager-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 8192
+    temperature: 0.1
+
+  prompts:
+    systemPromptFile: .claude/agents/audit-manager/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Read the audit events from all completed tasks in this plan.
+      Summarise tool usage patterns, path accesses, policy violations, and durations.
+      Produce a structured audit report for human review.
+    resultSchema: |
+      {
+        "summary": "High-level execution summary",
+        "toolUsage": { "<tool>": { "count": 0, "avgDurationMs": 0 } },
+        "policyViolations": [{ "taskKey": "", "violation": "", "severity": "" }],
+        "recommendations": ["list of improvement suggestions"]
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+    mcpServers: []
+
+  ownership:
+    ownsPaths:
+      - audit/
+
+  concurrency:
+    maxConcurrentCalls: 1
+
+  retry:
+    maxAttempts: 1
+    backoffMs: 5000

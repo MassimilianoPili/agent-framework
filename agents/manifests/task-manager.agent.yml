@@ -1,0 +1,54 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: task-manager-worker
+  displayName: "Task Manager Worker"
+  description: >
+    Fetches the latest issue snapshot from the external issue tracker (via tracker-mcp)
+    and stores it on the PlanItem so downstream domain workers have rich, up-to-date
+    task context. Typically runs as the first dependency in a plan.
+
+spec:
+  workerType: TASK_MANAGER
+  topic: agent-tasks
+  subscription: task-manager-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 4096
+    temperature: 0.0
+
+  prompts:
+    systemPromptFile: .claude/agents/task-manager/SKILL.md
+    skills: []
+    instructions: |
+      Connect to the external issue tracker via the tracker MCP server.
+      Fetch the full issue details (title, description, comments, labels, assignees).
+      Return a structured snapshot that downstream workers can use as task context.
+    resultSchema: |
+      {
+        "issueKey": "PROJECT-123",
+        "title": "Issue title",
+        "description": "Full description",
+        "labels": ["bug", "priority:high"],
+        "comments": [{ "author": "", "body": "", "createdAt": "" }],
+        "status": "open"
+      }
+
+  tools:
+    dependencies: []
+    allowlist:
+      - Read
+    mcpServers:
+      - tracker
+
+  ownership:
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3
+
+  retry:
+    maxAttempts: 2
+    backoffMs: 5000

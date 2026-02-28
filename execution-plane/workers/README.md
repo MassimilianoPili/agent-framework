@@ -29,6 +29,7 @@ Ogni modulo worker è un'applicazione Spring Boot autonoma che estende `Abstract
 | `audit-manager-worker` | AUDIT_MANAGER | — | agent-tasks | audit-manager-worker-sub | `audit/` | ✓ |
 | `event-manager-worker` | EVENT_MANAGER | — | agent-tasks | event-manager-worker-sub | `.` (read-only) | ✓ |
 | `compensator-manager-worker` | COMPENSATOR_MANAGER | — | agent-tasks | compensator-manager-worker-sub | `.` | ✗ |
+| `advisory-worker` | MANAGER/SPECIALIST | — | agent-tasks | advisory-worker-sub | `.` (read-only) | ✗ |
 | _(inline orchestrator)_ | SUB_PLAN | — | — | — | — | — |
 
 > **Colonna Generato**: ✓ = prodotto da `agent-compiler-maven-plugin` (non modificare a mano);

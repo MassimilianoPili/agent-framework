@@ -1,0 +1,36 @@
+# Azure Container Apps Job: event-manager-worker
+apiVersion: "2023-05-01"
+kind: ContainerAppsJob
+metadata:
+  name: event-manager-worker
+  resourceGroup: rg-agent-framework-{env}
+properties:
+  configuration:
+    triggerType: Event
+    replicaTimeout: 600
+    replicaRetryLimit: 1
+    eventTriggerConfig:
+      scale:
+        minExecutions: 0
+        maxExecutions: 1
+      rules:
+        - name: servicebus-trigger
+          type: azure-servicebus
+          metadata:
+            topicName: agent-tasks
+            subscriptionName: event-manager-worker-sub
+            messageCount: "1"
+  template:
+    containers:
+      - name: event-manager-worker
+        image: ghcr.io/agent-framework/event-manager-worker:{imageTag}
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: AGENT_WORKER_TYPE
+            value: EVENT_MANAGER
+          - name: AGENT_WORKER_PROFILE
+            value: event-manager
+          - name: SPRING_PROFILES_ACTIVE
+            value: "{env}"

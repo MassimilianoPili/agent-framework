@@ -74,7 +74,7 @@ public class ContractWorker extends AbstractWorker {
 
     @Override
     protected String systemPromptFile() {
-        return "agents/contract.agent.md";
+        return ".claude/agents/contract/SKILL.md";
     }
 
     @Override

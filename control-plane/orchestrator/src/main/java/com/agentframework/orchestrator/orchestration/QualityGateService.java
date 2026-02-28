@@ -8,12 +8,17 @@ import com.agentframework.orchestrator.planner.PromptLoader;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.repository.QualityGateReportRepository;
+import com.agentframework.orchestrator.reward.EloRatingService;
+import com.agentframework.orchestrator.reward.PreferencePairGenerator;
+import com.agentframework.orchestrator.reward.RewardComputationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.event.TransactionPhase;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -34,19 +39,28 @@ public class QualityGateService {
     private final PlanItemRepository planItemRepository;
     private final QualityGateReportRepository reportRepository;
     private final ObjectMapper objectMapper;
+    private final RewardComputationService rewardComputationService;
+    private final EloRatingService eloRatingService;
+    private final PreferencePairGenerator preferencePairGenerator;
 
     public QualityGateService(ChatClient chatClient,
                               PromptLoader promptLoader,
                               PlanRepository planRepository,
                               PlanItemRepository planItemRepository,
                               QualityGateReportRepository reportRepository,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              RewardComputationService rewardComputationService,
+                              EloRatingService eloRatingService,
+                              PreferencePairGenerator preferencePairGenerator) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.reportRepository = reportRepository;
         this.objectMapper = objectMapper;
+        this.rewardComputationService = rewardComputationService;
+        this.eloRatingService = eloRatingService;
+        this.preferencePairGenerator = preferencePairGenerator;
     }
 
     /**
@@ -54,7 +68,8 @@ public class QualityGateService {
      * Loads the plan and its items from the database, then calls Claude
      * with all task results to produce a structured assessment.
      */
-    @EventListener
+    @Async("orchestratorAsyncExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPlanCompleted(PlanCompletedEvent event) {
         Plan plan = planRepository.findById(event.planId())
             .orElseThrow(() -> new IllegalStateException(
@@ -98,6 +113,18 @@ public class QualityGateService {
 
             reportRepository.save(report);
             log.info("Quality gate report saved for plan {} — passed: {}", plan.getId(), report.isPassed());
+
+            // Reward signal — point 3: distribute quality gate score as fallback for items without reviewScore
+            rewardComputationService.distributeQualityGateSignal(plan.getId(), report.isPassed());
+
+            // ELO update: run pairwise profile comparisons for this plan
+            eloRatingService.updateRatingsForPlan(plan.getId());
+
+            // DPO preference pair generation: cross-profile and retry-based
+            int pairs = preferencePairGenerator.generateForPlan(plan.getId());
+            if (pairs > 0) {
+                log.info("Generated {} DPO preference pairs for plan {}", pairs, plan.getId());
+            }
 
         } catch (Exception e) {
             log.error("Failed to generate quality gate report for plan {}: {}",

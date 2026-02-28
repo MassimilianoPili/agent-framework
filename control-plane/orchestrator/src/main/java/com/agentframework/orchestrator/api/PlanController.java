@@ -321,4 +321,26 @@ public class PlanController {
             })
             .orElse(ResponseEntity.notFound().build());
     }
+
+    /**
+     * GET /api/v1/plans/{id}/council-report
+     *
+     * <p>Returns the pre-planning {@code CouncilReport} stored on the plan as raw JSON,
+     * or 404 if the plan is not found, or 204 No Content if council was disabled or the
+     * plan predates the council feature.</p>
+     */
+    @GetMapping(value = "/{id}/council-report", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> getCouncilReport(@PathVariable UUID id) {
+        var planOpt = orchestrationService.getPlan(id);
+        if (planOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        String report = planOpt.get().getCouncilReport();
+        if (report == null || report.isBlank()) {
+            return ResponseEntity.<String>status(HttpStatus.NO_CONTENT).build();
+        }
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(report);
+    }
 }

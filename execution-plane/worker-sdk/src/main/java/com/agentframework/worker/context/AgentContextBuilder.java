@@ -88,7 +88,8 @@ public class AgentContextBuilder {
             depResults,
             "",
             extractRelevantFiles(depResults),
-            task.policy()
+            task.policy(),
+            task.councilContext()
         );
     }
 
