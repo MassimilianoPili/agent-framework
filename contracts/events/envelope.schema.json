@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentframework.com/schemas/events/envelope",
+  "title": "EventEnvelope",
+  "description": "Generic wrapper for all events published to Service Bus. Every message carries a correlation ID for distributed tracing and a typed payload.",
+  "type": "object",
+  "required": ["eventId", "eventType", "timestamp", "payload"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this event instance"
+    },
+    "eventType": {
+      "type": "string",
+      "description": "Event type identifier (e.g. plan.created, task.dispatched)",
+      "pattern": "^[a-z]+\\.[a-z_]+$"
+    },
+    "traceId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "OpenTelemetry trace ID for distributed tracing"
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Correlation ID linking related events (typically the planId)"
+    },
+    "source": {
+      "type": "string",
+      "description": "Service that emitted the event (e.g. orchestrator, be-worker)",
+      "examples": ["orchestrator", "be-worker", "fe-worker"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of event creation"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-specific payload (structure depends on eventType)"
+    }
+  }
+}

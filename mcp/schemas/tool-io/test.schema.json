@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcp-test-tool-io.schema.json",
+  "title": "Test MCP Server Tool I/O",
+  "description": "Input/output contracts for the test MCP server tools",
+  "definitions": {
+    "MavenTestInput": {
+      "type": "object",
+      "properties": {
+        "module": { "type": "string", "description": "Maven module path (e.g., backend/)" },
+        "testClass": { "type": "string", "description": "Fully qualified test class name" },
+        "profiles": { "type": "array", "items": { "type": "string" } },
+        "skipITs": { "type": "boolean", "default": false, "description": "Skip integration tests" }
+      },
+      "additionalProperties": false
+    },
+    "MavenTestOutput": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "testsRun": { "type": "integer" },
+        "testsFailed": { "type": "integer" },
+        "testsSkipped": { "type": "integer" },
+        "testsErrored": { "type": "integer" },
+        "duration": { "type": "number", "description": "Duration in seconds" },
+        "failures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "testClass": { "type": "string" },
+              "testMethod": { "type": "string" },
+              "message": { "type": "string" },
+              "stackTrace": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "NpmTestInput": {
+      "type": "object",
+      "properties": {
+        "workingDir": { "type": "string", "description": "Directory containing package.json" },
+        "testFile": { "type": "string", "description": "Specific test file to run" },
+        "watch": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "NpmTestOutput": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "testsRun": { "type": "integer" },
+        "testsFailed": { "type": "integer" },
+        "testsSkipped": { "type": "integer" },
+        "duration": { "type": "number" },
+        "failures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "testFile": { "type": "string" },
+              "testName": { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "CoverageReportInput": {
+      "type": "object",
+      "required": ["reportPath"],
+      "properties": {
+        "reportPath": { "type": "string", "description": "Path to JaCoCo XML or c8 JSON report" },
+        "format": { "type": "string", "enum": ["jacoco", "c8", "lcov"], "default": "jacoco" }
+      },
+      "additionalProperties": false
+    },
+    "CoverageReportOutput": {
+      "type": "object",
+      "properties": {
+        "lineCoverage": { "type": "number", "minimum": 0, "maximum": 100 },
+        "branchCoverage": { "type": "number", "minimum": 0, "maximum": 100 },
+        "methodCoverage": { "type": "number", "minimum": 0, "maximum": 100 },
+        "uncoveredFiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": { "type": "string" },
+              "lineCoverage": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

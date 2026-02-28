@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: review-worker
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: claude-sonnet-4-6
+          max-tokens: 16384
+          temperature: 0.2
+
+agent:
+  worker:
+    task-topic: agent-reviews
+    task-subscription: review-worker-sub
+    results-topic: agent-results
+    policy:
+      enabled: true
+      worker-profile: 
+      owns-paths:
+        - docs/
+      write-tool-names:
+        - Write
+        - Edit
+      audit:
+        enabled: true
+        include-input: false
+        max-input-length: 200
+
+logging:
+  level:
+    com.agentframework: INFO

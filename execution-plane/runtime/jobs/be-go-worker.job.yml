@@ -1,0 +1,36 @@
+# Azure Container Apps Job: be-go-worker
+apiVersion: "2023-05-01"
+kind: ContainerAppsJob
+metadata:
+  name: be-go-worker
+  resourceGroup: rg-agent-framework-{env}
+properties:
+  configuration:
+    triggerType: Event
+    replicaTimeout: 1800
+    replicaRetryLimit: 1
+    eventTriggerConfig:
+      scale:
+        minExecutions: 0
+        maxExecutions: 3
+      rules:
+        - name: servicebus-trigger
+          type: azure-servicebus
+          metadata:
+            topicName: agent-tasks
+            subscriptionName: be-go-worker-sub
+            messageCount: "1"
+  template:
+    containers:
+      - name: be-go-worker
+        image: ghcr.io/agent-framework/be-go-worker:{imageTag}
+        resources:
+          cpu: 1.0
+          memory: 2Gi
+        env:
+          - name: AGENT_WORKER_TYPE
+            value: BE
+          - name: AGENT_WORKER_PROFILE
+            value: be-go
+          - name: SPRING_PROFILES_ACTIVE
+            value: "{env}"

@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: task-manager-worker
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: claude-sonnet-4-6
+          max-tokens: 8192
+          temperature: 0.1   # Low temperature: deterministic extraction, not creative writing
+
+agent:
+  worker:
+    task-topic: agent-tasks
+    task-subscription: task-manager-worker-sub
+    results-topic: agent-results
+    policy:
+      enabled: true
+      worker-profile: task-manager
+      owns-paths: []
+      write-tool-names: []   # TASK_MANAGER only reads from tracker — no filesystem writes
+      audit:
+        enabled: true
+        include-input: false
+        max-input-length: 200
+
+  # Base URL of the orchestrator (used to persist issue snapshots)
+  orchestrator:
+    base-url: ${ORCHESTRATOR_BASE_URL:http://orchestrator:8080}
+
+logging:
+  level:
+    com.agentframework: INFO

@@ -1,0 +1,268 @@
+package com.agentframework.orchestrator.council;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
+
+/**
+ * Orchestrates advisory council sessions for domain knowledge enrichment.
+ *
+ * <p>Two usage contexts:</p>
+ * <ol>
+ *   <li><b>Pre-planning</b>: called by {@code OrchestrationService.createAndStart()} before
+ *       the planner decomposes the spec. Produces a global {@code CouncilReport} stored on
+ *       {@code Plan.councilReport} and injected into the planner prompt.</li>
+ *   <li><b>In-plan task</b>: called by {@code OrchestrationService.dispatchReadyItems()} when
+ *       a {@code COUNCIL_MANAGER} item is encountered. Produces a task-scoped report that
+ *       flows to dependent workers via dependency results.</li>
+ * </ol>
+ *
+ * <p>Member consultation is always parallel — each MANAGER/SPECIALIST responds independently
+ * to the same context, then the COUNCIL_MANAGER LLM synthesises into a {@code CouncilReport}.</p>
+ */
+@Service
+public class CouncilService {
+
+    private static final Logger log = LoggerFactory.getLogger(CouncilService.class);
+
+    /** Virtual thread executor for parallel member consultations. */
+    private static final ExecutorService COUNCIL_EXECUTOR =
+        Executors.newVirtualThreadPerTaskExecutor();
+
+    private final ChatClient chatClient;
+    private final CouncilPromptLoader promptLoader;
+    private final CouncilProperties properties;
+    private final ObjectMapper objectMapper;
+
+    public CouncilService(ChatClient chatClient,
+                          CouncilPromptLoader promptLoader,
+                          CouncilProperties properties,
+                          ObjectMapper objectMapper) {
+        this.chatClient = chatClient;
+        this.promptLoader = promptLoader;
+        this.properties = properties;
+        this.objectMapper = objectMapper;
+    }
+
+    // ─── Public API ────────────────────────────────────────────────────────────
+
+    /**
+     * Pre-planning council session: consults domain experts about the full spec.
+     *
+     * <p>Called synchronously from {@code OrchestrationService.createAndStart()}, before
+     * the planner decomposes the spec. The returned {@code CouncilReport} is stored on
+     * {@code Plan.councilReport} and later injected into the planner and each worker task.</p>
+     *
+     * @param spec the original natural language specification
+     * @return synthesised council consensus
+     */
+    public CouncilReport conductPrePlanningSession(String spec) {
+        log.info("Starting pre-planning council session (maxMembers={})", properties.maxMembers());
+
+        List<String> selected = selectMembers(spec, properties.maxMembers());
+        log.info("Council selected {} members: {}", selected.size(), selected);
+
+        Map<String, String> memberViews = consultMembersParallel(spec, selected);
+        CouncilReport report = synthesize(spec, memberViews);
+
+        log.info("Pre-planning council session complete. Decisions: {}", report.architectureDecisions());
+        return report;
+    }
+
+    /**
+     * Task-level council session: focused deliberation for a specific in-plan task.
+     *
+     * <p>Called synchronously by {@code OrchestrationService} when a {@code COUNCIL_MANAGER}
+     * item is encountered during dispatch. The result is stored as the item's result JSON
+     * and flows to dependent workers via the existing dependency-result mechanism.</p>
+     *
+     * @param taskTitle       title of the COUNCIL_MANAGER plan item
+     * @param taskDescription full description of what the task needs advice on
+     * @param dependencyResults JSON results from completed dependency items (taskKey → resultJson)
+     * @return synthesised task-scoped council report
+     */
+    public CouncilReport conductTaskSession(String taskTitle,
+                                             String taskDescription,
+                                             Map<String, String> dependencyResults) {
+        log.info("Starting task-level council session for: {}", taskTitle);
+
+        // Build context: task description + prior dependency results
+        String context = buildTaskContext(taskTitle, taskDescription, dependencyResults);
+
+        List<String> selected = selectMembersForTask(taskTitle, context, properties.maxMembers());
+        log.info("Task council selected {} members: {}", selected.size(), selected);
+
+        Map<String, String> memberViews = consultMembersParallel(context, selected);
+        CouncilReport report = synthesize(context, memberViews);
+
+        log.info("Task council session complete for: {}", taskTitle);
+        return report;
+    }
+
+    // ─── Private Helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Calls the council-selector LLM to dynamically pick relevant members for the spec.
+     *
+     * <p>The selector prompt returns a JSON array of profile names:
+     * e.g. {@code ["be-manager", "security-specialist", "database-specialist"]}.</p>
+     */
+    private List<String> selectMembers(String spec, int maxMembers) {
+        String selectorPrompt = promptLoader.loadSelectorPrompt();
+        String userMessage = "Specification:\n" + spec
+            + "\n\nSelect up to " + maxMembers + " members from the available roster.";
+
+        String raw = chatClient.prompt()
+            .system(selectorPrompt)
+            .user(userMessage)
+            .call()
+            .content();
+
+        return parseStringList(raw, "council-selector");
+    }
+
+    /**
+     * Variant of {@link #selectMembers} scoped to a specific task context.
+     */
+    private List<String> selectMembersForTask(String taskTitle, String context, int maxMembers) {
+        String selectorPrompt = promptLoader.loadSelectorPrompt();
+        String userMessage = "Task: " + taskTitle
+            + "\n\nContext:\n" + context
+            + "\n\nSelect up to " + maxMembers + " members most relevant to this task.";
+
+        String raw = chatClient.prompt()
+            .system(selectorPrompt)
+            .user(userMessage)
+            .call()
+            .content();
+
+        return parseStringList(raw, "council-selector-task");
+    }
+
+    /**
+     * Consults each selected member in parallel using virtual threads.
+     *
+     * <p>Each member receives the full context and their domain-specific system prompt.
+     * Members respond independently — no member sees another's output at this stage.</p>
+     *
+     * @param context the shared context (spec or task description)
+     * @param profiles member profile names to consult
+     * @return map of profile → member view text
+     */
+    private Map<String, String> consultMembersParallel(String context, List<String> profiles) {
+        List<CompletableFuture<Map.Entry<String, String>>> futures = profiles.stream()
+            .map(profile -> CompletableFuture.supplyAsync(() -> {
+                try {
+                    String view = consultMember(profile, context);
+                    return Map.entry(profile, view);
+                } catch (Exception e) {
+                    log.warn("Council member {} failed, skipping: {}", profile, e.getMessage());
+                    return Map.entry(profile, "(member failed: " + e.getMessage() + ")");
+                }
+            }, COUNCIL_EXECUTOR))
+            .toList();
+
+        return futures.stream()
+            .map(CompletableFuture::join)
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                (a, b) -> a,
+                LinkedHashMap::new
+            ));
+    }
+
+    /**
+     * Calls the LLM for a single council member with their domain-specific system prompt.
+     */
+    private String consultMember(String profile, String context) {
+        String memberPrompt = promptLoader.loadMemberPrompt(profile);
+        log.debug("Consulting council member: {}", profile);
+
+        return chatClient.prompt()
+            .system(memberPrompt)
+            .user("Context to advise on:\n\n" + context)
+            .call()
+            .content();
+    }
+
+    /**
+     * Calls the COUNCIL_MANAGER LLM to synthesise all member views into a {@link CouncilReport}.
+     */
+    private CouncilReport synthesize(String context, Map<String, String> memberViews) {
+        BeanOutputConverter<CouncilReport> converter = new BeanOutputConverter<>(CouncilReport.class);
+
+        StringBuilder memberViewsText = new StringBuilder();
+        memberViews.forEach((profile, view) ->
+            memberViewsText.append("### ").append(profile).append("\n").append(view).append("\n\n"));
+
+        String userMessage = "Original context:\n" + context
+            + "\n\n## Member Views\n\n" + memberViewsText
+            + "\n\n" + converter.getFormat();
+
+        String raw = chatClient.prompt()
+            .system(promptLoader.loadManagerPrompt())
+            .user(userMessage)
+            .call()
+            .content();
+
+        CouncilReport report = converter.convert(raw);
+        if (report == null) {
+            log.warn("Council synthesizer returned null, using empty report");
+            return new CouncilReport(
+                new ArrayList<>(memberViews.keySet()),
+                List.of(), null, List.of(), null, null, null,
+                memberViews
+            );
+        }
+        return report;
+    }
+
+    /**
+     * Builds a combined context string for task-level sessions, including dependency results.
+     */
+    private String buildTaskContext(String title, String description,
+                                    Map<String, String> dependencyResults) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## Task: ").append(title).append("\n\n");
+        sb.append(description).append("\n\n");
+        if (!dependencyResults.isEmpty()) {
+            sb.append("## Dependency Results\n\n");
+            dependencyResults.forEach((key, result) ->
+                sb.append("### ").append(key).append("\n```json\n").append(result).append("\n```\n\n"));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Parses a JSON array of strings from a raw LLM response.
+     * Falls back to a default set if parsing fails.
+     */
+    private List<String> parseStringList(String raw, String context) {
+        try {
+            // Strip any markdown code blocks the LLM might wrap around the JSON
+            String cleaned = raw.trim();
+            if (cleaned.startsWith("```")) {
+                cleaned = cleaned.replaceAll("^```[a-z]*\\n?", "").replaceAll("```$", "").trim();
+            }
+            return objectMapper.readValue(cleaned, new TypeReference<List<String>>() {});
+        } catch (JsonProcessingException e) {
+            log.warn("Could not parse member list from {}, using defaults. Raw: {}", context, raw);
+            return List.of("be-manager", "security-specialist");
+        }
+    }
+}

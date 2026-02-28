@@ -1,0 +1,61 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: context-manager-worker
+  displayName: "Context Manager Worker"
+  description: >
+    Explores the codebase to produce enriched context for downstream domain workers.
+    Identifies relevant files, summarises world state from completed parallel tasks,
+    and surfaces key constraints. Always runs as a dependency before BE/FE/AI_TASK tasks.
+
+spec:
+  workerType: CONTEXT_MANAGER
+  topic: agent-tasks
+  subscription: context-manager-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 8192
+    temperature: 0.1
+
+  prompts:
+    systemPromptFile: .claude/agents/context-manager/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Analyse the task description and explore the codebase.
+      Identify the minimal set of files the downstream worker needs to read.
+      Summarise the current world state from any completed dependency results.
+      Surface key constraints found in CLAUDE.md, ADRs, or architecture docs.
+      Return a structured context object — do not implement anything.
+    resultSchema: |
+      {
+        "relevant_files": [
+          {"path": "relative/path/to/file", "reason": "why this file is needed"}
+        ],
+        "world_state": "concise summary of what has changed or already exists",
+        "key_constraints": ["list of constraints the worker must respect"],
+        "missing_info": ["anything that could not be determined from the codebase"]
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Glob
+      - Grep
+    mcpServers:
+      - repo-fs
+
+  ownership:
+    readOnlyPaths:
+      - "."
+
+  concurrency:
+    maxConcurrentCalls: 5
+
+  retry:
+    maxAttempts: 2
+    backoffMs: 3000

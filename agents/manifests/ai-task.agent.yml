@@ -1,0 +1,57 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: ai-task-worker
+  displayName: "AI Task Worker"
+  description: >
+    General-purpose task worker for cross-cutting concerns,
+    documentation generation, test generation, and orchestration subtasks.
+
+spec:
+  workerType: AI_TASK
+  topic: agent-tasks
+  subscription: ai-task-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/ai-task/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Execute the AI task described above. Read the context and understand
+      the task requirements. Generate tests, documentation, or other artifacts
+      as specified. Use the available filesystem tools to read existing code
+      and write the output.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "summary": "brief description of what was produced",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - repo-fs
+      - test
+
+  ownership:
+    ownsPaths:
+      - eval/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 5

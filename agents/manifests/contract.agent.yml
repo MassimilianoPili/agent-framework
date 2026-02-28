@@ -1,0 +1,59 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: contract-worker
+  displayName: "Contract Worker"
+  description: >
+    Owns OpenAPI contracts — generates specs, runs Spectral lint,
+    detects breaking changes with oasdiff, triggers codegen.
+
+spec:
+  workerType: CONTRACT
+  topic: agent-tasks
+  subscription: contract-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/contract/SKILL.md
+    skills:
+      - skills/crosscutting/contracts/
+    instructions: |
+      Design and implement the API contract described above. Generate an
+      OpenAPI specification, validate it with Spectral linting rules, and
+      check for breaking changes against any existing API version.
+      Use the available filesystem tools to read and write spec files.
+    resultSchema: |
+      {
+        "files_created": ["list of new spec files created"],
+        "files_modified": ["list of existing spec files modified"],
+        "summary": "brief description of the contract designed",
+        "validation_results": "Spectral lint and breaking change check results"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Glob
+      - Grep
+      - Bash
+    mcpServers:
+      - repo-fs
+      - openapi
+
+  ownership:
+    ownsPaths:
+      - contracts/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 2

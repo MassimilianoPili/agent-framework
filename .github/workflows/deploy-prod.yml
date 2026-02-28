@@ -1,0 +1,44 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (must be a tested version)"
+        required: true
+
+env:
+  AZURE_RESOURCE_GROUP: rg-agent-framework-prod
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/agent-framework
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production  # Requires manual approval
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Orchestrator
+        run: |
+          echo "Deploying orchestrator to ${{ env.AZURE_RESOURCE_GROUP }}"
+          # az containerapp update --name orchestrator --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          #   --image ${{ env.IMAGE_PREFIX }}/orchestrator:${{ inputs.image_tag }}
+
+      - name: Deploy Workers
+        run: |
+          for worker in be-worker fe-worker ai-task-worker contract-worker review-worker; do
+            echo "Deploying $worker to ${{ env.AZURE_RESOURCE_GROUP }}"
+            # az containerapp job update --name $worker --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            #   --image ${{ env.IMAGE_PREFIX }}/$worker:${{ inputs.image_tag }}
+          done
+
+      - name: Verify deployment health
+        run: |
+          echo "TODO: Health check endpoints"
+          # curl -f https://orchestrator-prod.azurecontainerapps.io/actuator/health

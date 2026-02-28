@@ -1,0 +1,34 @@
+# Azure Container Apps Job: contract-worker
+apiVersion: "2023-05-01"
+kind: ContainerAppsJob
+metadata:
+  name: contract-worker
+  resourceGroup: rg-agent-framework-{env}
+properties:
+  configuration:
+    triggerType: Event
+    replicaTimeout: 1800
+    replicaRetryLimit: 1
+    eventTriggerConfig:
+      scale:
+        minExecutions: 0
+        maxExecutions: 2
+      rules:
+        - name: servicebus-trigger
+          type: azure-servicebus
+          metadata:
+            topicName: agent-tasks
+            subscriptionName: contract-worker-sub
+            messageCount: "1"
+  template:
+    containers:
+      - name: contract-worker
+        image: ghcr.io/agent-framework/contract-worker:{imageTag}
+        resources:
+          cpu: 1.0
+          memory: 2Gi
+        env:
+          - name: AGENT_WORKER_TYPE
+            value: CONTRACT
+          - name: SPRING_PROFILES_ACTIVE
+            value: "{env}"

@@ -1,0 +1,64 @@
+# Azure Service Bus Topic/Subscription Layout
+# Deployed via infra/azure/bicep/modules/servicebus.bicep
+#
+# Subscription strategy: per-profile with SQL filter on workerProfile property.
+# Single-profile types (AI_TASK, CONTRACT, REVIEW) filter on workerType instead.
+# Source of truth for naming: agents/manifests/*.agent.yml → config/worker-profiles.yml
+
+namespace: agent-framework-{env}
+
+topics:
+
+  - name: agent-tasks
+    maxSizeInMegabytes: 1024
+    defaultMessageTimeToLive: PT1H
+    subscriptions:
+      # ── BE profiles (one subscription per stack) ──
+      - name: be-java-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerProfile = 'be-java'"
+      - name: be-go-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerProfile = 'be-go'"
+      - name: be-rust-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerProfile = 'be-rust'"
+      - name: be-node-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerProfile = 'be-node'"
+      # ── FE profiles ──
+      - name: fe-react-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerProfile = 'fe-react'"
+      # ── Single-profile types (filter by workerType) ──
+      - name: ai-task-worker-sub
+        maxDeliveryCount: 5
+        lockDuration: PT5M
+        sqlFilter: "workerType = 'AI_TASK'"
+      - name: contract-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerType = 'CONTRACT'"
+
+  - name: agent-reviews
+    maxSizeInMegabytes: 256
+    defaultMessageTimeToLive: PT1H
+    subscriptions:
+      - name: review-worker-sub
+        maxDeliveryCount: 3
+        lockDuration: PT5M
+        sqlFilter: "workerType = 'REVIEW'"
+
+  - name: agent-results
+    maxSizeInMegabytes: 1024
+    defaultMessageTimeToLive: PT2H
+    subscriptions:
+      - name: orchestrator
+        maxDeliveryCount: 5
+        lockDuration: PT5M
+        sqlFilter: ""

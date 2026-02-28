@@ -1,0 +1,36 @@
+# Azure Container Apps Job: fe-react-worker
+apiVersion: "2023-05-01"
+kind: ContainerAppsJob
+metadata:
+  name: fe-react-worker
+  resourceGroup: rg-agent-framework-{env}
+properties:
+  configuration:
+    triggerType: Event
+    replicaTimeout: 1800
+    replicaRetryLimit: 1
+    eventTriggerConfig:
+      scale:
+        minExecutions: 0
+        maxExecutions: 3
+      rules:
+        - name: servicebus-trigger
+          type: azure-servicebus
+          metadata:
+            topicName: agent-tasks
+            subscriptionName: fe-react-worker-sub
+            messageCount: "1"
+  template:
+    containers:
+      - name: fe-react-worker
+        image: ghcr.io/agent-framework/fe-react-worker:{imageTag}
+        resources:
+          cpu: 1.0
+          memory: 2Gi
+        env:
+          - name: AGENT_WORKER_TYPE
+            value: FE
+          - name: AGENT_WORKER_PROFILE
+            value: fe-react
+          - name: SPRING_PROFILES_ACTIVE
+            value: "{env}"

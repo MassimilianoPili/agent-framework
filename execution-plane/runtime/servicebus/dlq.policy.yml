@@ -1,0 +1,41 @@
+# Dead Letter Queue Policy
+# Defines retry behavior and DLQ handling for Service Bus subscriptions.
+
+defaults:
+  maxDeliveryCount: 3
+  deadLetterOnExpiration: true
+  deadLetterOnFilterEvaluationError: true
+  autoDeleteOnIdle: P30D
+
+dlqHandling:
+  alertThreshold: 5
+  alertChannel: servicebus-dlq-alerts
+  retryPolicy:
+    maxRetries: 2
+    initialBackoffSeconds: 30
+    maxBackoffSeconds: 300
+    backoffMultiplier: 2.0
+  replayStrategy:
+    manual: true
+    script: infra/azure/runbooks/dlq-replay.md
+    requiresApproval: true
+
+perSubscription:
+  be-worker:
+    maxDeliveryCount: 3
+    notes: BE tasks are idempotent; safe to replay
+  fe-worker:
+    maxDeliveryCount: 3
+    notes: FE tasks are idempotent; safe to replay
+  ai-task-worker:
+    maxDeliveryCount: 5
+    notes: General tasks may need more retries
+  contract-worker:
+    maxDeliveryCount: 3
+    notes: Contract validation is deterministic
+  review-worker:
+    maxDeliveryCount: 3
+    notes: Reviews are read-only; safe to replay
+  orchestrator:
+    maxDeliveryCount: 5
+    notes: Result processing must be idempotent (outbox pattern)

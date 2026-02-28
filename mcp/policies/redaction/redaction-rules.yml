@@ -1,0 +1,83 @@
+# Redaction Rules
+# Applied to all MCP tool outputs before they are returned to the LLM context.
+# Prevents PII and secrets from leaking into conversation history or logs.
+
+rules:
+
+  # --- Secrets ---
+
+  - name: api-key
+    pattern: '(?i)(api[_-]?key|apikey)\s*[:=]\s*["\x27]?([A-Za-z0-9_\-]{20,})["\x27]?'
+    replacement: "$1=***REDACTED_API_KEY***"
+    severity: critical
+
+  - name: bearer-token
+    pattern: '(?i)bearer\s+[A-Za-z0-9_\-\.]{20,}'
+    replacement: "Bearer ***REDACTED_TOKEN***"
+    severity: critical
+
+  - name: connection-string
+    pattern: '(?i)(Endpoint|AccountKey|SharedAccessKey)\s*=\s*[^;"\x27\s]+'
+    replacement: "$1=***REDACTED***"
+    severity: critical
+
+  - name: password-in-url
+    pattern: '://[^:]+:([^@]{4,})@'
+    replacement: "://***:***REDACTED***@"
+    severity: critical
+
+  - name: private-key-block
+    pattern: '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (RSA |EC |OPENSSH )?PRIVATE KEY-----'
+    replacement: "***REDACTED_PRIVATE_KEY***"
+    severity: critical
+
+  - name: env-secret-value
+    pattern: '(?i)(SECRET|PASSWORD|TOKEN|PASSPHRASE)\s*=\s*[^\s]+'
+    replacement: "$1=***REDACTED***"
+    severity: high
+
+  # --- PII ---
+
+  - name: italian-codice-fiscale
+    pattern: '[A-Z]{6}\d{2}[A-EHLMPR-T]\d{2}[A-Z]\d{3}[A-Z]'
+    replacement: "***CF_REDACTED***"
+    severity: high
+
+  - name: italian-iban
+    pattern: 'IT\d{2}[A-Z]\d{22}'
+    replacement: "***IBAN_REDACTED***"
+    severity: high
+
+  - name: credit-card
+    pattern: '\b(?:\d{4}[- ]?){3}\d{4}\b'
+    replacement: "***CC_REDACTED***"
+    severity: high
+
+  - name: email-address
+    pattern: '[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'
+    replacement: "***EMAIL_REDACTED***"
+    severity: medium
+    context: >
+      Only redacted in tool output, not in source code where email might
+      be a legitimate configuration value (e.g., admin email in config).
+    excludeFiles:
+      - "*.yml"
+      - "*.yaml"
+      - "*.properties"
+
+  - name: phone-number
+    pattern: '(?:\+39\s?)?\d{3}[\s\-]?\d{3,4}[\s\-]?\d{4}'
+    replacement: "***PHONE_REDACTED***"
+    severity: medium
+
+  - name: ssn-us
+    pattern: '\b\d{3}-\d{2}-\d{4}\b'
+    replacement: "***SSN_REDACTED***"
+    severity: high
+
+# Global settings
+settings:
+  applyToToolOutput: true
+  applyToLogs: true
+  applyToEventPayloads: true
+  logRedactionEvents: true  # Audit trail of what was redacted (without the value)

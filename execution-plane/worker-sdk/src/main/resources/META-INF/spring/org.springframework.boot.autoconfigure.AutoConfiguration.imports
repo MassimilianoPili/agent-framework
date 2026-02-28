@@ -1,0 +1,2 @@
+com.agentframework.worker.config.WorkerAutoConfiguration
+com.agentframework.worker.policy.PolicyAutoConfiguration

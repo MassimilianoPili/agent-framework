@@ -1,0 +1,88 @@
+# Event Type Catalog
+# Defines all event types used in the Agent Framework messaging layer.
+# Each event type maps to a specific Service Bus topic and payload schema.
+
+eventTypes:
+
+  # ── Plan lifecycle events (published by orchestrator) ──
+  plan.created:
+    description: A new plan has been created from a specification
+    topic: agent-results
+    publisher: orchestrator
+    payload:
+      planId: { type: uuid }
+      spec: { type: string }
+      itemCount: { type: integer }
+
+  plan.completed:
+    description: All plan items have completed successfully
+    topic: agent-results
+    publisher: orchestrator
+    payload:
+      planId: { type: uuid }
+      durationMs: { type: integer }
+      qualityGatePassed: { type: boolean }
+
+  plan.failed:
+    description: Plan execution failed (one or more items failed)
+    topic: agent-results
+    publisher: orchestrator
+    payload:
+      planId: { type: uuid }
+      failedItems: { type: "array<string>" }
+      reason: { type: string }
+
+  # ── Task lifecycle events (published by orchestrator) ──
+  task.dispatched:
+    description: A task has been dispatched to the agent-tasks topic (routed by workerType SQL filter)
+    topic: agent-tasks
+    publisher: orchestrator
+    payload:
+      planId: { type: uuid }
+      itemId: { type: uuid }
+      taskKey: { type: string }
+      workerType: { type: "enum(BE,FE,AI_TASK,CONTRACT,REVIEW)" }
+
+  task.received:
+    description: A worker has received and started processing a task
+    topic: agent-results
+    publisher: "{workerType}-worker"
+    payload:
+      planId: { type: uuid }
+      itemId: { type: uuid }
+      taskKey: { type: string }
+
+  task.completed:
+    description: A worker has successfully completed a task
+    topic: agent-results
+    publisher: "{workerType}-worker"
+    payload:
+      planId: { type: uuid }
+      itemId: { type: uuid }
+      taskKey: { type: string }
+      success: { type: boolean, value: true }
+      resultJson: { type: string }
+      durationMs: { type: integer }
+
+  task.failed:
+    description: A worker has failed to complete a task
+    topic: agent-results
+    publisher: "{workerType}-worker"
+    payload:
+      planId: { type: uuid }
+      itemId: { type: uuid }
+      taskKey: { type: string }
+      success: { type: boolean, value: false }
+      failureReason: { type: string }
+      durationMs: { type: integer }
+
+  # ── Quality gate events (published by orchestrator) ──
+  quality_gate.generated:
+    description: Quality gate report has been generated for a plan
+    topic: agent-results
+    publisher: orchestrator
+    payload:
+      planId: { type: uuid }
+      reportId: { type: uuid }
+      passed: { type: boolean }
+      findingsCount: { type: integer }

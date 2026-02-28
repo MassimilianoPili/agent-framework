@@ -1,0 +1,34 @@
+version: '3.8'
+
+# Development dependencies for Agent Framework
+# Start with: docker compose -f docker/docker-compose.dev.yml up -d
+# Messaging: Redis Streams on DB 3 | Cache: Redis DB 4 | DB: PostgreSQL 16
+
+services:
+  # Redis — messaging (Streams DB 3) + distributed cache (DB 4)
+  # DB 0/1/2 reserved for Gitea (cache, sessions, queues) on SOL server
+  redis:
+    image: redis:7-alpine
+    container_name: agentfw-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+
+  # PostgreSQL — application database
+  postgres:
+    image: postgres:16-alpine
+    container_name: agentfw-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: agentframework
+      POSTGRES_USER: agentframework
+      POSTGRES_PASSWORD: agentframework
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  redis-data:
+  postgres-data:

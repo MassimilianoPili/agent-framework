@@ -1,0 +1,63 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: be-java-worker
+  displayName: "Backend Java Worker (Spring Boot)"
+  description: >
+    Handles Java/Spring Boot backend tasks — controllers, services,
+    repositories, Flyway migrations, and unit/slice tests.
+
+spec:
+  workerType: BE
+  workerProfile: be-java
+  topic: agent-tasks
+  subscription: be-java-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/be/SKILL.md
+    skills:
+      - skills/springboot-workflow-skills/
+      - skills/crosscutting/
+    instructions: |
+      Implement the backend task described above using Java and Spring Boot.
+      Use the available filesystem and database tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-sql-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
+
+  ownership:
+    ownsPaths:
+      - backend/
+      - templates/be/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

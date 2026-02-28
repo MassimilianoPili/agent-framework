@@ -1,0 +1,34 @@
+# Allowlist for MCP server: openapi
+# Lists the permitted OpenAPI contract operations per worker type.
+
+server: openapi
+
+operations:
+
+  - name: spectral_lint
+    description: Run Spectral linter against an OpenAPI spec
+    allowedWorkers: [contract-worker, review-worker]
+
+  - name: oasdiff_breaking
+    description: Detect breaking changes between two OpenAPI spec versions
+    allowedWorkers: [contract-worker, review-worker]
+
+  - name: openapi_validate
+    description: Validate an OpenAPI spec against JSON Schema
+    allowedWorkers: [contract-worker, review-worker, be-worker, fe-worker]
+
+  - name: generate_client
+    description: Trigger OpenAPI client code generation (TypeScript/Java)
+    allowedWorkers: [contract-worker]
+    constraints:
+      - outputDirectory: [frontend/src/api/generated, backend/src/main/java/generated]
+
+  - name: generate_server_stubs
+    description: Trigger OpenAPI server stub code generation
+    allowedWorkers: [contract-worker]
+    constraints:
+      - outputDirectory: [backend/src/main/java/generated]
+
+  - name: diff_summary
+    description: Generate human-readable diff summary between spec versions
+    allowedWorkers: [contract-worker, review-worker]

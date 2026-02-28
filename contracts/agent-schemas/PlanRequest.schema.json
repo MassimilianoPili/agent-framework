@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "PlanRequest.schema.json",
+  "title": "PlanRequest",
+  "description": "Request to create a new execution plan from a natural language specification",
+  "type": "object",
+  "required": ["spec"],
+  "properties": {
+    "spec": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Natural language description of the software to build"
+    },
+    "constraints": {
+      "type": "object",
+      "description": "Optional constraints on the plan (e.g., max tasks, worker exclusions)",
+      "properties": {
+        "maxTasks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 15,
+          "default": 15
+        },
+        "excludeWorkerTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["BE", "FE", "AI_TASK", "CONTRACT", "REVIEW"]
+          }
+        },
+        "targetBranch": {
+          "type": "string",
+          "description": "Git branch to commit generated code to"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form tags for categorization and filtering"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,34 @@
+# Azure Container Apps Job: review-worker
+apiVersion: "2023-05-01"
+kind: ContainerAppsJob
+metadata:
+  name: review-worker
+  resourceGroup: rg-agent-framework-{env}
+properties:
+  configuration:
+    triggerType: Event
+    replicaTimeout: 1800
+    replicaRetryLimit: 1
+    eventTriggerConfig:
+      scale:
+        minExecutions: 0
+        maxExecutions: 2
+      rules:
+        - name: servicebus-trigger
+          type: azure-servicebus
+          metadata:
+            topicName: agent-reviews
+            subscriptionName: review-worker-sub
+            messageCount: "1"
+  template:
+    containers:
+      - name: review-worker
+        image: ghcr.io/agent-framework/review-worker:{imageTag}
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: AGENT_WORKER_TYPE
+            value: REVIEW
+          - name: SPRING_PROFILES_ACTIVE
+            value: "{env}"

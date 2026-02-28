@@ -1,0 +1,60 @@
+name: Nightly Evaluation
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # 02:00 UTC every night
+  workflow_dispatch:      # Allow manual trigger
+
+jobs:
+  run-eval:
+    name: Run Evaluation Scenarios
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+          cache: maven
+
+      - name: Build all modules
+        run: mvn clean package -B -q -DskipTests
+
+      - name: Start services
+        run: |
+          # TODO: Start orchestrator + mock workers with docker compose
+          echo "Starting evaluation environment..."
+          # docker compose -f eval/docker-compose.eval.yml up -d
+
+      - name: Run planner evaluation
+        run: |
+          echo "Running planner evaluation scenarios..."
+          # eval/harness/run-eval.sh planner
+
+      - name: Run schema validation
+        run: |
+          echo "Validating outputs against JSON schemas..."
+          # eval/harness/validate-schema.sh
+
+      - name: Run scenario tests
+        run: |
+          for scenario in eval/scenarios/*/; do
+            name=$(basename "$scenario")
+            echo "Running scenario: $name"
+            # eval/harness/run-eval.sh "$name"
+          done
+
+      - name: Collect results
+        run: |
+          echo "TODO: Collect and report evaluation results"
+          # Upload eval results as artifact
+
+      - name: Upload eval results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results-${{ github.run_number }}
+          path: eval/results/
+          retention-days: 30

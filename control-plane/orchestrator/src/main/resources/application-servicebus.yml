@@ -1,0 +1,7 @@
+# Azure Service Bus profile: for production Azure deployments
+messaging:
+  provider: servicebus
+
+azure:
+  servicebus:
+    connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING:}

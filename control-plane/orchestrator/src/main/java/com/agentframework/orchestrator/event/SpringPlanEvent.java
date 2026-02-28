@@ -1,0 +1,56 @@
+package com.agentframework.orchestrator.event;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Unified, typed domain event published by OrchestrationService for all plan state changes.
+ *
+ * <p>Consumers:</p>
+ * <ul>
+ *   <li>{@code SseEmitterRegistry} — streams events to connected browser clients</li>
+ *   <li>{@code TrackerSyncService} — syncs state asynchronously to an external issue tracker</li>
+ * </ul>
+ *
+ * <p>Event types:</p>
+ * <ul>
+ *   <li>{@code PLAN_STARTED} — plan was created and first wave dispatched</li>
+ *   <li>{@code TASK_DISPATCHED} — a plan item was sent to a worker</li>
+ *   <li>{@code TASK_COMPLETED} — a plan item finished successfully</li>
+ *   <li>{@code TASK_FAILED} — a plan item failed (may be retried)</li>
+ *   <li>{@code PLAN_COMPLETED} — all items are terminal, plan done</li>
+ *   <li>{@code PLAN_PAUSED} — plan paused due to attemptsBeforePause threshold</li>
+ *   <li>{@code PLAN_RESUMED} — paused plan was manually resumed</li>
+ * </ul>
+ */
+public record SpringPlanEvent(
+        String eventType,
+        UUID planId,
+        UUID itemId,        // null for plan-level events (PLAN_STARTED, PLAN_COMPLETED, etc.)
+        String taskKey,     // null for plan-level events
+        String workerProfile,
+        boolean success,
+        long durationMs,
+        Instant occurredAt
+) {
+    public static final String PLAN_STARTED    = "PLAN_STARTED";
+    public static final String TASK_DISPATCHED = "TASK_DISPATCHED";
+    public static final String TASK_COMPLETED  = "TASK_COMPLETED";
+    public static final String TASK_FAILED     = "TASK_FAILED";
+    public static final String PLAN_COMPLETED  = "PLAN_COMPLETED";
+    public static final String PLAN_PAUSED     = "PLAN_PAUSED";
+    public static final String PLAN_RESUMED    = "PLAN_RESUMED";
+
+    /** Factory for plan-level events (no item context). */
+    public static SpringPlanEvent forPlan(String eventType, UUID planId) {
+        return new SpringPlanEvent(eventType, planId, null, null, null, true, 0, Instant.now());
+    }
+
+    /** Factory for item-level events. */
+    public static SpringPlanEvent forItem(String eventType, UUID planId, UUID itemId,
+                                          String taskKey, String workerProfile,
+                                          boolean success, long durationMs) {
+        return new SpringPlanEvent(eventType, planId, itemId, taskKey,
+                                   workerProfile, success, durationMs, Instant.now());
+    }
+}

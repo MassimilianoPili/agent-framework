@@ -1,0 +1,44 @@
+{
+  "workerTypes": {
+    "BE": {
+      "ownsPaths": ["backend/", "templates/be/"],
+      "mcpServers": ["git", "repo-fs", "openapi", "test"]
+    },
+    "FE": {
+      "ownsPaths": ["frontend/", "templates/fe/"],
+      "mcpServers": ["git", "repo-fs", "openapi"]
+    },
+    "CONTRACT": {
+      "ownsPaths": ["contracts/"],
+      "mcpServers": ["repo-fs", "openapi"]
+    },
+    "AI_TASK": {
+      "ownsPaths": ["eval/"],
+      "mcpServers": ["repo-fs", "test"]
+    },
+    "REVIEW": {
+      "ownsPaths": ["docs/"],
+      "mcpServers": ["repo-fs", "test", "openapi"]
+    },
+    "CONTEXT_MANAGER": {
+      "ownsPaths": [],
+      "mcpServers": ["repo-fs"]
+    },
+    "SCHEMA_MANAGER": {
+      "ownsPaths": [],
+      "mcpServers": ["repo-fs", "openapi"]
+    },
+    "HOOK_MANAGER": {
+      "ownsPaths": [],
+      "mcpServers": ["repo-fs"]
+    },
+    "AUDIT_MANAGER": {
+      "ownsPaths": ["audit/"],
+      "mcpServers": ["repo-fs"]
+    },
+    "EVENT_MANAGER": {
+      "ownsPaths": [],
+      "mcpServers": ["repo-fs"]
+    }
+  }
+}

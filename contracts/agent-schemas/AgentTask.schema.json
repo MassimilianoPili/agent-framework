@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "AgentTask.schema.json",
+  "title": "AgentTask",
+  "description": "A task dispatched to a worker via Azure Service Bus",
+  "type": "object",
+  "required": ["planId", "itemId", "taskKey", "title", "description", "workerType"],
+  "properties": {
+    "planId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of the parent plan"
+    },
+    "itemId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of the specific plan item"
+    },
+    "taskKey": {
+      "type": "string",
+      "pattern": "^(BE|FE|AI|CT|RV|CM|SM|HM|TM|MG|SP|CL)-[0-9]{3}$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string",
+      "description": "Full task description with acceptance criteria"
+    },
+    "workerType": {
+      "type": "string",
+      "enum": [
+        "BE", "FE", "AI_TASK", "CONTRACT", "REVIEW",
+        "CONTEXT_MANAGER", "SCHEMA_MANAGER", "HOOK_MANAGER",
+        "AUDIT_MANAGER", "EVENT_MANAGER", "TASK_MANAGER",
+        "COMPENSATOR_MANAGER", "SUB_PLAN",
+        "COUNCIL_MANAGER", "MANAGER", "SPECIALIST"
+      ]
+    },
+    "workerProfile": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Concrete stack profile for routing. Null = use default for the worker type."
+    },
+    "specSnippet": {
+      "type": "string",
+      "description": "Relevant portion of the original specification"
+    },
+    "contextJson": {
+      "type": "string",
+      "description": "JSON string mapping taskKey -> resultJson for each dependency"
+    },
+    "attemptNumber": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Dispatch attempt number, starting from 1"
+    },
+    "dispatchAttemptId": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "ID of the DispatchAttempt entity tracking this dispatch"
+    },
+    "traceId": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Trace correlation ID for this dispatch"
+    },
+    "dispatchedAt": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when the task was dispatched"
+    },
+    "councilContext": {
+      "type": ["string", "null"],
+      "description": "JSON string with the CouncilReport (or relevant excerpt) produced by the pre-planning council session. Injected into the worker prompt as a 'Council Guidance' section."
+    }
+  },
+  "additionalProperties": false
+}

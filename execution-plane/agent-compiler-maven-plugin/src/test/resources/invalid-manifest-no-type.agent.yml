@@ -1,0 +1,17 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: broken-worker
+
+spec:
+  topic: agent-tasks-broken
+  subscription: broken-sub
+
+  prompts:
+    systemPromptFile: skills/broken.agent.md
+    instructions: "Do something"
+
+  tools:
+    allowlist:
+      - Read

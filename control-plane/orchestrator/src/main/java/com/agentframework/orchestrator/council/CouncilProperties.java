@@ -1,0 +1,53 @@
+package com.agentframework.orchestrator.council;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/**
+ * Configuration properties for the advisory council feature.
+ *
+ * <p>Bound from the {@code council.*} namespace in {@code application.yml}.</p>
+ *
+ * <pre>
+ * council:
+ *   enabled: true
+ *   max-members: 5
+ *   pre-planning-enabled: true
+ *   task-session-enabled: true
+ * </pre>
+ */
+@ConfigurationProperties(prefix = "council")
+public record CouncilProperties(
+
+    /**
+     * Master switch. When false, all council logic is bypassed and
+     * {@code Plan.councilReport} remains null. Existing plans continue to work.
+     */
+    boolean enabled,
+
+    /**
+     * Maximum number of MANAGER/SPECIALIST members to consult per session.
+     * The selector may identify more candidates; only the top {@code maxMembers}
+     * (by relevance score) will be consulted.
+     */
+    int maxMembers,
+
+    /**
+     * Whether to run the pre-planning session in {@code OrchestrationService.createAndStart()}.
+     * When false, Plan.councilReport is null but in-plan COUNCIL_MANAGER tasks still work.
+     */
+    boolean prePlanningEnabled,
+
+    /**
+     * Whether to handle COUNCIL_MANAGER tasks in-plan via {@code CouncilService.conductTaskSession()}.
+     * When false, COUNCIL_MANAGER tasks are skipped (marked DONE immediately with empty result).
+     */
+    boolean taskSessionEnabled
+
+) {
+    /** Defaults: enabled=true, maxMembers=5, prePlanningEnabled=true, taskSessionEnabled=true. */
+    public CouncilProperties {
+        if (maxMembers <= 0) {
+            throw new IllegalArgumentException("council.max-members must be > 0, got: " + maxMembers);
+        }
+    }
+}

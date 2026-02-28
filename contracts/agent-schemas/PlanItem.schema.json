@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "PlanItem.schema.json",
+  "title": "PlanItem",
+  "description": "A single task within an execution plan",
+  "type": "object",
+  "required": ["taskKey", "title", "description", "workerType", "ordinal"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "taskKey": {
+      "type": "string",
+      "pattern": "^(BE|FE|AI|CT|RV)-[0-9]{3}$",
+      "description": "Unique key within plan. Format: BE-001, FE-001, AI-001, CT-001, RV-001"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "One-line task title"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed task description with acceptance criteria"
+    },
+    "workerType": {
+      "type": "string",
+      "enum": ["BE", "FE", "AI_TASK", "CONTRACT", "REVIEW"],
+      "description": "Which worker type should execute this task"
+    },
+    "dependsOn": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(BE|FE|AI|CT|RV)-[0-9]{3}$"
+      },
+      "default": [],
+      "description": "Task keys this task depends on; empty if no dependencies"
+    },
+    "ordinal": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Ordering index within the plan"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["WAITING", "DISPATCHED", "RUNNING", "DONE", "FAILED"],
+      "default": "WAITING"
+    },
+    "workerProfile": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Concrete stack profile (e.g. be-java, fe-react). Null for single-worker types."
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,219 @@
+openapi: "3.1.0"
+info:
+  title: Agent Framework Orchestrator API
+  version: "1.0.0"
+  description: |
+    REST API for the Agent Framework control plane orchestrator.
+    Accepts natural language specifications, decomposes them into
+    executable tasks, and coordinates specialized AI agents.
+  contact:
+    name: Agent Framework Team
+  license:
+    name: Apache-2.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://agent-framework-dev.azurecontainerapps.io
+    description: Development environment
+
+paths:
+  /api/v1/plans:
+    post:
+      operationId: createPlan
+      summary: Create and start a new execution plan
+      description: |
+        Accepts a natural language specification, decomposes it into
+        an ordered list of tasks using the planner agent, and starts
+        dispatching tasks to specialized workers.
+      tags:
+        - Plans
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "v1.components.yaml#/components/schemas/PlanRequest"
+            examples:
+              simpleApi:
+                summary: Simple REST API
+                value:
+                  spec: "Build a REST API for user management with JWT authentication"
+              fullStack:
+                summary: Full-stack application
+                value:
+                  spec: "Build a todo application with React frontend and Spring Boot backend"
+                  constraints:
+                    database: postgresql
+                    auth: jwt
+                  tags:
+                    - fullstack
+                    - crud
+      responses:
+        "202":
+          description: Plan created and execution started
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/PlanResponse"
+        "400":
+          description: Invalid request (spec too short, malformed JSON)
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal error (planner failure, Service Bus unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}:
+    get:
+      operationId: getPlan
+      summary: Get plan details with all items
+      tags:
+        - Plans
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+      responses:
+        "200":
+          description: Plan details
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/PlanResponse"
+        "404":
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/quality-gate:
+    get:
+      operationId: getQualityGateReport
+      summary: Get quality gate report for a completed plan
+      tags:
+        - Quality Gate
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+      responses:
+        "200":
+          description: Quality gate report
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/QualityGateReportResponse"
+        "404":
+          description: Plan or report not found
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/items/{itemId}/retry:
+    post:
+      operationId: retryItem
+      summary: Retry a failed plan item
+      description: |
+        Transitions the item from FAILED back to WAITING and triggers a new dispatch wave.
+        If the parent plan was FAILED, it is also reopened as RUNNING.
+      tags:
+        - Plans
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+        - $ref: "v1.components.yaml#/components/parameters/ItemId"
+      responses:
+        "202":
+          description: Retry accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  itemId:
+                    type: string
+                    format: uuid
+                  planId:
+                    type: string
+                    format: uuid
+        "400":
+          description: Item is not in FAILED state
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"
+
+  /api/v1/plans/{planId}/items/{itemId}/attempts:
+    get:
+      operationId: getItemAttempts
+      summary: Get dispatch history for a plan item
+      description: Returns all dispatch attempts for the given item, ordered by attempt number.
+      tags:
+        - Plans
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+        - $ref: "v1.components.yaml#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: List of dispatch attempts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "v1.components.yaml#/components/schemas/DispatchAttemptResponse"
+
+  /api/v1/plans/{planId}/snapshots:
+    get:
+      operationId: listSnapshots
+      summary: List all snapshots for a plan
+      tags:
+        - Plans
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+      responses:
+        "200":
+          description: List of plan snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "v1.components.yaml#/components/schemas/PlanSnapshotResponse"
+
+  /api/v1/plans/{planId}/restore/{snapshotId}:
+    post:
+      operationId: restoreSnapshot
+      summary: Restore a plan to a previous snapshot
+      tags:
+        - Plans
+      parameters:
+        - $ref: "v1.components.yaml#/components/parameters/PlanId"
+        - $ref: "v1.components.yaml#/components/parameters/SnapshotId"
+      responses:
+        "200":
+          description: Plan restored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  planId:
+                    type: string
+                    format: uuid
+                  snapshotId:
+                    type: string
+                    format: uuid
+        "400":
+          description: Restore failed
+          content:
+            application/json:
+              schema:
+                $ref: "v1.components.yaml#/components/schemas/ErrorResponse"

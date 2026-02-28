@@ -1,0 +1,36 @@
+# Quality Gates — Thresholds enforced before a PR can be merged.
+# The review-worker and CI pipeline check these gates.
+# A gate value of 0 means "must be zero occurrences".
+
+gates:
+
+  test:
+    coverageMinPercent: 80        # Line coverage (JaCoCo for BE, c8 for FE)
+    coverageDeltaMinPercent: 0    # New code must not decrease overall coverage
+    allTestsMustPass: true        # Zero test failures allowed
+
+  security:
+    criticalVulnerabilities: 0    # CVSS >= 9.0 — hard block
+    highVulnerabilities: 0        # CVSS >= 7.0 — hard block
+    mediumMaxAllowed: 3           # CVSS >= 4.0 — soft limit, requires justification
+    scanners:
+      - trivy                     # Container image scan
+      - dependency-check          # OWASP dependency scan
+      - semgrep                   # SAST
+
+  contracts:
+    breakingChanges: 0            # oasdiff breaking change count
+    spectralErrors: 0             # Spectral lint errors (warnings allowed)
+
+  build:
+    mustPass: true                # mvn verify / npm run build must exit 0
+    noCompilerWarnings: false     # Compiler warnings tolerated (for now)
+
+  lint:
+    errors: 0                     # Checkstyle (BE) + ESLint (FE) error count
+    warningsMaxAllowed: 20        # Soft limit on warnings
+
+  reviewApprovals:
+    minHumanApprovals: 0          # Agent PRs: 0 human approvals needed for develop
+    minHumanApprovalsForProd: 1   # Prod promotion: at least 1 human approval
+    agentReviewRequired: true     # review-worker must approve every PR
