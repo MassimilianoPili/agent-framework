@@ -198,6 +198,9 @@ Migrazioni consolidate per argomento (6 file). Ogni migrazione include `COMMENT 
 | V4 | (alter) `plans` + `plan_items`, `worker_elo_stats`, `preference_pairs` | Council pre-planning + reward signal (Bayesian scoring, ELO rating, DPO preference pairs) |
 | V5 | `vector_store` + estensione pgvector | RAG vector store: embedding 1024 dim (mxbai-embed-large), HNSW cosine, GIN metadata JSONB, BM25 full-text search con trigger tsvector |
 | V6 | estensione Apache AGE + grafi | Graph RAG: grafi `knowledge_graph` (chunk, concetti, decisioni) e `code_graph` (file, classi, metodi, package) |
+| V7 | (alter) `plan_items` | Ralph-Loop: `ralph_loop_count` + `last_quality_gate_feedback` per quality gate feedback loop |
+| V8 | `task_outcomes` | GP training data: embedding pgvector(1024), ELO snapshot, predizione GP (mu, sigma2), actual reward. Indici HNSW + worker + created_at |
+| V9 | (alter) `preference_pairs` | DPO GP Residual: `gp_residual FLOAT` nullable + indice DESC NULLS LAST per coppie ordinate per informatività |
 
 ## Feature avanzate
 
@@ -333,9 +336,13 @@ mvn spring-boot:run -pl control-plane/orchestrator -Dspring-boot.run.profiles=de
 | `reward/EloRatingService.java` | Aggiornamento ELO pairwise per piano (K=32) — eseguito una volta a piano completato |
 | `reward/WorkerEloStats.java` | Entity ELO rating per profilo worker (`worker_elo_stats`) |
 | `reward/WorkerEloStatsRepository.java` | Repository JPA; `findAllByOrderByEloRatingDesc()` per leaderboard |
-| `reward/PreferencePairGenerator.java` | Generazione DPO pair: cross-profile (stesso workerType, reward diverso) + retry comparison |
-| `reward/PreferencePair.java` | Entity coppia preferenza DPO (`preference_pairs`) |
-| `reward/PreferencePairRepository.java` | Repository con query `findByMinDelta(float, int)` |
+| `reward/PreferencePairGenerator.java` | Generazione DPO pair: 3 strategie (cross-profile + retry + gp_residual_surprise) |
+| `reward/PreferencePair.java` | Entity coppia preferenza DPO (`preference_pairs`, +campo `gpResidual` per informativity score) |
+| `reward/PreferencePairRepository.java` | Repository con query `findByMinDelta`, `findByGpResidualDesc` |
+| `gp/TaskOutcomeService.java` | Bridge GP↔Orchestrator: embed task, predict reward, record outcome at dispatch, update reward at completion |
+| `gp/TaskOutcomeRepository.java` | Repository native pgvector: insert embedding, load training data, update reward |
+| `gp/TaskOutcome.java` | Entity GP training (`task_outcomes`): embedding, ELO snapshot, predizione, actual reward |
+| `gp/GpWorkerSelectionService.java` | Selezione profilo adattiva via GP UCB (esplorazione-sfruttamento); condizionale su `gp.enabled` |
 | `reward/RewardController.java` | REST `/api/v1/rewards/*` — 3 endpoint NDJSON export (reward records, ELO stats, DPO pairs) |
 | `hooks/HookManagerService.java` | Cache policy per-plan; `storePolicies` / `resolvePolicy` / `evictPlan` |
 | `hooks/HookPolicyResolver.java` | Fallback statico: risolve `HookPolicy` per `WorkerType` da `WorkerProfileRegistry` |
