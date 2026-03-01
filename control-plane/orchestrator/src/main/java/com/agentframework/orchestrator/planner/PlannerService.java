@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Calls Claude (planner agent) to decompose a natural language specification
@@ -49,12 +51,13 @@ public class PlannerService {
 
         BeanOutputConverter<PlanSchema> converter = new BeanOutputConverter<>(PlanSchema.class);
 
-        String rawJson = chatClient.prompt()
+        String rawResponse = chatClient.prompt()
             .system(systemPrompt)
             .user(userPrompt + "\n\n" + converter.getFormat())
             .call()
             .content();
 
+        String rawJson = stripMarkdownFences(rawResponse);
         PlanSchema schema = converter.convert(rawJson);
 
         if (schema == null || schema.tasks() == null || schema.tasks().isEmpty()) {
@@ -69,6 +72,27 @@ public class PlannerService {
 
         log.info("Planner decomposed spec into {} items (plan={})", items.size(), plan.getId());
         return plan;
+    }
+
+    private static final Pattern FENCED_JSON = Pattern.compile(
+            "```(?:json)?\\s*\\n?(.*?)\\n?```", Pattern.DOTALL);
+    private static final Pattern OPEN_FENCE = Pattern.compile(
+            "^```(?:json)?\\s*\\n?", Pattern.DOTALL);
+
+    public static String stripMarkdownFences(String text) {
+        if (text == null) return null;
+        String trimmed = text.strip();
+        // Try full fence (opening + closing ```)
+        Matcher m = FENCED_JSON.matcher(trimmed);
+        if (m.find()) {
+            return m.group(1).strip();
+        }
+        // Fallback: opening fence only (truncated response — no closing ```)
+        Matcher openM = OPEN_FENCE.matcher(trimmed);
+        if (openM.find()) {
+            return trimmed.substring(openM.end()).strip();
+        }
+        return trimmed;
     }
 
     private List<PlanItem> mapSchemaToItems(Plan plan, PlanSchema schema) {

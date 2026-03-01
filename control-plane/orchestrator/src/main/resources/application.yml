@@ -31,6 +31,7 @@ spring:
       chat:
         options:
           timeout: 120s
+          max-tokens: 4096
 
 # Messaging SPI — provider: redis (default), jms, servicebus
 # JMS/Artemis: activate profile 'jms' (application-jms.yml)
