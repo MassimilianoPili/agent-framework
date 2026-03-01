@@ -573,12 +573,12 @@ class OrchestrationServiceTest {
                 WorkerType.BE, null, List.of());
         plan.addItem(item);
 
-        BudgetDecision failDecision = new BudgetDecision(BudgetDecision.Action.FAIL, 200, 100);
+        BudgetDecision failDecision = new BudgetDecision(BudgetDecision.Action.FAIL, 200, 100, 100);
 
         when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(item));
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
         when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
-        when(tokenBudgetService.checkBudget(eq(planId), eq("BE"), any(PlanRequest.Budget.class)))
+        when(tokenBudgetService.checkBudget(eq(planId), eq("BE"), any(PlanRequest.Budget.class), any()))
                 .thenReturn(failDecision);
         when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of());
@@ -602,12 +602,12 @@ class OrchestrationServiceTest {
                 WorkerType.BE, null, List.of());
         plan.addItem(item);
 
-        BudgetDecision skipDecision = new BudgetDecision(BudgetDecision.Action.SKIP, 150, 100);
+        BudgetDecision skipDecision = new BudgetDecision(BudgetDecision.Action.SKIP, 150, 100, 100);
 
         when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(item));
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
         when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
-        when(tokenBudgetService.checkBudget(eq(planId), eq("BE"), any(PlanRequest.Budget.class)))
+        when(tokenBudgetService.checkBudget(eq(planId), eq("BE"), any(PlanRequest.Budget.class), any()))
                 .thenReturn(skipDecision);
         when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(item));
 

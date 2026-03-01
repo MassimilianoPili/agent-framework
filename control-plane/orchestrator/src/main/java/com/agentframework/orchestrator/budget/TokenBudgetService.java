@@ -1,10 +1,12 @@
 package com.agentframework.orchestrator.budget;
 
+import com.agentframework.gp.model.GpPrediction;
 import com.agentframework.orchestrator.api.dto.PlanRequest.Budget;
 import com.agentframework.orchestrator.domain.PlanTokenUsage;
 import com.agentframework.orchestrator.repository.PlanTokenUsageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,11 @@ import java.util.UUID;
  *
  * <p>Token usage is stored in {@code plan_token_usage} and incremented atomically via a single
  * {@code UPDATE} — no Redis or distributed lock needed.
+ *
+ * <p>When a {@link GpPrediction} is available, the static limit is modulated:
+ * {@code effectiveLimit = base × (1 + alpha × sigma²) × clip(mu, 0.3, 1.0)}.
+ * High uncertainty (sigma²) increases the budget (active learning exploration),
+ * while low expected quality (mu) decreases it (avoid wasting tokens on likely-failing tasks).
  */
 @Service
 public class TokenBudgetService {
@@ -36,37 +43,80 @@ public class TokenBudgetService {
     /** Budget policy: log warning, proceed anyway */
     public static final String ON_EXCEEDED_SOFT_LIMIT = "SOFT_LIMIT";
 
-    private final PlanTokenUsageRepository usageRepository;
+    private static final double MU_MIN = 0.3;
+    private static final double MU_MAX = 1.0;
 
-    public TokenBudgetService(PlanTokenUsageRepository usageRepository) {
+    private final PlanTokenUsageRepository usageRepository;
+    private final double alpha;
+
+    public TokenBudgetService(PlanTokenUsageRepository usageRepository,
+                               @Value("${gp.budget.alpha:1.0}") double alpha) {
         this.usageRepository = usageRepository;
+        this.alpha = alpha;
     }
 
     /**
-     * Checks whether dispatching a task of the given workerType is allowed under the budget.
+     * Checks whether dispatching a task is allowed under the budget (static limit).
+     * Delegates to {@link #checkBudget(UUID, String, Budget, GpPrediction)} with no prediction.
+     */
+    public BudgetDecision checkBudget(UUID planId, String workerType, Budget budget) {
+        return checkBudget(planId, workerType, budget, null);
+    }
+
+    /**
+     * Checks whether dispatching a task is allowed under the budget, optionally
+     * adjusted by a GP prediction.
+     *
+     * <p>When {@code prediction} is non-null, the static limit is modulated:
+     * {@code effectiveLimit = limit × (1 + alpha × sigma²) × clip(mu, 0.3, 1.0)}.
+     * When null, the effective limit equals the static limit (backward compatible).
      *
      * @param planId     the plan being orchestrated
      * @param workerType the type of the worker about to be dispatched
      * @param budget     the budget configuration attached to this plan (null = no budget)
+     * @param prediction GP prediction for this task+profile (null = use static limit)
      * @return the enforcement decision — callers act on {@link BudgetDecision#action()}
      */
-    public BudgetDecision checkBudget(UUID planId, String workerType, Budget budget) {
+    public BudgetDecision checkBudget(UUID planId, String workerType, Budget budget,
+                                       GpPrediction prediction) {
         if (budget == null || budget.perWorkerType() == null) {
             return BudgetDecision.ALLOW;
         }
         Long limit = budget.perWorkerType().get(workerType);
         if (limit == null) {
-            return BudgetDecision.ALLOW; // no limit configured for this worker type
+            return BudgetDecision.ALLOW;
         }
 
+        long effectiveLimit = computeEffectiveLimit(limit, prediction);
         long used = currentUsage(planId, workerType);
-        if (used >= limit) {
+
+        if (used >= effectiveLimit) {
             String policy = budget.onExceeded() != null ? budget.onExceeded() : ON_EXCEEDED_NO_NEW_DISPATCH;
-            log.warn("Token budget exceeded for plan={} workerType={}: used={} limit={} policy={}",
-                     planId, workerType, used, limit, policy);
-            return BudgetDecision.exceeded(policy, used, limit);
+            log.warn("Token budget exceeded for plan={} workerType={}: used={} limit={} effective={} policy={}{}",
+                     planId, workerType, used, limit, effectiveLimit, policy,
+                     prediction != null ? String.format(" (mu=%.2f, sigma2=%.2f)", prediction.mu(), prediction.sigma2()) : "");
+            return BudgetDecision.exceeded(policy, used, limit, effectiveLimit);
         }
         return BudgetDecision.ALLOW;
+    }
+
+    /**
+     * Computes the effective budget limit adjusted by GP prediction.
+     *
+     * <p>Formula: {@code base × (1 + alpha × sigma²) × clip(mu, 0.3, 1.0)}
+     * <ul>
+     *   <li>sigma² high → more budget (uncertain task needs exploration)</li>
+     *   <li>mu low → less budget (likely-failing task shouldn't waste tokens)</li>
+     *   <li>no prediction → effective = base (backward compatible)</li>
+     * </ul>
+     */
+    long computeEffectiveLimit(long baseLimit, GpPrediction prediction) {
+        if (prediction == null) {
+            return baseLimit;
+        }
+        double uncertaintyFactor = 1.0 + alpha * prediction.sigma2();
+        double qualityFactor = Math.max(MU_MIN, Math.min(MU_MAX, prediction.mu()));
+        return Math.round(baseLimit * uncertaintyFactor * qualityFactor);
     }
 
     /**
@@ -103,18 +153,20 @@ public class TokenBudgetService {
     /**
      * Decision returned by {@link #checkBudget}: whether dispatch should proceed,
      * be skipped (item stays WAITING), or fail the item.
+     *
+     * @param effectiveLimit the GP-adjusted limit (equals {@code limit} when no prediction)
      */
-    public record BudgetDecision(Action action, long used, long limit) {
+    public record BudgetDecision(Action action, long used, long limit, long effectiveLimit) {
 
-        public static final BudgetDecision ALLOW = new BudgetDecision(Action.ALLOW, 0, Long.MAX_VALUE);
+        public static final BudgetDecision ALLOW = new BudgetDecision(Action.ALLOW, 0, Long.MAX_VALUE, Long.MAX_VALUE);
 
-        public static BudgetDecision exceeded(String policy, long used, long limit) {
+        public static BudgetDecision exceeded(String policy, long used, long limit, long effectiveLimit) {
             Action action = switch (policy) {
                 case ON_EXCEEDED_FAIL_FAST       -> Action.FAIL;
                 case ON_EXCEEDED_NO_NEW_DISPATCH -> Action.SKIP;
                 default                          -> Action.WARN; // SOFT_LIMIT
             };
-            return new BudgetDecision(action, used, limit);
+            return new BudgetDecision(action, used, limit, effectiveLimit);
         }
 
         public boolean isBlocked() { return action == Action.FAIL || action == Action.SKIP; }
