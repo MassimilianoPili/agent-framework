@@ -30,6 +30,12 @@
             <artifactId>rag-engine</artifactId>
         </dependency>
 
+        <!-- GP Engine — Gaussian Process for adaptive worker selection -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>gp-engine</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

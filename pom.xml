@@ -45,6 +45,7 @@
         <module>control-plane/orchestrator</module>
         <!-- Shared Libraries -->
         <module>shared/rag-engine</module>
+        <module>shared/gp-engine</module>
         <!-- Execution Plane -->
         <module>execution-plane/agent-compiler-maven-plugin</module>
         <module>execution-plane/worker-sdk</module>
@@ -103,6 +104,11 @@
             <dependency>
                 <groupId>com.agentframework</groupId>
                 <artifactId>rag-engine</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.agentframework</groupId>
+                <artifactId>gp-engine</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
