@@ -30,7 +30,7 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 - **Missing-Context Feedback Loop**: workers signal `missing_context` in `AgentResult` → orchestrator auto-creates a `CONTEXT_MANAGER` task for the missing files → original item re-dispatched with enriched context.
 - **Auto-Retry with Backoff**: `AutoRetryScheduler` polls for failed items with `nextRetryAt` in the past; exponential backoff (`baseDelay × 2^(attempt-1)`); auto-pauses plan after `attemptsBeforePause` failures.
 - **TrackerSyncService**: external issue tracker synchronization, controlled by `tracker.sync.enabled` feature-flag (`@ConditionalOnProperty`, disabled by default).
-- **RAG Engine** (`shared/rag-engine`): ingestion pipeline with recursive code chunking (512 tok, 100 overlap) + proposition chunking for docs; contextual enrichment (Anthropic pattern); metadata extraction; pgvector storage (1024 dim, HNSW); Redis DB 5 embedding cache (24h TTL). Docker: `pgvector/pgvector:pg16` + Ollama (`mxbai-embed-large`).
+- **RAG Engine** (`shared/rag-engine`): full search pipeline with hybrid search (pgvector + BM25 + RRF fusion), HyDE query transformation, cascade reranking (cosine → LLM), Apache AGE graph services (knowledge_graph + code_graph), parallel enrichment via Java 21 virtual threads; ingestion pipeline with recursive code chunking + proposition chunking; contextual enrichment (Anthropic pattern); pgvector (1024 dim, HNSW); Redis DB 5 embedding cache. Docker: `sol/postgres:pg16-age` + Ollama (`mxbai-embed-large`).
 
 ## Architecture
 
@@ -778,7 +778,7 @@ they will be removed in a future release.
 
 ### Prerequisites
 
-- Java 17
+- Java 21 (virtual threads, sequenced collections)
 - Maven 3.9+
 - Docker (for Postgres + Redis in dev)
 - `ANTHROPIC_API_KEY`
@@ -913,7 +913,7 @@ hooks:
 
 ## Test Coverage
 
-261 unit tests across 21 test classes (JUnit 5 + Mockito):
+308 unit tests across 30 test classes (JUnit 5 + Mockito):
 
 ### Orchestrator (208 tests, 13 classes)
 
@@ -933,19 +933,28 @@ hooks:
 | `PromptLoaderTest` | 5 | classpath loading, caching, missing resource validation |
 | `AutoRetrySchedulerTest` | 5 | eligibility, retry timing, error isolation |
 
-### RAG Engine (53 tests, 8 classes)
+### RAG Engine (100 tests, 18 classes)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
 | `RecursiveCodeChunkerTest` | 8 | language support, method boundary split, overlap, token estimate |
 | `CodeChunkTest` | 8 | enrichedContent, metadata, IngestionReport, SearchResult, SearchFilters |
+| `HybridSearchServiceTest` | 7 | vector search, BM25, RRF fusion, error handling, parallel |
+| `CascadeRerankerTest` | 6 | 2-stage cascade, empty/single, stage1TopK, finalTopK, order |
 | `PropositionChunkerTest` | 6 | markdown headings, yaml, doc type classification |
 | `IngestionPipelineTest` | 6 | ingest, empty list, error recording, enricher, multi-doc |
 | `CodeDocumentReaderTest` | 6 | read java, skip unsupported/.git/large, extension mapping, Dockerfile |
+| `RagSearchServiceTest` | 6 | full pipeline, no HyDE, original query to reranker, filters, mode |
+| `KnowledgeGraphServiceTest` | 6 | add chunk/concept, edges, find related, error, Cypher injection |
+| `CodeGraphServiceTest` | 6 | class node, import edge, find by name, extract package/classes, populate |
 | `RagPropertiesTest` | 5 | default values, custom overrides, nested records |
 | `MetadataEnricherTest` | 5 | java entities, keyphrases, code/ADR classification |
 | `EmbeddingCacheServiceTest` | 5 | SHA-256 consistency, hex format, unicode |
+| `LlmRerankerTest` | 5 | parallel scoring, parse numeric, fallback, clamp, LLM error |
+| `HydeQueryTransformerTest` | 4 | transform, error fallback, disabled, empty query |
 | `ContextualEnricherTest` | 4 | enrich prefix, empty input, fallback, truncation |
+| `GraphRagServiceTest` | 4 | parallel cross-graph, empty, null/blank query, correlate |
+| `CosineRerankerTest` | 3 | rescore + sort, topK limit, empty candidates |
 
 ```bash
 # Run all tests
@@ -964,10 +973,11 @@ cd shared/rag-engine && mvn test
 
 ## Tech Stack
 
-- Java 17
+- Java 21 (virtual threads, sequenced collections)
 - Spring Boot 3.4.1
 - Spring AI 1.0.0 (Anthropic, Ollama, pgvector)
 - pgvector (vector similarity search, HNSW index, 1024 dim)
+- Apache AGE (graph extension for PostgreSQL: knowledge_graph + code_graph)
 - Ollama (mxbai-embed-large embedding, qwen2.5:1.5b reranking)
 - Azure Service Bus / Redis Streams / JMS Artemis
 - Maven plugin code generation (Mustache + SnakeYAML)

@@ -72,7 +72,7 @@ class RecursiveCodeChunkerTest {
         String code = "func main() {\n    fmt.Println(\"hello\")\n}\n";
         List<CodeChunk> chunks = chunker.chunk(code, "main.go", "go");
         assertFalse(chunks.isEmpty());
-        assertEquals("go", chunks.get(0).metadata().language());
+        assertEquals("go", chunks.getFirst().metadata().language());
     }
 
     @Test

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 
 import java.util.List;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -36,7 +37,8 @@ class ContextualEnricherTest {
                 new RagProperties.Search(true, true, "cascade", 20, 8, 0.5, 60),
                 new RagProperties.Ollama("mxbai-embed-large", "qwen2.5:1.5b", "http://localhost:11434"),
                 new RagProperties.Cache(5, 24, 60));
-        enricher = new ContextualEnricher(mockBuilder, properties);
+        enricher = new ContextualEnricher(mockBuilder, properties,
+                Executors.newVirtualThreadPerTaskExecutor());
     }
 
     @Test
@@ -47,8 +49,8 @@ class ContextualEnricherTest {
         List<CodeChunk> result = enricher.enrich(List.of(chunk), "Full document content here...");
 
         assertEquals(1, result.size());
-        assertNotNull(result.get(0).contextPrefix());
-        assertTrue(result.get(0).contextPrefix().contains("entry point"));
+        assertNotNull(result.getFirst().contextPrefix());
+        assertTrue(result.getFirst().contextPrefix().contains("entry point"));
     }
 
     @Test
@@ -67,7 +69,7 @@ class ContextualEnricherTest {
 
         List<CodeChunk> result = enricher.enrich(List.of(chunk), "full doc");
         assertEquals(1, result.size());
-        assertNull(result.get(0).contextPrefix()); // Original chunk, no context
+        assertNull(result.getFirst().contextPrefix()); // Original chunk, no context
     }
 
     @Test

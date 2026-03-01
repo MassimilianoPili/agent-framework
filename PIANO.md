@@ -588,7 +588,19 @@ public record RagProperties(
 
 ---
 
-## Sessione 2 — Search Pipeline + Apache AGE Graphs
+## Sessione 2 — Search Pipeline + Parallelismo + Apache AGE Graphs ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-01. Java 17→21 migrazione, virtual threads, 47 test nuovi in `shared/rag-engine` (100 totali RAG, 308 totali framework).
+> Build verificata: `mvn clean install -pl shared/rag-engine,control-plane/orchestrator -am` (Java 21)
+
+### S2-00. Java 17 → 21 + Virtual Threads
+
+- `pom.xml`: `<java.version>21</java.version>` (propaga a 22 moduli)
+- `application.yml`: `spring.threads.virtual.enabled: true` (Tomcat virtual threads)
+- `Dockerfile.mustache`: `eclipse-temurin:21-jre-alpine`
+- `ContextualEnricher`: refactored per `CompletableFuture` + `Executors.newVirtualThreadPerTaskExecutor()`
+- `RagAutoConfiguration`: bean `ragParallelExecutor` (virtual thread executor)
+- Test S1: `.get(0)` → `.getFirst()` (Sequenced Collections, 11 occorrenze)
 
 ### S2-A. Search Pipeline
 
@@ -667,8 +679,8 @@ Output JSON:
 | Sessione | File nuovi | File mod | Test nuovi | Test totali |
 |---|---|---|---|---|
 | **S1** (Infra + Ingestion) ✅ | 25 | 5 | 53 | 261 |
-| **S2** (Search + Graph) | ~15 | ~1 | ~47 | 298 |
-| **S3** (RAG_MANAGER + Integ.) | ~10 | ~5 | ~23 | 321 |
+| **S2** (Search + Graph + Java 21) ✅ | 15 | 10 | 47 | 308 |
+| **S3** (RAG_MANAGER + Integ.) | ~10 | ~5 | ~23 | ~331 |
 
 ---
 

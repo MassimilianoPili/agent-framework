@@ -60,7 +60,7 @@ class MetadataEnricherTest {
 
         List<CodeChunk> enriched = enricher.enrich(List.of(chunk));
         assertEquals(1, enriched.size());
-        assertFalse(enriched.get(0).metadata().entities().isEmpty());
-        assertEquals(ChunkMetadata.DocType.CODE, enriched.get(0).metadata().docType());
+        assertFalse(enriched.getFirst().metadata().entities().isEmpty());
+        assertEquals(ChunkMetadata.DocType.CODE, enriched.getFirst().metadata().docType());
     }
 }

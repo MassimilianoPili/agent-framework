@@ -64,7 +64,7 @@ class PropositionChunkerTest {
         String markdown = "# My Title\nSome content here.";
         List<CodeChunk> chunks = chunker.chunk(markdown, "README.md", "md");
         assertFalse(chunks.isEmpty());
-        assertEquals("My Title", chunks.get(0).metadata().sectionTitle());
+        assertEquals("My Title", chunks.getFirst().metadata().sectionTitle());
     }
 
     @Test
@@ -91,6 +91,6 @@ class PropositionChunkerTest {
                 """;
         List<CodeChunk> chunks = chunker.chunk(yaml, "application.yml", "yaml");
         assertFalse(chunks.isEmpty());
-        assertEquals("yaml", chunks.get(0).metadata().language());
+        assertEquals("yaml", chunks.getFirst().metadata().language());
     }
 }
