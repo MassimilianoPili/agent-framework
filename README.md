@@ -26,6 +26,8 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 - **SUB_PLAN**: orchestrator-inline hierarchical sub-plans; depth-guarded (default max-depth: 3); `awaitCompletion` flag controls fire-and-forget vs blocking dispatch.
 - **agent-common module**: canonical `HookPolicy`, `ApprovalMode`, `RiskLevel` in `com.agentframework.common.policy` — single source of truth shared by orchestrator and worker-sdk.
 - **Reward Signal System**: multi-source Bayesian scoring per `PlanItem` (`reviewScore` weight 0.50 + `processScore` weight 0.30 + `qualityGateScore` fallback 0.20); ELO ratings per worker profile (K=32, chess-like) and DPO preference pairs generated automatically at plan completion. Zero additional LLM calls.
+- **GP Engine** (`shared/gp-engine`): Gaussian Process regression module for adaptive worker selection. RBF kernel, Cholesky decomposition, posterior caching (`GpModelCache` with TTL). `TaskOutcomeService` records embedding + GP prediction at dispatch, updates actual reward at completion. `GpWorkerSelectionService` selects optimal profile via UCB (Upper Confidence Bound) exploration-exploitation. Conditional on `gp.enabled=true`.
+- **DPO GP Residual**: third preference pair strategy `gp_residual_surprise` — filters cross-profile pairs by GP residual `|actual - predicted|` ≥ 0.15, so the DPO trainer learns from informative surprises rather than obvious outcomes. `gpResidual` field on `PreferencePair` entity stores the informativity score.
 - **Council System**: pre-planning advisory sessions with dynamic member selection (`MANAGER` + `SPECIALIST` workers via `COUNCIL_MANAGER`); `CouncilReport` (8-field record) injected into `PlannerService` to guide task decomposition.
 - **Missing-Context Feedback Loop**: workers signal `missing_context` in `AgentResult` → orchestrator auto-creates a `CONTEXT_MANAGER` task for the missing files → original item re-dispatched with enriched context.
 - **Auto-Retry with Backoff**: `AutoRetryScheduler` polls for failed items with `nextRetryAt` in the past; exponential backoff (`baseDelay × 2^(attempt-1)`); auto-pauses plan after `attemptsBeforePause` failures.
@@ -116,7 +118,7 @@ sequenceDiagram
         RS->>RS: EloRatingService.updateRatingsForPlan()
         Note over RS: pairwise ELO update (K=32) per workerType group
         RS->>RS: PreferencePairGenerator.generateForPlan()
-        Note over RS: DPO pairs: cross-profile + retry (deltaReward ≥ 0.3)
+        Note over RS: DPO pairs: cross-profile + retry + gp_residual_surprise (deltaReward ≥ 0.3)
     else Item FAILED (retry budget > 0)
         Orch->>SB: re-dispatch with attemptNumber++
     else Compensation requested
@@ -199,6 +201,7 @@ sequenceDiagram
 |---|---|
 | `agent-common/` | Shared library: `HookPolicy`, `ApprovalMode`, `RiskLevel` (`com.agentframework.common.policy`) |
 | `shared/rag-engine/` | RAG pipeline: ingestion (chunking, contextual enrichment), embedding cache (Redis DB 5), pgvector store (1024 dim, HNSW), search/reranking (Sessione 2) |
+| `shared/gp-engine/` | GP regression engine: RBF kernel, Cholesky solver, posterior caching, prediction with uncertainty (Sessione 6) |
 | `agents/manifests/` | Source of truth for worker definitions (`*.agent.yml`) |
 | `.claude/agents/*/SKILL.md` | Worker system prompts — polyglot header format (YAML frontmatter for Claude Code + Markdown body for Java runtime via `SkillLoader`) |
 | `.claude/agents/` | 14 subagent definitions (Claude Code discovery): be, fe, contract, ai-task, context-manager, schema-manager, review, planner, be-go, be-node, be-rust, hook-manager, audit-manager, event-manager |
@@ -684,9 +687,10 @@ GET /api/v1/rewards/stats
 
 #### DPO preference pairs (`/api/v1/rewards/preference-pairs`)
 
-`PreferencePairGenerator` produces pairs via two strategies:
+`PreferencePairGenerator` produces pairs via three strategies:
 - **same_plan_cross_profile** — two profiles competing on the same `workerType` within the same plan
 - **retry_comparison** — failed attempt (missing_context) vs successful retry of the same item
+- **gp_residual_surprise** — cross-profile pairs filtered by GP residual `|actual_reward - gp_predicted|` ≥ 0.15; only generated when `gp.enabled=true` and GP data is available. The `gpResidual` field stores `max(residualA, residualB)` as informativity score.
 
 Only pairs with `deltaReward ≥ 0.3` are persisted (near-identical pairs degrade preference learning).
 
@@ -913,9 +917,9 @@ hooks:
 
 ## Test Coverage
 
-308 unit tests across 30 test classes (JUnit 5 + Mockito):
+416 unit tests across 35 test classes (JUnit 5 + Mockito):
 
-### Orchestrator (208 tests, 13 classes)
+### Orchestrator (255 tests, 17 classes)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
@@ -928,12 +932,25 @@ hooks:
 | `SseEmitterRegistryTest` | 15 | subscribe, late-join replay, broadcast, dead emitter cleanup |
 | `QualityGateServiceTest` | 10 | async annotations, report generation, reward signals, error handling |
 | `EloRatingServiceTest` | 10 | pairwise ELO, multi-type, new profile bootstrap |
+| `PreferencePairGeneratorTest` | 11 | cross-profile, retry, gp_residual_surprise, integration (3 strategies combined) |
 | `PlanSnapshotServiceTest` | 9 | restore COMPLETED→RUNNING, mixed states, forceStatus validation |
 | `PlanEventStoreTest` | 7 | sequence numbering, payload serialization, error fallback |
 | `PromptLoaderTest` | 5 | classpath loading, caching, missing resource validation |
 | `AutoRetrySchedulerTest` | 5 | eligibility, retry timing, error isolation |
+| `RalphLoopServiceTest` | 8 | quality gate feedback loop, retry tracking |
+| `CouncilRagEnricherTest` | 8 | RAG enrichment for council sessions |
 
-### RAG Engine (100 tests, 18 classes)
+### GP Engine (30 tests, 5 classes)
+
+| Test Class | Tests | Scope |
+|-----------|-------|-------|
+| `GaussianProcessEngineTest` | 8 | fit, predict, prior, edge cases |
+| `GpModelCacheTest` | 6 | put/get, TTL expiry, invalidation |
+| `RbfKernelTest` | 6 | kernel matrix, hyperparameters, edge cases |
+| `CholeskyDecompositionTest` | 5 | decompose, solve, positive-definite check |
+| `DenseMatrixTest` | 5 | multiply, transpose, toArray |
+
+### RAG Engine (113 tests, 21 classes)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
@@ -957,11 +974,14 @@ hooks:
 | `CosineRerankerTest` | 3 | rescore + sort, topK limit, empty candidates |
 
 ```bash
-# Run all tests
-mvn clean install -pl shared/rag-engine,control-plane/orchestrator -am
+# Run all tests (orchestrator + dependencies: common, messaging, rag-engine, gp-engine)
+mvn clean test -pl control-plane/orchestrator -am
 
 # Run orchestrator tests only
 cd control-plane/orchestrator && mvn test
+
+# Run GP engine tests only
+cd shared/gp-engine && mvn test
 
 # Run RAG engine tests only
 cd shared/rag-engine && mvn test
@@ -979,6 +999,7 @@ cd shared/rag-engine && mvn test
 - pgvector (vector similarity search, HNSW index, 1024 dim)
 - Apache AGE (graph extension for PostgreSQL: knowledge_graph + code_graph)
 - Ollama (mxbai-embed-large embedding, qwen2.5:1.5b reranking)
+- GP Engine (Gaussian Process regression for adaptive worker selection, RBF kernel, Cholesky solver)
 - Azure Service Bus / Redis Streams / JMS Artemis
 - Maven plugin code generation (Mustache + SnakeYAML)
 - Custom MCP tools (`mcp-filesystem-tools`, `mcp-devops-tools`, `mcp-sql-tools`)
@@ -986,8 +1007,11 @@ cd shared/rag-engine && mvn test
 
 ## Documentation
 
+> **Quick navigation**: [README_INDEX.md](README_INDEX.md) — mappa rapida di tutti i README, sezioni chiave, Flyway, roadmap, test coverage.
+
 | Documento | Descrizione |
 |-----------|-------------|
+| [README Index](README_INDEX.md) | Indice strutturato: argomento → file → sezione (evita di rileggere tutto) |
 | [Setup Guide](SETUP.md) | Installazione, configurazione, primo avvio |
 | [Manuale Utente](docs/manual/user-guide.md) | Guida completa: quick-start, architettura, API, deploy, troubleshooting |
 | [Orchestrator](control-plane/orchestrator/README.md) | REST API, domain model, state machine, configurazione |

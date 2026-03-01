@@ -611,7 +611,7 @@ ADR-005 (18) ─────────────────► (standalone,
 | 16 | Ralph-Loop (Quality Gate Feedback) | 1.5g | Alto | — |
 | 17 | SDK Scaffold Worker | 0.5g | Basso | — |
 | 11 | GP Worker Selection ✅ | 3g | Molto alto | pgvector, Ollama |
-| 14 | DPO con GP Residual | 1g | Alto | #11 |
+| 14 | DPO con GP Residual ✅ | 1g | Alto | #11 |
 | 12 | Serendipita' Context Manager | 2g | Alto | #11 |
 | 13 | Council Taste Profile | 2g | Medio | #11 |
 | 15 | Active Token Budget | 1g | Medio | #11 |
@@ -963,7 +963,7 @@ in `conductPrePlanningSession()` e `conductTaskSession()` prima di `consultMembe
 - **#11** GP Worker Selection (3g, foundation) — GP `(mu, sigma^2)` per profilo ottimale **[IMPLEMENTATO S6]**
 - **#12** Serendipita' Context Manager (2g, dipende #11) — GP residual per file discovery
 - **#13** Council Taste Profile (2g, dipende #11) — GP per decomposizione piano ottimale
-- **#14** DPO con GP Residual (1g, dipende #11) — strategia `gp_residual_surprise`
+- **#14** DPO con GP Residual (1g, dipende #11) — strategia `gp_residual_surprise` **[IMPLEMENTATO S7]**
 - **#15** Active Learning Token Budget (1g, dipende #11) — budget dinamico `sigma^2`-modulato
 - **#16** Ralph-Loop (1.5g, standalone) — quality gate feedback loop **[IMPLEMENTATO]**
 - **#17** SDK Scaffold Worker (0.5g, standalone) — manifest + skill files **[CREATO]**
@@ -1074,6 +1074,42 @@ seleziona max mu → tie-break = default profile. Record: `ProfileSelection(sele
 
 ---
 
+## Sessione 7 — DPO con GP Residual (#14) ✅ COMPLETATA
+
+**Obiettivo**: aggiungere terza strategia DPO `gp_residual_surprise` che filtra coppie
+per sorpresa GP (`|actual - predicted| >= 0.15`), così il DPO trainer impari da pattern
+nuovi piuttosto che da coppie ovvie.
+
+### S7-A. File nuovi (2)
+
+| File | Scopo |
+|------|-------|
+| `orchestrator/.../db/migration/V9__dpo_gp_residual.sql` | Colonna `gp_residual FLOAT` nullable + indice DESC NULLS LAST |
+| `orchestrator/.../reward/PreferencePairGeneratorTest.java` | 11 test: 4 cross-profile, 2 retry, 4 gp_residual, 1 integrazione |
+
+### S7-B. File modificati (4)
+
+| File | Modifica |
+|------|----------|
+| `reward/PreferencePair.java` | +campo `gpResidual` (Float nullable), +getter, +costruttore 11-arg |
+| `reward/PreferencePairGenerator.java` | +`Optional<TaskOutcomeService>`, +`generateGpResidualPairs()`, +`computeResidual()` con embedding cache |
+| `reward/PreferencePairRepository.java` | +query `findByGpResidualDesc(@Param limit)` |
+| `PIANO.md` | Documentazione Sessione 7 |
+
+### S7-C. Invarianti
+
+1. **`gp.enabled: false`** → `TaskOutcomeService` non esiste → `Optional.empty()` → strategia GP mai chiamata → zero behavioral change
+2. **Strategie esistenti invariate** — `generateCrossProfilePairs()` e `generateRetryPairs()` non toccati
+3. **Colonna nullable** — coppie strategie 1 e 2 hanno `gp_residual = NULL`
+4. **Costruttore backward-compatible** — 10-arg resta, 11-arg lo estende
+5. **`MIN_GP_RESIDUAL = 0.15f`** — soglia più bassa di `MIN_DELTA (0.3)` perché il residual è un segnale più raffinato
+
+### S7-D. Commit
+
+`ca08633` — `feat: Sessione 7 — DPO con GP Residual (#14)`
+
+---
+
 ## Riepilogo File per Sessione
 
 | Sessione | File nuovi | File mod | Test nuovi | Test totali |
@@ -1084,6 +1120,7 @@ seleziona max mu → tie-break = default profile. Record: `ProfileSelection(sele
 | **S4** (COMPENSATOR_MANAGER + Audit) ✅ | 2 | 1 | 8 | 364 |
 | **S5** (Ralph-Loop + Roadmap #11-#18) ✅ | 8 | 6 | 8 | 372 |
 | **S6** (GP Engine + Worker Selection #11) ✅ | 21 | 7 | 52 | 394 |
+| **S7** (DPO con GP Residual #14) ✅ | 2 | 4 | 11 | 416 |
 
 ---
 
