@@ -266,7 +266,8 @@ public class CouncilService {
             .call()
             .content();
 
-        CouncilReport report = converter.convert(raw);
+        String rawJson = com.agentframework.orchestrator.planner.PlannerService.stripMarkdownFences(raw);
+        CouncilReport report = converter.convert(rawJson);
         if (report == null) {
             log.warn("Council synthesizer returned null, using empty report");
             return new CouncilReport(

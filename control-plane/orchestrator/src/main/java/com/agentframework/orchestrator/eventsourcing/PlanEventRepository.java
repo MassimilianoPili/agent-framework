@@ -13,7 +13,7 @@ public interface PlanEventRepository extends JpaRepository<PlanEvent, UUID> {
     List<PlanEvent> findByPlanIdOrderBySequenceNumberAsc(UUID planId);
 
     /** Atomically computes the next sequence number using MAX (gap-safe, unlike COUNT). */
-    @Query(value = "SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM plan_events WHERE plan_id = :planId",
+    @Query(value = "SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM plan_event WHERE plan_id = :planId",
            nativeQuery = true)
     long nextSequence(@Param("planId") UUID planId);
 
