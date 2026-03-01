@@ -1,0 +1,88 @@
+package com.agentframework.orchestrator.gp;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Repository for GP training data.
+ *
+ * <p>Uses native queries for pgvector column ({@code task_embedding vector(1024)})
+ * because JPA cannot map {@code float[]} to the pgvector type natively.</p>
+ */
+public interface TaskOutcomeRepository extends JpaRepository<TaskOutcome, UUID> {
+
+    /**
+     * Inserts a task outcome with the pgvector embedding.
+     * Uses native query to handle the {@code vector(1024)} cast.
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO task_outcomes (id, plan_item_id, plan_id, task_key, worker_type,
+                                       worker_profile, task_embedding, elo_at_dispatch,
+                                       gp_mu, gp_sigma2, created_at)
+            VALUES (:id, :planItemId, :planId, :taskKey, :workerType,
+                    :workerProfile, cast(:embedding as vector), :eloAtDispatch,
+                    :gpMu, :gpSigma2, now())
+            """, nativeQuery = true)
+    void insertWithEmbedding(@Param("id") UUID id,
+                             @Param("planItemId") UUID planItemId,
+                             @Param("planId") UUID planId,
+                             @Param("taskKey") String taskKey,
+                             @Param("workerType") String workerType,
+                             @Param("workerProfile") String workerProfile,
+                             @Param("embedding") String embedding,
+                             @Param("eloAtDispatch") Double eloAtDispatch,
+                             @Param("gpMu") Double gpMu,
+                             @Param("gpSigma2") Double gpSigma2);
+
+    /**
+     * Loads training data for a specific worker type and profile.
+     * Returns the last N outcomes with non-null reward and embedding.
+     *
+     * <p>The embedding is returned as a text representation {@code [0.1,0.2,...]}
+     * which the service layer parses back to {@code float[]}.</p>
+     */
+    @Query(value = """
+            SELECT id, plan_item_id, plan_id, task_key, worker_type, worker_profile,
+                   task_embedding::text as embedding_text, elo_at_dispatch,
+                   gp_mu, gp_sigma2, actual_reward, created_at
+            FROM task_outcomes
+            WHERE worker_type = :workerType
+              AND worker_profile = :profile
+              AND actual_reward IS NOT NULL
+              AND task_embedding IS NOT NULL
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findTrainingDataRaw(@Param("workerType") String workerType,
+                                       @Param("profile") String profile,
+                                       @Param("limit") int limit);
+
+    /**
+     * Updates actual_reward when the task completes.
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE task_outcomes SET actual_reward = :reward
+            WHERE plan_item_id = :planItemId AND actual_reward IS NULL
+            """, nativeQuery = true)
+    int updateActualReward(@Param("planItemId") UUID planItemId,
+                           @Param("reward") double reward);
+
+    /**
+     * Count outcomes per worker type/profile (for diagnostics).
+     */
+    @Query(value = """
+            SELECT COUNT(*) FROM task_outcomes
+            WHERE worker_type = :workerType
+              AND worker_profile = :profile
+              AND actual_reward IS NOT NULL
+            """, nativeQuery = true)
+    long countTrainingData(@Param("workerType") String workerType,
+                           @Param("profile") String profile);
+}

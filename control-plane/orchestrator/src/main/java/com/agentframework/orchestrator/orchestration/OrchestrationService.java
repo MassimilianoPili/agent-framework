@@ -21,6 +21,8 @@ import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
+import com.agentframework.orchestrator.gp.GpWorkerSelectionService;
+import com.agentframework.orchestrator.gp.TaskOutcomeService;
 import com.agentframework.orchestrator.specification.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -34,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -81,6 +84,8 @@ public class OrchestrationService {
     private final CouncilService councilService;
     private final CouncilProperties councilProperties;
     private final RewardComputationService rewardComputationService;
+    private final GpWorkerSelectionService gpSelectionService;
+    private final TaskOutcomeService gpTaskOutcomeService;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -95,7 +100,9 @@ public class OrchestrationService {
                                 PlanEventStore eventStore,
                                 CouncilService councilService,
                                 CouncilProperties councilProperties,
-                                RewardComputationService rewardComputationService) {
+                                RewardComputationService rewardComputationService,
+                                Optional<GpWorkerSelectionService> gpSelectionService,
+                                Optional<TaskOutcomeService> gpTaskOutcomeService) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -110,6 +117,8 @@ public class OrchestrationService {
         this.councilService = councilService;
         this.councilProperties = councilProperties;
         this.rewardComputationService = rewardComputationService;
+        this.gpSelectionService = gpSelectionService.orElse(null);
+        this.gpTaskOutcomeService = gpTaskOutcomeService.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -214,6 +223,13 @@ public class OrchestrationService {
 
             // Reward signal — point 1: compute processScore from Provenance (zero LLM cost)
             rewardComputationService.computeProcessScore(item, result);
+
+            // GP reward signal: feed aggregatedReward back to task_outcomes for GP training
+            if (gpTaskOutcomeService != null && item.getAggregatedReward() != null) {
+                gpTaskOutcomeService.updateReward(
+                        item.getId(), item.getAggregatedReward().doubleValue(),
+                        item.getWorkerType().name(), item.getWorkerProfile());
+            }
 
             // Reward signal — point 2: if REVIEW worker, distribute per-task review scores
             if (item.getWorkerType() == WorkerType.REVIEW) {
@@ -516,16 +532,22 @@ public class OrchestrationService {
                 continue; // do not dispatch — awaiting approval
             }
 
-            // Resolve default profile for multi-stack types (BE, FE) when planner didn't assign one.
-            // Required: per-profile SQL filters on Service Bus subscriptions need workerProfile
-            // as a message property. Without resolution, messages would reach the topic but
-            // no subscription filter would match.
+            // Resolve worker profile for multi-stack types (BE, FE) when planner didn't assign one.
+            // GP-based selection: if GP is enabled and there are multiple candidate profiles,
+            // predict expected reward for each and select the best. Falls back to default.
             if (item.getWorkerProfile() == null) {
-                String defaultProfile = profileRegistry.resolveDefaultProfile(item.getWorkerType());
-                if (defaultProfile != null) {
-                    log.debug("Resolved default profile '{}' for task {} (type={})",
-                              defaultProfile, item.getTaskKey(), item.getWorkerType());
-                    item.setWorkerProfile(defaultProfile);
+                if (gpSelectionService != null
+                        && profileRegistry.profilesForWorkerType(item.getWorkerType()).size() > 1) {
+                    var selection = gpSelectionService.selectProfile(
+                            item.getWorkerType(), item.getTitle(), item.getDescription());
+                    item.setWorkerProfile(selection.selectedProfile());
+                } else {
+                    String defaultProfile = profileRegistry.resolveDefaultProfile(item.getWorkerType());
+                    if (defaultProfile != null) {
+                        log.debug("Resolved default profile '{}' for task {} (type={})",
+                                  defaultProfile, item.getTaskKey(), item.getWorkerType());
+                        item.setWorkerProfile(defaultProfile);
+                    }
                 }
             }
 

@@ -187,6 +187,29 @@ class WorkerProfileRegistryTest {
         assertThat(registry.resolveDefaultProfile(WorkerType.AI_TASK)).isNull();
     }
 
+    // ── profilesForWorkerType ──
+
+    @Test
+    void profilesForWorkerType_multipleProfiles() {
+        WorkerProfileRegistry registry = buildRegistry(
+                Map.of(
+                        "be-java", entry("BE", "agent-tasks", "be-java-sub"),
+                        "be-go", entry("BE", "agent-tasks", "be-go-sub"),
+                        "fe-react", entry("FE", "agent-tasks", "fe-react-sub")
+                ),
+                Map.of("BE", "be-java", "FE", "fe-react")
+        );
+
+        List<String> beProfiles = registry.profilesForWorkerType(WorkerType.BE);
+        assertThat(beProfiles).containsExactlyInAnyOrder("be-java", "be-go");
+    }
+
+    @Test
+    void profilesForWorkerType_typeWithNoProfiles_returnsEmpty() {
+        WorkerProfileRegistry registry = validRegistry();
+        assertThat(registry.profilesForWorkerType(WorkerType.AI_TASK)).isEmpty();
+    }
+
     // ── Profile entry lookup ──
 
     @Test

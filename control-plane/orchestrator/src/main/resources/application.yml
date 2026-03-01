@@ -177,6 +177,21 @@ rag:
     embedding-ttl-hours: 24
     search-result-ttl-minutes: 60
 
+# GP Worker Selection — adaptive profile selection via Gaussian Process regression.
+# When enabled, predicts expected reward for each candidate profile and selects the best.
+# When disabled (default), uses static default profile assignment (zero behavioral change).
+gp:
+  enabled: false
+  kernel:
+    signal-variance: 1.0
+    length-scale: 1.0
+  noise-variance: 0.1
+  max-training-size: 500
+  default-prior-mean: 0.5
+  cache:
+    ttl-minutes: 5
+    enabled: true
+
 logging:
   level:
     com.agentframework: INFO

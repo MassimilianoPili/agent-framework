@@ -68,7 +68,8 @@ class OrchestrationServiceTest {
                 plannerService, taskProducer, profileRegistry,
                 eventPublisher, objectMapper, hookManagerService,
                 tokenBudgetService, eventStore, councilService,
-                councilProperties, rewardComputationService);
+                councilProperties, rewardComputationService,
+                Optional.empty(), Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);

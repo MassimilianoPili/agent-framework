@@ -151,6 +151,17 @@ public class WorkerProfileRegistry {
     }
 
     /**
+     * Returns all profile names registered for a given WorkerType.
+     * Used by GP-based worker selection to enumerate candidate profiles.
+     */
+    public List<String> profilesForWorkerType(WorkerType workerType) {
+        return profiles.entrySet().stream()
+                .filter(e -> workerType.name().equals(e.getValue().workerType()))
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
+    /**
      * Returns the ProfileEntry for a given profile name, or null if not found.
      * Used by the Specification pattern to validate capabilities before dispatch.
      */
