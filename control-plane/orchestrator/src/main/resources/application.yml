@@ -137,6 +137,13 @@ council:
   pre-planning-enabled: true    # Run council before PlannerService.decompose()
   task-session-enabled: true    # Handle COUNCIL_MANAGER tasks in-process
 
+# Ralph-Loop — quality gate feedback loop.
+# When the quality gate fails, implicated items are re-queued with feedback.
+ralph-loop:
+  enabled: true
+  max-iterations: 2         # max times a single item can be re-queued by ralph-loop
+  min-score-threshold: 80   # quality gate score below which items are re-queued
+
 # External issue tracker sync — propagates plan events to external tracker via MCP tool.
 # Disabled by default: enable when the tracker-mcp server is deployed and reachable.
 tracker:

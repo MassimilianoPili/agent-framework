@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.agentframework</groupId>
+        <artifactId>agent-framework</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>rag-manager-worker</artifactId>
+    <name>Agent Framework :: Execution Plane :: RAG Manager Worker</name>
+    <description>
+        Programmatic worker that retrieves semantic context from the RAG pipeline
+        (pgvector hybrid search + Apache AGE graph queries) and publishes structured
+        results as dependency context for downstream domain workers.
+    </description>
+
+    <dependencies>
+        <!-- Worker SDK (auto-configuration for messaging, context, ChatClient) -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>worker-sdk</artifactId>
+        </dependency>
+
+        <!-- RAG Engine (RagSearchService, GraphRagService, SemanticSearchTool) -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>rag-engine</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Web (health endpoint) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Spring AI Anthropic (required by worker-sdk for ChatClient bean) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-anthropic</artifactId>
+        </dependency>
+
+        <!-- Reactive Tools (parallel tool calling) -->
+        <dependency>
+            <groupId>io.github.massimilianopili</groupId>
+            <artifactId>spring-ai-reactive-tools</artifactId>
+        </dependency>
+
+        <!-- Messaging (Redis-based JMS) -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>messaging-redis</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

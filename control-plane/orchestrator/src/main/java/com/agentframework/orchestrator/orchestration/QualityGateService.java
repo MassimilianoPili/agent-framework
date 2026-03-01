@@ -42,6 +42,7 @@ public class QualityGateService {
     private final RewardComputationService rewardComputationService;
     private final EloRatingService eloRatingService;
     private final PreferencePairGenerator preferencePairGenerator;
+    private final RalphLoopService ralphLoopService;
 
     public QualityGateService(ChatClient chatClient,
                               PromptLoader promptLoader,
@@ -51,7 +52,8 @@ public class QualityGateService {
                               ObjectMapper objectMapper,
                               RewardComputationService rewardComputationService,
                               EloRatingService eloRatingService,
-                              PreferencePairGenerator preferencePairGenerator) {
+                              PreferencePairGenerator preferencePairGenerator,
+                              RalphLoopService ralphLoopService) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.planRepository = planRepository;
@@ -61,6 +63,7 @@ public class QualityGateService {
         this.rewardComputationService = rewardComputationService;
         this.eloRatingService = eloRatingService;
         this.preferencePairGenerator = preferencePairGenerator;
+        this.ralphLoopService = ralphLoopService;
     }
 
     /**
@@ -113,6 +116,18 @@ public class QualityGateService {
 
             reportRepository.save(report);
             log.info("Quality gate report saved for plan {} — passed: {}", plan.getId(), report.isPassed());
+
+            // Ralph-loop: if the quality gate failed, re-queue implicated items.
+            // Must run BEFORE reward signals — if items are re-queued, the plan is
+            // reopened and reward/ELO/DPO will run again after the next completion.
+            List<UUID> requeuedItems = ralphLoopService.evaluateAndRetry(
+                    plan.getId(), parsed.passed(), parsed.findings());
+
+            if (!requeuedItems.isEmpty()) {
+                log.info("Ralph-loop re-queued {} items for plan {} — skipping reward signals",
+                         requeuedItems.size(), plan.getId());
+                return; // Plan reopened — reward signals will run after next completion
+            }
 
             // Reward signal — point 3: distribute quality gate score as fallback for items without reviewScore
             rewardComputationService.distributeQualityGateSignal(plan.getId(), report.isPassed());

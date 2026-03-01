@@ -52,7 +52,9 @@ public enum ItemStatus {
     },
     DONE {
         @Override public Set<ItemStatus> allowedTransitions() {
-            return Set.of();
+            // WAITING is allowed for the ralph-loop: quality gate failure
+            // re-queues completed items with feedback context.
+            return Set.of(WAITING);
         }
     },
     FAILED {

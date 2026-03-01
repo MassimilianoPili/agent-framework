@@ -50,7 +50,7 @@ OrchestrationService → DB (write) → ApplicationEvent → TrackerSyncService 
 
 ## Roadmap per funzionalità
 
-### 1. Event Sourcing Puro
+### 1. Event Sourcing Puro ✅
 
 **Problema**: `Plan.status` e `PlanItem.status` vengono sovrascritti in-place. Nessuna storia queryabile.
 
@@ -79,7 +79,7 @@ refactoring `OrchestrationService`, `Plan.java`, `PlanItem.java`
 
 ---
 
-### 2. Missing-Context Feedback Loop
+### 2. Missing-Context Feedback Loop ✅
 
 **Problema**: `missing_context` nel JSON di output dei worker viene ignorato da `OrchestrationService`.
 
@@ -105,7 +105,7 @@ if (contextRetries < maxContextRetries) {
 
 ---
 
-### 3. Retry Automatico con Exponential Backoff
+### 3. Retry Automatico con Exponential Backoff ✅
 
 **Problema**: `AgentManifest.Retry` è parsato ma mai usato automaticamente.
 
@@ -132,7 +132,7 @@ retry:
 
 ---
 
-### 4. Saga / Compensation (COMPENSATOR_MANAGER)
+### 4. Saga / Compensation (COMPENSATOR_MANAGER) ✅
 
 **Problema**: nessun meccanismo di rollback quando un task fallisce definitivamente.
 
@@ -176,7 +176,7 @@ data: {"taskKey":"BE-001","success":true,"durationMs":45000,"branch":"feature/sp
 
 ---
 
-### 6. Token Budget per WorkerType
+### 6. Token Budget per WorkerType ✅
 
 **Problema**: nessun limite ai token consumati. Nessuna visibilità sui costi per tipo di worker.
 
@@ -302,6 +302,256 @@ Proposta: estrarre in modulo `agent-common` condiviso.
 
 ---
 
+### 11. GP per Worker Selection
+
+**Problema**: il worker profile viene assegnato staticamente in `OrchestrationService.dispatchReadyItems()`
+(righe 523-530). `WorkerProfileRegistry.resolveDefaultProfile()` fa `defaults.get(workerType.name())`:
+un "Build REST API" e un "Implement WebSocket" ricevono entrambi `be-java`, ignorando la natura del task.
+
+**Soluzione**: Gaussian Process (GP) che predice il profilo ottimale dato l'embedding del task.
+
+**Perche' GP e non classificatore/regressore**:
+- Il GP restituisce `(mu, sigma^2)`. `sigma^2` alto = "non so" → trigger per REVIEW worker
+- Cold-start graceful: con pochi dati degenera al prior (media globale = default attuale)
+- Kernel RBF su embedding: task semanticamente simili condividono la predizione
+- Un classificatore darebbe "be-java" con confidenza 99% anche su un task mai visto
+
+**Perche' qui nel flusso**: riga 523 e' l'unico punto dove il profile viene scelto.
+Dopo il dispatch non si puo' cambiare worker. Mettere il GP *prima* del dispatch
+e' l'unica posizione utile. Il reward arriva *dopo* (`RewardComputationService`, righe 209-267)
+e aggiorna il GP con il segnale di rinforzo.
+
+**Perche' `task_outcomes` come tabella separata**: `plan_items` NON ha embedding (1024 dim),
+ne' snapshot ELO al dispatch. Query OLAP (training GP) vs OLTP (dispatch). `ON DELETE SET NULL`
+per preservare storico training anche dopo delete piano. Campi denormalizzati per evitare join costosi.
+
+**Perche' modulo `shared/gp-engine`**: riuso (orchestratore + worker context-manager),
+testabilita' (GP e' matematica pura, zero side-effect), swap implementazione senza toccare orchestratore.
+Pattern identico a `shared/rag-engine`.
+
+**Dati di training gia' disponibili**: `plan_items.aggregated_reward` (target),
+`plan_items.worker_profile` (etichetta), `worker_elo_stats.elo_rating` (feature).
+Embedding via Ollama (stessa pipeline RAG engine, `mxbai-embed-large` 1024 dim).
+
+**File nuovi**: `shared/gp-engine/` (modulo Maven), `GaussianProcessService.java`,
+`TaskEmbeddingService.java`, `WorkerSelectionPredictor.java`. Flyway V8 (`task_outcomes`).
+Modifica `OrchestrationService.dispatchReadyItems()` righe 523-530.
+
+**Sforzo**: 3g. **Dipendenze**: pgvector, Ollama (gia' disponibili). **Dati minimi**: ~50 task completati.
+
+---
+
+### 12. Serendipita' nel Context Manager
+
+**Problema**: il context-manager trova solo file semanticamente simili (RAG search coseno + BM25 via
+`HybridSearchService`). Non scopre file "sorprendenti" che storicamente si sono rivelati utili
+per task simili ma che la ricerca semantica non intercetta.
+
+**Soluzione**: GP residual per file discovery — `residual(file, task) = actual_usefulness - predicted_usefulness`.
+Se `residual >> 0`: il file era inaspettatamente utile → pattern latente da sfruttare.
+
+**Perche' non e' random exploration**: usa il residual positivo del GP, non randomicita'.
+E' **informed surprise** — file che hanno *sorpreso* il modello in task passati simili.
+Un file `SecurityConfig.java` inaspettatamente utile per un task "build CRUD API" suggerisce
+che quel progetto ha vincoli di sicurezza impliciti.
+
+**Perche' nel context-manager e non nel RAG_MANAGER**: CM opera *prima* del RAG nel DAG dei task.
+La serendipita' arricchisce il contesto iniziale; il RAG puo' poi cercare anche sui file sorpresa.
+Layering: serendipita' (storica) → RAG (semantica). Se fosse nel RAG, il CM non ne beneficerebbe.
+
+**Come si compone con RRF**: `HybridSearchService` fa RRF con k=60 su 2 ranked list
+(coseno + BM25). La serendipita' aggiunge una terza list (residual storico).
+RRF esteso a 3 sorgenti: `score(d) = 1/(k+r_cosine) + 1/(k+r_bm25) + 1/(k+r_serendipity)`.
+
+**Dati necessari**: collegamento `(task_embedding, suggested_files[], final_reward)` —
+ricavabile join-ando `plan_items` (reward) con risultati CONTEXT_MANAGER (lista file).
+Richiede `task_outcomes` di #11.
+
+**File nuovi**: `shared/gp-engine/SerendipityAnalyzer.java`.
+Modifica `context-manager-worker`, estensione `HybridSearchService` per terza sorgente RRF.
+
+**Sforzo**: 2g. **Dipendenze**: #11 (GP engine + task_outcomes). **Dati minimi**: ~100 task con file context.
+
+---
+
+### 13. Council Taste Profile
+
+**Problema**: `CouncilService.conductPrePlanningSession()` (riga 97) e' stateless —
+non impara da piani passati. Non sa che piani "CRUD API" con 3 task funzionano meglio
+di piani con 5 task (overhead coordinamento). Ogni piano parte da zero.
+
+**Soluzione**: GP che predice il reward atteso di una decomposizione dato lo spec embedding
+e le caratteristiche strutturali del piano proposto.
+
+**Perche' GP e non regola statica**: le regole ("CRUD = 3 task") non generalizzano.
+Il GP interpola: spec "mezzo CRUD, mezzo real-time" riceve predizione pesata.
+`sigma^2` dice al Council quando la predizione e' affidabile vs quando serve cautela.
+
+**Perche' in `conductPrePlanningSession` e non nel planner**: il Council opera *prima*
+del planner. Il planner riceve il `CouncilReport` come input. Il taste profile arricchisce
+il report con raccomandazione sulla struttura — il planner decide se seguirla.
+Separazione: Council = advisory, Planner = execution.
+
+**Feature space**: `f(spec_embedding, n_tasks, has_context_task, has_review_task) → predicted_reward`.
+Il GP opera su uno spazio low-dimensional (embedding + 3-4 feature strutturali), non sull'intero piano.
+
+**File nuovi**: `shared/gp-engine/PlanDecompositionPredictor.java`.
+Modifica `CouncilService.java` (inietta `Optional<PlanDecompositionPredictor>`).
+Flyway per tabella `plan_outcomes` (spec embedding + reward finale piano).
+
+**Sforzo**: 2g. **Dipendenze**: #11 (GP engine). **Dati minimi**: ~20 piani completati.
+
+---
+
+### 14. DPO con GP Residual
+
+**Problema**: `PreferencePairGenerator` filtra con `delta >= 0.3` (riga 113, campo `MIN_DELTA`).
+Non distingue coppie ovvie (il GP gia' sapeva che be-java e' buono su REST) da coppie
+informative (sorpresa: be-java eccelle su WebSocket). Genera noise nel training DPO.
+
+**Soluzione**: nuova strategia `gp_residual_surprise` che filtra per `|actual - predicted|`.
+
+**Perche' il residual filtra meglio**:
+- Coppia ovvia: be-java su "REST API" → reward 0.9 (GP predice 0.85) → residual ≈ 0
+- Coppia informativa: be-java su "WebSocket" → reward 0.85 (GP predice 0.3) → residual 0.55
+La coppia informativa insegna pattern nuovi al modello DPO, la coppia ovvia e' ridondante.
+
+**Perche' nuova strategia e non modifica esistenti**: `same_plan_cross_profile` e
+`retry_comparison` hanno logica propria e funzionano correttamente. Aggiungere
+`gp_residual_surprise` e' additivo — Open/Closed Principle. Non rompe le due strategie esistenti.
+
+**Perche' campo `gpResidual` su PreferencePair**: il trainer DPO puo' fare importance
+sampling pesando per `|gpResidual|`. Senza il campo, l'informazione si perde dopo la generazione.
+
+**File mod**: `PreferencePairGenerator.java` (+1 strategia `gp_residual_surprise`),
+`PreferencePair.java` (+1 campo `gpResidual`). Flyway per colonna.
+
+**Sforzo**: 1g. **Dipendenze**: #11 (GP engine). **Dati minimi**: ~50 task con reward.
+
+---
+
+### 15. Active Learning per Token Budget
+
+**Problema**: `TokenBudgetService.checkBudget()` (riga 53) confronta `used >= limit` statico.
+Task facili sprecano budget (limite troppo alto), task difficili lo esauriscono (limite troppo basso).
+
+**Soluzione**: modulare il budget con le predizioni GP — `mu` per la qualita' attesa,
+`sigma^2` per l'incertezza.
+
+**Formula**: `dynamic_budget = base × (1 + alpha × sigma^2) × clip(mu, 0.3, 1.0)`.
+- `sigma^2` alto (incertezza) → piu' budget (active learning: lascia esplorare)
+- `mu` basso (qualita' attesa bassa) → riduce budget (non sprecare su task destinato a fallire)
+- `clip(mu, 0.3, 1.0)` impedisce di azzerare il budget
+
+**Perche' `sigma^2` come modulatore e non solo `mu`**: solo `mu` = "se predico fallimento,
+riduci budget" (miope). Aggiungere `sigma^2` = "se incerto, dai piu' budget" (active learning).
+L'incertezza e' informazione: un task incerto potrebbe rivelare pattern nuovi per il GP.
+
+**Perche' in `checkBudget` e non in `recordUsage`**: `checkBudget` opera *prima* del dispatch
+(riga 465 di `OrchestrationService`). `recordUsage` opera *dopo* (riga 280). Il budget dinamico
+deve modulare il limite *prima* che il task parta.
+
+**Enforcement mode invariato**: il budget dinamico modifica solo il limite numerico, non la policy
+(`FAIL_FAST`/`NO_NEW_DISPATCH`/`SOFT_LIMIT`). Single Responsibility Principle: la policy dice
+*cosa fare* quando il budget e' superato, il GP dice *quanto* budget dare.
+
+**File mod**: `TokenBudgetService.java` (`checkBudget` accetta `Optional<GPPrediction>`).
+
+**Sforzo**: 1g. **Dipendenze**: #11 (GP engine). **Dati minimi**: ~50 task con budget history.
+
+---
+
+### 16. Ralph-Loop (Quality Gate Feedback Loop)
+
+**Problema**: la quality gate (`QualityGateService`) valuta i risultati del piano ma NON
+re-dispatcha i task che non superano la soglia. Il piano resta COMPLETED anche se la quality
+gate fallisce. L'utente deve intervenire manualmente.
+
+**Soluzione**: loop automatico — i task implicati nella quality gate failure vengono rimessi
+in WAITING con il feedback della quality gate nel contesto, poi ri-dispatchati.
+
+**Perche' estende il pattern Missing-Context**: stessa meccanica `DONE→WAITING` con
+feedback nel contesto, ma triggerato dalla quality gate anziche' dal worker.
+Missing-Context e' *intra-task* (il worker dice "mi manca contesto"), ralph-loop e'
+*post-plan* (la quality gate dice "il risultato non e' sufficiente").
+
+**Perche' `DONE → WAITING` e non `DONE → FAILED → WAITING`**: il task non ha *fallito* —
+ha prodotto un risultato che non supera la quality gate. Passare da FAILED introdurrebbe
+rumore nel conteggio retry dell'`AutoRetryScheduler` (che conta `FAILED→WAITING`).
+Transizione diretta = semantica chiara. Contatore separato `ralphLoopCount`.
+
+**Perche' `COMPLETED → RUNNING` per il piano**: il piano deve potersi "riaprire".
+Alternativa: creare un nuovo piano → perde contesto, dipendenze, reward accumulati.
+Riaprire = continuita'. `PlanStatus` gia' ha `RUNNING`, basta aggiungere la transizione.
+
+**Perche' contatore separato `ralphLoopCount`**: `contextRetryCount` misura i retry
+per contesto mancante. `ralphLoopCount` misura i retry per quality gate.
+Semantiche diverse, contatori diversi → configurazione cap indipendenti.
+
+**File nuovi**: `RalphLoopService.java`, `RalphLoopServiceTest.java` (8 test).
+**File mod**: `ItemStatus.java` (DONE → WAITING), `PlanStatus.java` (COMPLETED → RUNNING),
+`PlanItem.java` (+`ralphLoopCount`, +`lastQualityGateFeedback`),
+`QualityGateService.java` (chiama ralph-loop dopo report), `OrchestrationService.java`
+(append feedback nel contesto), `application.yml` (config cap e soglia),
+Flyway V7 (nuove colonne).
+
+**Sforzo**: 1.5g. **Dipendenze**: nessuna. **Dati minimi**: nessuno (funziona dal primo piano).
+
+---
+
+### 17. SDK Scaffold Worker
+
+**Problema**: creare un progetto Agent SDK (Claude Code SDK, Python o TypeScript) richiede
+boilerplate ripetitivo: setup environment, installazione SDK, configurazione, gitignore,
+entry point, tool definitions, deployment config.
+
+**Soluzione**: worker con `workerType: AI_TASK` e `workerProfile: sdk-scaffold` che genera
+un progetto completo e verificato, guidato da skill files.
+
+**Perche' workerType `AI_TASK` e non un nuovo type**: lo scaffolding non ha semantica
+diversa da un generic AI task. Creare un WorkerType dedicato inquinerebbe l'enum
+(gia' 15 valori). Un `workerProfile: sdk-scaffold` basta per il routing nel
+`WorkerProfileRegistry`, coerente con il pattern esistente.
+
+**Perche' skill files e non codice Java**: lo scaffolding e' un task LLM-driven.
+Il worker generato dall'agent-compiler esegue le istruzioni della skill.
+Le skill sono modificabili senza rebuild — aggiornare un template e' un file edit.
+Pattern identico a `be-java`, `fe-react`, etc.
+
+**Perche' ralph-loop inline nella skill**: il verifier (type check + syntax) e'
+parte delle istruzioni della skill, non un servizio separato. Il worker esegue il loop
+autonomamente come parte dell'`execute()`. Il ralph-loop orchestratore (#16)
+e' a livello piano; qui e' a livello task (complementari, non duplicati).
+
+**File nuovi**: `agents/manifests/sdk-scaffold.agent.yml`, `skills/sdk-scaffold/SKILL.md`,
+`skills/sdk-scaffold/python-template.md`, `skills/sdk-scaffold/typescript-template.md`.
+
+**Sforzo**: 0.5g. **Dipendenze**: nessuna.
+
+---
+
+### 18. ADR-005: GP + Serendipita' — Motivazioni Architetturali
+
+**Problema**: le scelte architetturali per #11-#15 hanno motivazioni profonde
+che non entrano in una roadmap item. Servono in un ADR dedicato con alternative
+scartate e ancoraggi al codice.
+
+**Perche' ADR e non commenti nel codice**: le motivazioni riguardano *perche'*
+una scelta e' stata fatta, non *come* funziona il codice. I commenti nel codice
+spiegano il come; gli ADR spiegano il perche' e le alternative scartate.
+
+**Contenuto**: per ogni feature #11-#15, il *perche'* di ogni scelta ancorato
+a righe specifiche del codice esistente. Include: schema `task_outcomes`,
+formula `processScore` in `RewardComputationService`, flusso dispatch in
+`OrchestrationService` (righe 449-540), Bradley-Terry in `EloRatingService`,
+delta filter in `PreferencePairGenerator` (riga 113).
+
+**File**: `docs/adr/ADR-005-gp-serendipity-evolution.md`.
+
+**Sforzo**: 0.5g. **Dipendenze**: nessuna (documenta #11-#15, non le implementa).
+
+---
+
 ### TASK_MANAGER (nuovo worker type)
 
 **Problema**: `CONTEXT_MANAGER` fornisce solo file rilevanti. Mancano: branch git target,
@@ -330,6 +580,13 @@ ES puro (1) ──────────────────► Compensati
 TASK_MANAGER ─────────────────► Context cache (7) — issueSnapshotHash
 Missing-context (2) ──────────► Retry (3) — contesto fresco prima del retry
 HookPolicy extensions (10) ───► Token budget (6) — maxTokenBudget task-level
+GP Worker Selection (11) ─────► Serendipita' Context Manager (12)
+GP Worker Selection (11) ─────► Council Taste Profile (13)
+GP Worker Selection (11) ─────► DPO con GP Residual (14)
+GP Worker Selection (11) ─────► Active Token Budget (15)
+Ralph-Loop (16) ──────────────► (standalone)
+SDK Scaffold (17) ────────────► (standalone)
+ADR-005 (18) ─────────────────► (standalone, documenta #11-#15)
 ```
 
 ---
@@ -339,18 +596,26 @@ HookPolicy extensions (10) ───► Token budget (6) — maxTokenBudget task
 | # | Feature | Sforzo stimato | Impatto | Dipendenze |
 |---|---------|---------------|---------|------------|
 | 8 | DAG endpoint Mermaid | 0.5g | Medio | — |
-| 2+3 | Missing-context + Auto-retry | 2g | Alto | — |
+| 2+3 | Missing-context + Auto-retry ✅ | 2g | Alto | — |
 | 5 | SSE + TrackerSyncService | 1g | Alto | — |
-| 6 | Token budget per WorkerType | 1g | Medio | — |
+| 6 | Token budget per WorkerType ✅ | 1g | Medio | — |
 | TM | TASK_MANAGER worker | 2g | Alto | — |
 | 7 | Context cache | 1g | Medio | TASK_MANAGER |
-| 1 | Event Sourcing puro | 5g | Molto alto | — (foundation) |
+| 1 | Event Sourcing puro ✅ | 5g | Molto alto | — (foundation) |
 | 5b | SSE late join con replay | 0.5g | Alto | ES puro |
 | 9 | Hierarchical plans | 3g | Alto | — |
 | 10 | HookPolicy extensions | 2g | Alto | — |
-| 4 | COMPENSATOR_MANAGER | 2g | Medio | — |
+| 4 | COMPENSATOR_MANAGER ✅ | 2g | Medio | — |
 | lib | Modulo agent-common (HookPolicy) | 0.5g | Medio | — |
-| **RAG** | **RAG Pipeline + Graph RAG (3 sessioni)** | **10g** | **Molto alto** | — |
+| **RAG** | **RAG Pipeline + Graph RAG (3 sessioni) ✅** | **10g** | **Molto alto** | — |
+| 16 | Ralph-Loop (Quality Gate Feedback) | 1.5g | Alto | — |
+| 17 | SDK Scaffold Worker | 0.5g | Basso | — |
+| 11 | GP Worker Selection | 3g | Molto alto | pgvector, Ollama |
+| 14 | DPO con GP Residual | 1g | Alto | #11 |
+| 12 | Serendipita' Context Manager | 2g | Alto | #11 |
+| 13 | Council Taste Profile | 2g | Medio | #11 |
+| 15 | Active Token Budget | 1g | Medio | #11 |
+| 18 | ADR-005 (GP Motivazioni) | 0.5g | Medio | — |
 
 ---
 ---
@@ -639,38 +904,98 @@ SELECT create_graph('code_graph');
 
 ---
 
-## Sessione 3 — RAG_MANAGER Worker + Integrazione Completa
+## Sessione 3 — RAG_MANAGER Worker + Integrazione Completa ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-01. RAG_MANAGER worker programmatico, SemanticSearchTool MCP,
+> CouncilRagEnricher, 48 test nuovi (356 totali framework).
+> Build verificata: `mvn clean install -pl shared/rag-engine,control-plane/orchestrator,execution-plane/workers/rag-manager-worker -am` (Java 21)
 
 ### S3-A. RAG_MANAGER Worker
+
+Modulo: `execution-plane/workers/rag-manager-worker/`
+Worker programmatico (non usa LLM): chiama `RagSearchService.search()` e
+`GraphRagService.findRelatedInsights()`, assembla JSON e pubblica come dependency result.
 
 Output JSON:
 ```json
 {
   "semantic_chunks": [{"content": "...", "filePath": "...", "score": 0.87, "context": "..."}],
-  "graph_insights": [{"type": "code_dependency", "source": "...", "target": "...", "relation": "IMPORTS"}],
+  "graph_insights": ["Found 3 related code entities: ..."],
   "related_files": ["path/to/file1.java"],
-  "search_metadata": {"mode": "hybrid+hyde+cascade", "totalCandidates": 20, "rerankStages": 2}
+  "search_metadata": {"mode": "hybrid+hyde+cascade", "totalCandidates": 20}
 }
 ```
 
 ### S3-B. SemanticSearch MCP Tool
 
-`@ReactiveTool(name="SemanticSearch")` per CONTEXT_MANAGER e RAG_MANAGER.
+`@ReactiveTool(name="semantic_search")` in `shared/rag-engine/.../tool/SemanticSearchTool.java`.
+Combina `RagSearchService.search()` + `GraphRagService.findRelatedInsights()`.
+Parametri: query (obbligatorio), maxResults (default 8), language (opzionale).
 
 ### S3-C. Council Enrichment
 
-`CouncilRagEnricher`: cerca decisioni passate dal knowledge_graph.
-`CouncilService`: inietta `Optional<CouncilRagEnricher>`.
+`CouncilRagEnricher`: cerca chunk semantici e insight strutturali dal RAG.
+`CouncilService`: inietta `Optional<CouncilRagEnricher>`, arricchisce spec/context
+in `conductPrePlanningSession()` e `conductTaskSession()` prima di `consultMembersParallel()`.
 
 ### S3-D. Orchestrator Integration
 
-- `RAG_MANAGER` in `WorkerProfileRegistry` e `PlannerService`
-- Dispatch via messaging (come qualsiasi worker)
+- `RAG_MANAGER` aggiunto a `WorkerType` enum (dopo CONTEXT_MANAGER)
+- Modulo `rag-manager-worker` registrato nel root `pom.xml`
+- Dispatch via messaging Redis (come qualsiasi worker, topic `agent-tasks`)
 
-### S3-E. Test (~23)
+### S3-E. Test (48 nuovi → 356 totali)
 
-`SemanticSearchToolTest` (4), `RagManagerWorkerTest` (6), `CouncilRagEnricherTest` (4),
-`FileWatcherServiceTest` (4), `IngestionServiceTest` (5).
+`SemanticSearchToolTest` (4), `RagManagerWorkerTest` (8), `CouncilRagEnricherTest` (8),
+`FileWatcherServiceTest` (4), `IngestionServiceTest` (5). Piu' test indiretti in moduli dipendenti.
+
+---
+
+## Sessione 5 — Ralph-Loop + Roadmap GP/Serendipita' ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-01. Ralph-loop implementato (8 test), roadmap #11-#18 documentata,
+> SDK scaffold manifest + skills, ADR-005 architetturale. 224 test orchestrator (372 totali).
+> Build verificata: `mvn clean install -pl control-plane/orchestrator -am` (Java 21)
+
+### S5-A. Roadmap #11-#18
+
+8 nuove feature aggiunte alla roadmap con motivazioni architetturali complete:
+- **#11** GP Worker Selection (3g, foundation) — GP `(mu, sigma^2)` per profilo ottimale
+- **#12** Serendipita' Context Manager (2g, dipende #11) — GP residual per file discovery
+- **#13** Council Taste Profile (2g, dipende #11) — GP per decomposizione piano ottimale
+- **#14** DPO con GP Residual (1g, dipende #11) — strategia `gp_residual_surprise`
+- **#15** Active Learning Token Budget (1g, dipende #11) — budget dinamico `sigma^2`-modulato
+- **#16** Ralph-Loop (1.5g, standalone) — quality gate feedback loop **[IMPLEMENTATO]**
+- **#17** SDK Scaffold Worker (0.5g, standalone) — manifest + skill files **[CREATO]**
+- **#18** ADR-005 (0.5g, standalone) — documento motivazioni architetturali **[SCRITTO]**
+
+### S5-B. Ralph-Loop (implementazione)
+
+`RalphLoopService`: quality gate fallita → identifica item DONE domain workers →
+DONE→WAITING con feedback → piano COMPLETED→RUNNING → re-dispatch.
+
+**File nuovi**: `RalphLoopService.java`, `RalphLoopServiceTest.java` (8 test), `V7__ralph_loop.sql`.
+**File mod**: `ItemStatus.java` (DONE→WAITING), `PlanStatus.java` (COMPLETED→RUNNING),
+`PlanItem.java` (+`ralphLoopCount`, +`lastQualityGateFeedback`),
+`QualityGateService.java` (integrazione ralph-loop), `QualityGateServiceTest.java` (mock aggiornato),
+`OrchestrationService.java` (append feedback nel description), `application.yml` (config).
+
+### S5-C. SDK Scaffold
+
+**File nuovi**: `agents/manifests/sdk-scaffold.agent.yml`,
+`skills/sdk-scaffold/SKILL.md`, `skills/sdk-scaffold/python-template.md`,
+`skills/sdk-scaffold/typescript-template.md`.
+
+### S5-D. ADR-005
+
+`docs/adr/ADR-005-gp-serendipity-evolution.md` — motivazioni architetturali per #11-#15
+con ancoraggi a righe specifiche del codice, alternative scartate, schema `task_outcomes`,
+flusso dati completo.
+
+### S5-E. Test (8 nuovi → 372 totali)
+
+`RalphLoopServiceTest` (8): gate passed, domain re-queue, max iterations, plan reopen,
+feedback storage, disabled flag, mixed items, empty findings.
 
 ---
 
@@ -680,7 +1005,9 @@ Output JSON:
 |---|---|---|---|---|
 | **S1** (Infra + Ingestion) ✅ | 25 | 5 | 53 | 261 |
 | **S2** (Search + Graph + Java 21) ✅ | 15 | 10 | 47 | 308 |
-| **S3** (RAG_MANAGER + Integ.) | ~10 | ~5 | ~23 | ~331 |
+| **S3** (RAG_MANAGER + Integ.) ✅ | 12 | 4 | 48 | 356 |
+| **S4** (COMPENSATOR_MANAGER + Audit) ✅ | 2 | 1 | 8 | 364 |
+| **S5** (Ralph-Loop + Roadmap #11-#18) ✅ | 8 | 6 | 8 | 372 |
 
 ---
 

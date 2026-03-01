@@ -10,6 +10,7 @@ import org.springframework.ai.chat.client.ChatClient;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,7 +44,7 @@ class CouncilServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CouncilService(chatClient, promptLoader, DEFAULT_PROPS, objectMapper);
+        service = new CouncilService(chatClient, promptLoader, DEFAULT_PROPS, objectMapper, Optional.empty());
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callResponse = mock(ChatClient.CallResponseSpec.class);
     }
@@ -276,7 +277,7 @@ class CouncilServiceTest {
     @Test
     void selectMembers_respectsMaxMembers_passesMaxToPrompt() {
         CouncilProperties smallProps = new CouncilProperties(true, 2, true, true);
-        CouncilService smallService = new CouncilService(chatClient, promptLoader, smallProps, objectMapper);
+        CouncilService smallService = new CouncilService(chatClient, promptLoader, smallProps, objectMapper, Optional.empty());
 
         stubPromptLoader();
         stubChatClientChain();

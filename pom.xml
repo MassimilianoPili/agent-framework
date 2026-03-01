@@ -60,6 +60,7 @@
         <module>execution-plane/workers/task-manager-worker</module>
         <module>execution-plane/workers/compensator-manager-worker</module>
         <module>execution-plane/workers/advisory-worker</module>
+        <module>execution-plane/workers/rag-manager-worker</module>
     </modules>
 
     <dependencyManagement>

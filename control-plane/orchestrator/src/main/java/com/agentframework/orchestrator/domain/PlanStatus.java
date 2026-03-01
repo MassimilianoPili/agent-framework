@@ -9,7 +9,7 @@ import java.util.Set;
  * PENDING → RUNNING
  * RUNNING → COMPLETED, FAILED, PAUSED
  * PAUSED  → RUNNING  (resume — re-enters the dispatch loop)
- * COMPLETED → (terminal)
+ * COMPLETED → RUNNING  (ralph-loop — quality gate triggers re-dispatch)
  * FAILED → RUNNING  (retry — reopens the plan)
  * </pre>
  */
@@ -32,7 +32,9 @@ public enum PlanStatus {
     },
     COMPLETED {
         @Override public Set<PlanStatus> allowedTransitions() {
-            return Set.of();
+            // RUNNING is allowed for the ralph-loop: quality gate failure
+            // reopens the plan to re-dispatch implicated items.
+            return Set.of(RUNNING);
         }
     },
     FAILED {

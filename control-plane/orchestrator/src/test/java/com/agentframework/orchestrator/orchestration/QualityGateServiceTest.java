@@ -27,6 +27,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -46,6 +47,7 @@ class QualityGateServiceTest {
     @Mock private RewardComputationService rewardComputationService;
     @Mock private EloRatingService eloRatingService;
     @Mock private PreferencePairGenerator preferencePairGenerator;
+    @Mock private RalphLoopService ralphLoopService;
 
     private QualityGateService service;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -61,10 +63,14 @@ class QualityGateServiceTest {
         service = new QualityGateService(
             chatClient, promptLoader, planRepository, planItemRepository,
             reportRepository, objectMapper, rewardComputationService,
-            eloRatingService, preferencePairGenerator
+            eloRatingService, preferencePairGenerator, ralphLoopService
         );
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callResponse = mock(ChatClient.CallResponseSpec.class);
+
+        // Ralph-loop: by default returns empty (no re-queue) so reward signals proceed.
+        lenient().when(ralphLoopService.evaluateAndRetry(any(), anyBoolean(), any()))
+            .thenReturn(List.of());
     }
 
     // ── Annotation verification ──────────────────────────────────────────────
