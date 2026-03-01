@@ -188,24 +188,16 @@ tramite `SseEmitterRegistry.broadcast()`.
 
 ## Database (Flyway)
 
-| Migrazione | Tabella / Alter | Scopo |
-|-----------|----------------|-------|
-| V1 | `plans` | Piano con stato e spec |
-| V2 | `plan_items`, `plan_item_deps` | Item con dipendenze e stato |
-| V3 | `quality_gate_reports` | Risultati quality gate |
-| V4 | (alter) `plan_items` | Colonna `worker_profile` |
-| V5 | `dispatch_attempts` | Storico tentativi di dispatch |
-| V6 | `plan_snapshots` | Snapshot per restore |
-| V7 | (alter) `plan_items` | `context_retry_count`, `next_retry_at`; (alter) `plans`: `paused_at` |
-| V8 | (alter) `plans` + `plan_token_usage` | `budget_json` sui piani; tabella tracking token |
-| V9 | (alter) `plan_items` | `issue_snapshot` (TEXT) per TASK_MANAGER |
-| V10 | (alter) `plans` | `source_commit`, `working_tree_diff_hash` (git state) |
-| V11 | `plan_event` | Log append-only eventi (event sourcing + SSE replay) |
-| V12 | (alter) `plan_items` + `plans` | SUB_PLAN: `child_plan_id`, `await_completion`, `sub_plan_spec`; gerarchie: `depth`, `parent_plan_id` |
-| V13 | (alter) `plans` | `council_report` (TEXT) — output del pre-planning council session |
-| V14 | (alter) `plan_items` + `worker_elo_stats` + `preference_pairs` | Reward signal: 4 colonne su plan_items (`review_score`, `process_score`, `aggregated_reward`, `reward_sources`); tabella ELO stats per profilo; tabella DPO preference pairs |
-| V15 | `vector_store` + estensione pgvector | RAG: tabella `vector_store` con `vector(1024)`, indice HNSW (cosine), GIN su metadata JSONB e tsvector FTS, trigger auto-update `search_vector` |
-| V16 | estensione Apache AGE + grafi | Graph RAG: estensione `age`, grafi `knowledge_graph` e `code_graph` per relazioni strutturali tra chunk, concetti, classi e package |
+Migrazioni consolidate per argomento (6 file). Ogni migrazione include `COMMENT ON` per auto-documentazione dello schema.
+
+| Migrazione | Tabelle | Scopo |
+|-----------|---------|-------|
+| V1 | `plans`, `plan_items`, `plan_item_deps`, `quality_gate_reports`, `quality_gate_findings`, `dispatch_attempts`, `plan_snapshots` | Core orchestrator: piani, task DAG, quality gates, dispatch audit trail, checkpoint/restore |
+| V2 | (alter) `plans` + `plan_items`, `plan_token_usage` | Resilienza: auto-retry con backoff, token budget per worker-type, issue snapshot, git state, pausing |
+| V3 | `plan_event`, (alter) `plans` + `plan_items` | Event sourcing (audit trail + SSE replay) + piani gerarchici (SUB_PLAN, depth, parent) |
+| V4 | (alter) `plans` + `plan_items`, `worker_elo_stats`, `preference_pairs` | Council pre-planning + reward signal (Bayesian scoring, ELO rating, DPO preference pairs) |
+| V5 | `vector_store` + estensione pgvector | RAG vector store: embedding 1024 dim (mxbai-embed-large), HNSW cosine, GIN metadata JSONB, BM25 full-text search con trigger tsvector |
+| V6 | estensione Apache AGE + grafi | Graph RAG: grafi `knowledge_graph` (chunk, concetti, decisioni) e `code_graph` (file, classi, metodi, package) |
 
 ## Feature avanzate
 
