@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -54,15 +55,18 @@ public class CouncilService {
     private final CouncilPromptLoader promptLoader;
     private final CouncilProperties properties;
     private final ObjectMapper objectMapper;
+    private final Optional<CouncilRagEnricher> ragEnricher;
 
     public CouncilService(ChatClient chatClient,
                           CouncilPromptLoader promptLoader,
                           CouncilProperties properties,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          Optional<CouncilRagEnricher> ragEnricher) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.ragEnricher = ragEnricher;
     }
 
     @PreDestroy
@@ -93,11 +97,14 @@ public class CouncilService {
     public CouncilReport conductPrePlanningSession(String spec) {
         log.info("Starting pre-planning council session (maxMembers={})", properties.maxMembers());
 
-        List<String> selected = selectMembers(spec, properties.maxMembers());
+        // RAG enrichment: augment spec with relevant codebase context before consulting members
+        String enrichedSpec = ragEnricher.map(e -> e.enrichSpec(spec)).orElse(spec);
+
+        List<String> selected = selectMembers(enrichedSpec, properties.maxMembers());
         log.info("Council selected {} members: {}", selected.size(), selected);
 
-        Map<String, String> memberViews = consultMembersParallel(spec, selected);
-        CouncilReport report = synthesize(spec, memberViews);
+        Map<String, String> memberViews = consultMembersParallel(enrichedSpec, selected);
+        CouncilReport report = synthesize(enrichedSpec, memberViews);
 
         log.info("Pre-planning council session complete. Decisions: {}", report.architectureDecisions());
         return report;
@@ -123,11 +130,14 @@ public class CouncilService {
         // Build context: task description + prior dependency results
         String context = buildTaskContext(taskTitle, taskDescription, dependencyResults);
 
-        List<String> selected = selectMembersForTask(taskTitle, context, properties.maxMembers());
+        // RAG enrichment: augment context with relevant codebase knowledge
+        String enrichedContext = ragEnricher.map(e -> e.enrichSpec(context)).orElse(context);
+
+        List<String> selected = selectMembersForTask(taskTitle, enrichedContext, properties.maxMembers());
         log.info("Task council selected {} members: {}", selected.size(), selected);
 
-        Map<String, String> memberViews = consultMembersParallel(context, selected);
-        CouncilReport report = synthesize(context, memberViews);
+        Map<String, String> memberViews = consultMembersParallel(enrichedContext, selected);
+        CouncilReport report = synthesize(enrichedContext, memberViews);
 
         log.info("Task council session complete for: {}", taskTitle);
         return report;

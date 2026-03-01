@@ -231,6 +231,31 @@ public class PlanItem {
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ── Ralph-Loop fields ──────────────────────────────────────────────────
+
+    /**
+     * Number of times this item has been re-queued by the ralph-loop (quality gate feedback).
+     * Separate from contextRetryCount which tracks missing_context retries.
+     */
+    @Column(name = "ralph_loop_count", nullable = false)
+    private int ralphLoopCount = 0;
+
+    /**
+     * Last quality gate feedback for this item, set by RalphLoopService when
+     * re-queuing. Appended to the task description on re-dispatch so the worker
+     * knows what to fix.
+     */
+    @Column(name = "last_quality_gate_feedback", columnDefinition = "TEXT")
+    private String lastQualityGateFeedback;
+
+    public int getRalphLoopCount() { return ralphLoopCount; }
+    public void incrementRalphLoopCount() { this.ralphLoopCount++; }
+
+    public String getLastQualityGateFeedback() { return lastQualityGateFeedback; }
+    public void setLastQualityGateFeedback(String feedback) { this.lastQualityGateFeedback = feedback; }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     /** Dynamically adds a dependency (used by the missing_context feedback loop). */
     public void addDependency(String taskKey) {
         if (!dependsOn.contains(taskKey)) {

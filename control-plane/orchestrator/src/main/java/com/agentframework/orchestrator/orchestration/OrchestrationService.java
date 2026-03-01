@@ -561,12 +561,22 @@ public class OrchestrationService {
             // Use the pre-resolved policy (already fetched for the risk check above).
             HookPolicy policy = preResolvedPolicy;
 
+            // Ralph-loop: append quality gate feedback to description so the worker
+            // knows what to fix. The feedback is set by RalphLoopService when re-queuing.
+            String description = item.getDescription();
+            if (item.getLastQualityGateFeedback() != null) {
+                description = description
+                    + "\n\n--- QUALITY GATE FEEDBACK (iteration "
+                    + item.getRalphLoopCount() + ") ---\n"
+                    + item.getLastQualityGateFeedback();
+            }
+
             AgentTask task = new AgentTask(
                 planId,
                 item.getId(),
                 item.getTaskKey(),
                 item.getTitle(),
-                item.getDescription(),
+                description,
                 item.getWorkerType(),
                 item.getWorkerProfile(),
                 planSpec,

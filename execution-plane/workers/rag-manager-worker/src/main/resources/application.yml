@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: rag-manager-worker
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: claude-sonnet-4-6
+          max-tokens: 4096   # Minimal: RAG_MANAGER does not use the LLM
+          temperature: 0.0
+
+rag:
+  enabled: true
+  ollama:
+    embedding-model: mxbai-embed-large
+    reranking-model: qwen2.5:1.5b
+    base-url: ${OLLAMA_BASE_URL:http://ollama:11434}
+  ingestion:
+    chunk-size: 512
+    chunk-overlap: 100
+    contextual-enrichment: true
+    max-file-size-kb: 500
+    include-extensions: [java, yml, yaml, md, xml, json, go, rs, js, ts, py, sql]
+    file-watcher-enabled: false
+  search:
+    hybrid-enabled: true
+    hyde-enabled: true
+    reranker-type: cascade
+    top-k: 20
+    final-k: 8
+    similarity-threshold: 0.5
+    rrf-k: 60
+  cache:
+    redis-db: 5
+    embedding-ttl-hours: 24
+    search-result-ttl-minutes: 60
+
+agent:
+  worker:
+    task-topic: agent-tasks
+    task-subscription: rag-manager-worker-sub
+    results-topic: agent-results
+    policy:
+      enabled: true
+      worker-profile: rag-manager
+      owns-paths: []
+      write-tool-names: []   # RAG_MANAGER is read-only — no filesystem writes
+      audit:
+        enabled: true
+        include-input: false
+        max-input-length: 200
+
+logging:
+  level:
+    com.agentframework: INFO

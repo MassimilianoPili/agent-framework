@@ -1,0 +1,71 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: sdk-scaffold-worker
+  displayName: "SDK Scaffold Worker"
+  description: >
+    Generates complete Agent SDK project scaffolds (Python or TypeScript).
+    Produces verified, runnable projects with tool definitions, entry points,
+    deployment configs, and type-checked code. Uses workerProfile routing
+    under AI_TASK — no dedicated WorkerType needed.
+
+spec:
+  workerType: AI_TASK
+  workerProfile: sdk-scaffold
+  topic: agent-tasks
+  subscription: sdk-scaffold-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/sdk-scaffold/SKILL.md
+    skills:
+      - skills/sdk-scaffold/
+    instructions: |
+      Generate a complete Agent SDK project based on the task description.
+      Read the language-specific template (python-template.md or typescript-template.md)
+      from the skills directory and follow it precisely.
+
+      After generating all files, run the verification loop:
+      1. Check syntax (python: py_compile, typescript: tsc --noEmit)
+      2. If errors, fix them and re-check (max 3 iterations)
+      3. Report final status in the result
+
+      The project must be runnable without additional setup beyond
+      installing dependencies listed in the generated requirements/package files.
+    resultSchema: |
+      {
+        "language": "python | typescript",
+        "project_name": "name of the generated project",
+        "files_created": ["list of all files created"],
+        "verification": {
+          "passed": true,
+          "iterations": 1,
+          "errors_fixed": []
+        },
+        "summary": "brief description of the generated project"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - generated/
+    readOnlyPaths:
+      - skills/sdk-scaffold/
+
+  concurrency:
+    maxConcurrentCalls: 3

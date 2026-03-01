@@ -20,6 +20,27 @@ public enum WorkerType {
      * Always runs as a dependency before BE/FE/AI_TASK tasks.
      */
     CONTEXT_MANAGER,
+
+    /**
+     * RAG_MANAGER retrieves semantic context from the RAG pipeline (pgvector + Apache AGE).
+     *
+     * <p>Programmatic worker: does <b>not</b> use the ChatClient / LLM. Calls
+     * {@code RagSearchService.search()} and {@code GraphRagService.findRelatedInsights()}
+     * directly, then assembles a structured JSON result containing:</p>
+     * <ul>
+     *   <li>{@code semantic_chunks}: ranked code/document fragments from hybrid search</li>
+     *   <li>{@code graph_insights}: structural relationships from knowledge and code graphs</li>
+     *   <li>{@code related_files}: file paths referenced in the results</li>
+     *   <li>{@code search_metadata}: pipeline diagnostics (mode, candidates, rerank stages)</li>
+     * </ul>
+     *
+     * <p>Typically runs as a dependency before domain workers (BE, FE), alongside
+     * CONTEXT_MANAGER, so downstream workers receive enriched semantic context.</p>
+     *
+     * <p>TaskKey prefix: {@code RAG-}</p>
+     */
+    RAG_MANAGER,
+
     /**
      * SCHEMA_MANAGER extracts and normalises interfaces, DTOs, and architectural
      * constraints relevant to a task. Always runs as a dependency before domain workers.
