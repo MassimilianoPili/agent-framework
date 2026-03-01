@@ -482,9 +482,9 @@ shared/rag-engine/
 
 SOL: aggiungere `OLLAMA_BASE_URL=http://ollama:11434` ai worker RAG.
 
-### S1-B. Flyway V15 — pgvector + BM25
+### S1-B. Flyway V5 — pgvector + BM25
 
-`control-plane/orchestrator/src/main/resources/db/migration/V15__enable_pgvector_and_rag.sql`
+`control-plane/orchestrator/src/main/resources/db/migration/V5__rag_vector_store.sql`
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -613,7 +613,7 @@ public record RagProperties(
 
 **RRF**: `score(d) = 1/(k + rank_vector(d)) + 1/(k + rank_bm25(d))`, k=60
 
-### S2-B. Flyway V16 — Apache AGE
+### S2-B. Flyway V6 — Apache AGE
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS age;
