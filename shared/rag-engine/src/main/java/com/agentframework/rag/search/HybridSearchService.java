@@ -26,7 +26,9 @@ import java.util.concurrent.TimeUnit;
  * then fuses results via Reciprocal Rank Fusion (RRF) for improved recall
  * over either method alone.</p>
  *
- * <p>RRF formula: score(d) = 1/(k + rank_vector) + 1/(k + rank_bm25), k=60 (default).</p>
+ * <p>RRF formula: score(d) = Σ 1/(k + rank_i) for each ranked source, k=60 (default).
+ * Supports 2 sources (vector + BM25) by default, extendable to N sources via the
+ * overloaded {@link #search(String, SearchFilters, List)} method (e.g., serendipity).</p>
  */
 @Service
 public class HybridSearchService {
@@ -62,6 +64,23 @@ public class HybridSearchService {
      * @return fused and ranked list of scored chunks
      */
     public List<ScoredChunk> search(String query, SearchFilters filters) {
+        return search(query, filters, List.of());
+    }
+
+    /**
+     * Execute hybrid search with an optional additional ranked list (e.g., serendipity hints).
+     *
+     * <p>When {@code additionalResults} is non-empty, it is included as a third RRF source
+     * alongside vector and BM25, extending the score to:
+     * {@code score(d) = 1/(k+r_vector) + 1/(k+r_bm25) + 1/(k+r_additional)}.</p>
+     *
+     * @param query             the search query (or HyDE-transformed query)
+     * @param filters           optional filters (language, filePath, docType)
+     * @param additionalResults extra ranked list to include in RRF (empty = standard 2-source)
+     * @return fused and ranked list of scored chunks
+     */
+    public List<ScoredChunk> search(String query, SearchFilters filters,
+                                     List<ScoredChunk> additionalResults) {
         if (query == null || query.isBlank()) {
             return List.of();
         }
@@ -87,10 +106,20 @@ public class HybridSearchService {
         List<ScoredChunk> vectorResults = vectorFuture.getNow(List.of());
         List<ScoredChunk> bm25Results = bm25Future.getNow(List.of());
 
-        List<ScoredChunk> fused = reciprocalRankFusion(vectorResults, bm25Results);
+        // Build N-source ranked list for RRF
+        List<List<ScoredChunk>> rankedLists = new ArrayList<>();
+        rankedLists.add(vectorResults);
+        rankedLists.add(bm25Results);
+        if (additionalResults != null && !additionalResults.isEmpty()) {
+            rankedLists.add(additionalResults);
+        }
 
-        log.debug("[RAG Search] Hybrid: vector={}, bm25={}, fused={}",
-                vectorResults.size(), bm25Results.size(), fused.size());
+        List<ScoredChunk> fused = reciprocalRankFusion(rankedLists);
+
+        log.debug("[RAG Search] Hybrid: vector={}, bm25={}, additional={}, fused={}",
+                vectorResults.size(), bm25Results.size(),
+                additionalResults != null ? additionalResults.size() : 0,
+                fused.size());
         return fused;
     }
 
@@ -133,23 +162,37 @@ public class HybridSearchService {
         }
     }
 
-    List<ScoredChunk> reciprocalRankFusion(List<ScoredChunk> vectorResults, List<ScoredChunk> bm25Results) {
-        // Build rank maps (content → rank position, 1-indexed)
-        Map<String, Integer> vectorRanks = buildRankMap(vectorResults);
-        Map<String, Integer> bm25Ranks = buildRankMap(bm25Results);
+    /**
+     * Reciprocal Rank Fusion over N ranked lists.
+     *
+     * <p>For each document, the score is: {@code Σ 1/(k + rank_i)} where rank_i is the
+     * document's position in the i-th list (1-indexed). Documents absent from a list
+     * receive a default rank of {@code topK + 1} (gentle penalty, not exclusion).</p>
+     *
+     * @param rankedLists N ranked lists of scored chunks (at least 1)
+     * @return fused results sorted by RRF score, limited to topK
+     */
+    List<ScoredChunk> reciprocalRankFusion(List<List<ScoredChunk>> rankedLists) {
+        // Build rank map for each source
+        List<Map<String, Integer>> rankMaps = rankedLists.stream()
+                .map(this::buildRankMap)
+                .toList();
 
-        // Collect all unique chunks
+        // Collect all unique chunks across all lists
         Map<String, ScoredChunk> allChunks = new LinkedHashMap<>();
-        vectorResults.forEach(sc -> allChunks.putIfAbsent(sc.chunk().content(), sc));
-        bm25Results.forEach(sc -> allChunks.putIfAbsent(sc.chunk().content(), sc));
+        for (List<ScoredChunk> list : rankedLists) {
+            list.forEach(sc -> allChunks.putIfAbsent(sc.chunk().content(), sc));
+        }
 
-        // Calculate RRF scores
+        // RRF score = Σ 1/(k + rank_i) for each source
         return allChunks.entrySet().stream()
                 .map(entry -> {
                     String content = entry.getKey();
-                    int vRank = vectorRanks.getOrDefault(content, topK + 1);
-                    int bRank = bm25Ranks.getOrDefault(content, topK + 1);
-                    double rrfScore = 1.0 / (rrfK + vRank) + 1.0 / (rrfK + bRank);
+                    double rrfScore = 0.0;
+                    for (Map<String, Integer> rankMap : rankMaps) {
+                        int rank = rankMap.getOrDefault(content, topK + 1);
+                        rrfScore += 1.0 / (rrfK + rank);
+                    }
                     return new ScoredChunk(entry.getValue().chunk(), rrfScore, "rrf");
                 })
                 .sorted(Comparator.comparingDouble(ScoredChunk::score).reversed())

@@ -22,6 +22,7 @@ import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
 import com.agentframework.orchestrator.gp.GpWorkerSelectionService;
+import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
 import com.agentframework.orchestrator.specification.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -86,6 +87,7 @@ public class OrchestrationService {
     private final RewardComputationService rewardComputationService;
     private final GpWorkerSelectionService gpSelectionService;
     private final TaskOutcomeService gpTaskOutcomeService;
+    private final SerendipityService serendipityService;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -102,7 +104,8 @@ public class OrchestrationService {
                                 CouncilProperties councilProperties,
                                 RewardComputationService rewardComputationService,
                                 Optional<GpWorkerSelectionService> gpSelectionService,
-                                Optional<TaskOutcomeService> gpTaskOutcomeService) {
+                                Optional<TaskOutcomeService> gpTaskOutcomeService,
+                                Optional<SerendipityService> serendipityService) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -119,6 +122,7 @@ public class OrchestrationService {
         this.rewardComputationService = rewardComputationService;
         this.gpSelectionService = gpSelectionService.orElse(null);
         this.gpTaskOutcomeService = gpTaskOutcomeService.orElse(null);
+        this.serendipityService = serendipityService.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -229,6 +233,17 @@ public class OrchestrationService {
                 gpTaskOutcomeService.updateReward(
                         item.getId(), item.getAggregatedReward().doubleValue(),
                         item.getWorkerType().name(), item.getWorkerProfile());
+            }
+
+            // Serendipity: collect file-task associations for future serendipity ranking.
+            // Must run after updateReward so the task_outcome has actual_reward populated.
+            if (serendipityService != null) {
+                try {
+                    serendipityService.collectFileOutcomes(item);
+                } catch (Exception e) {
+                    log.warn("Serendipity collection failed for task {} (non-blocking): {}",
+                             result.taskKey(), e.getMessage());
+                }
             }
 
             // Reward signal — point 2: if REVIEW worker, distribute per-task review scores
@@ -593,6 +608,24 @@ public class OrchestrationService {
                     + item.getLastQualityGateFeedback();
             }
 
+            // Serendipity hints: enrich CONTEXT_MANAGER and RAG_MANAGER task descriptions
+            // with historically-surprising file paths for similar tasks. This gives Claude
+            // (CM) explicit hints about which files to explore, and enriches RAG search context.
+            if (serendipityService != null
+                    && (item.getWorkerType() == WorkerType.CONTEXT_MANAGER
+                        || item.getWorkerType() == WorkerType.RAG_MANAGER)) {
+                try {
+                    var hints = serendipityService.getSerendipityHints(
+                            item.getTitle(), description);
+                    if (!hints.isEmpty()) {
+                        description = description + formatSerendipityHints(hints);
+                    }
+                } catch (Exception e) {
+                    log.warn("Serendipity hints failed for task {} (non-blocking): {}",
+                             item.getTaskKey(), e.getMessage());
+                }
+            }
+
             AgentTask task = new AgentTask(
                 planId,
                 item.getId(),
@@ -720,6 +753,18 @@ public class OrchestrationService {
             log.warn("Failed to deserialize plan budget JSON: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Formats serendipity hints as a human-readable text block to append to task descriptions.
+     */
+    private String formatSerendipityHints(List<SerendipityService.SerendipityHint> hints) {
+        var sb = new StringBuilder("\n\n--- SERENDIPITY HINTS ---\n");
+        sb.append("Files historically useful for similar tasks (explore these in addition to obvious matches):\n");
+        for (var hint : hints) {
+            sb.append(String.format("- %s (score: %.2f)%n", hint.filePath(), hint.score()));
+        }
+        return sb.toString();
     }
 
     /**
