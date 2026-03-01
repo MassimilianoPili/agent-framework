@@ -6,7 +6,7 @@ import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.orchestration.WorkerProfileRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -24,7 +24,7 @@ import java.util.Map;
  * This ensures zero behavioral change until training data accumulates.</p>
  */
 @Service
-@ConditionalOnBean(GaussianProcessEngine.class)
+@ConditionalOnProperty(prefix = "gp", name = "enabled", havingValue = "true")
 public class GpWorkerSelectionService {
 
     private static final Logger log = LoggerFactory.getLogger(GpWorkerSelectionService.class);

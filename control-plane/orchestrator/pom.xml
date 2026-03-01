@@ -75,11 +75,23 @@
             <artifactId>messaging-api</artifactId>
         </dependency>
 
-        <!-- Default messaging provider: JMS/Artemis (runtime) -->
+        <!-- Messaging providers (runtime): only one active via messaging.provider property -->
         <dependency>
             <groupId>com.agentframework</groupId>
             <artifactId>messaging-jms</artifactId>
             <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>messaging-redis</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <!-- Validation -->

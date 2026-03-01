@@ -218,9 +218,9 @@ class WorkerProfileRegistryTest {
 
         ProfileEntry entry = registry.getProfileEntry("be-java");
         assertThat(entry).isNotNull();
-        assertThat(entry.workerType()).isEqualTo("BE");
-        assertThat(entry.topic()).isEqualTo("agent-tasks");
-        assertThat(entry.subscription()).isEqualTo("be-java-worker-sub");
+        assertThat(entry.getWorkerType()).isEqualTo("BE");
+        assertThat(entry.getTopic()).isEqualTo("agent-tasks");
+        assertThat(entry.getSubscription()).isEqualTo("be-java-worker-sub");
     }
 
     @Test

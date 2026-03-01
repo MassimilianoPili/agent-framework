@@ -9,3 +9,8 @@ messaging:
 
 cache:
   provider: redis
+
+management:
+  health:
+    jms:
+      enabled: false

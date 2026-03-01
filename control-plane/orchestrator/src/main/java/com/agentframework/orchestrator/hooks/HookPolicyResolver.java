@@ -70,8 +70,8 @@ public class HookPolicyResolver {
         if (defaultProfile != null) {
             WorkerProfileRegistry.ProfileEntry entry = profileRegistry.getProfileEntry(defaultProfile);
             if (entry != null) {
-                ownedPaths = entry.ownsPaths();
-                allowedMcpServers = entry.mcpServers();
+                ownedPaths = entry.getOwnsPaths();
+                allowedMcpServers = entry.getMcpServers();
             }
         }
 

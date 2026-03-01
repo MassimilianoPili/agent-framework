@@ -11,7 +11,7 @@ import com.agentframework.orchestrator.reward.WorkerEloStatsRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +34,7 @@ import java.util.UUID;
  * <p>Only created when {@code gp.enabled=true} (GP beans exist in context).</p>
  */
 @Service
-@ConditionalOnBean(GaussianProcessEngine.class)
+@ConditionalOnProperty(prefix = "gp", name = "enabled", havingValue = "true")
 public class TaskOutcomeService {
 
     private static final Logger log = LoggerFactory.getLogger(TaskOutcomeService.class);

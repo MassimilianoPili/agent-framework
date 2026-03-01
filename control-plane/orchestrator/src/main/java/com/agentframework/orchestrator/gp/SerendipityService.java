@@ -6,7 +6,7 @@ import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  * <p>Only created when GP is enabled ({@code TaskOutcomeService} bean exists).</p>
  */
 @Service
-@ConditionalOnBean(TaskOutcomeService.class)
+@ConditionalOnProperty(prefix = "gp", name = "enabled", havingValue = "true")
 public class SerendipityService {
 
     private static final Logger log = LoggerFactory.getLogger(SerendipityService.class);

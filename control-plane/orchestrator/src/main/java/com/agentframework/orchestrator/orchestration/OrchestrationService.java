@@ -564,8 +564,8 @@ public class OrchestrationService {
                         profileRegistry.getProfileEntry(item.getWorkerProfile());
                 if (profileEntry != null) {
                     ProfileCapabilities capabilities = new ProfileCapabilities(
-                            item.getWorkerProfile(), profileEntry.workerType(),
-                            profileEntry.mcpServers(), profileEntry.ownsPaths());
+                            item.getWorkerProfile(), profileEntry.getWorkerType(),
+                            profileEntry.getMcpServers(), profileEntry.getOwnsPaths());
                     TaskRequirements requirements = new TaskRequirements(
                             item.getTaskKey(), item.getWorkerType(), List.of());
 
