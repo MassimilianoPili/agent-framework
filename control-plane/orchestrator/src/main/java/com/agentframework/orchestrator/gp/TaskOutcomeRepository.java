@@ -85,4 +85,39 @@ public interface TaskOutcomeRepository extends JpaRepository<TaskOutcome, UUID> 
             """, nativeQuery = true)
     long countTrainingData(@Param("workerType") String workerType,
                            @Param("profile") String profile);
+
+    /**
+     * Finds the most similar task outcomes by cosine similarity (HNSW index).
+     * Used for serendipity: find past tasks similar to a new task, then retrieve
+     * their associated file outcomes.
+     *
+     * <p>Returns Object[] rows: [id(UUID), plan_id(UUID), task_key(String),
+     * worker_type(String), worker_profile(String), gp_mu(Double),
+     * actual_reward(Double), similarity(Double)].</p>
+     */
+    @Query(value = """
+            SELECT id, plan_id, task_key, worker_type, worker_profile,
+                   gp_mu, actual_reward,
+                   1 - (task_embedding <=> cast(:embedding as vector)) as similarity
+            FROM task_outcomes
+            WHERE actual_reward IS NOT NULL
+              AND gp_mu IS NOT NULL
+              AND task_embedding IS NOT NULL
+            ORDER BY task_embedding <=> cast(:embedding as vector)
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findSimilarOutcomes(@Param("embedding") String embedding,
+                                        @Param("limit") int limit);
+
+    /**
+     * Finds the task outcome for a specific plan item (for serendipity collection).
+     */
+    @Query(value = """
+            SELECT id, gp_mu, actual_reward
+            FROM task_outcomes
+            WHERE plan_item_id = :planItemId
+              AND actual_reward IS NOT NULL
+            LIMIT 1
+            """, nativeQuery = true)
+    List<Object[]> findOutcomeByPlanItemId(@Param("planItemId") UUID planItemId);
 }
