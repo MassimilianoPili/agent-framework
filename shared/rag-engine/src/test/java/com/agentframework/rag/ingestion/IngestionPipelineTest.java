@@ -77,7 +77,7 @@ class IngestionPipelineTest {
 
         IngestionReport report = pipeline.ingest(List.of(doc));
         assertTrue(report.hasErrors());
-        assertTrue(report.errors().get(0).contains("Bad.java"));
+        assertTrue(report.errors().getFirst().contains("Bad.java"));
     }
 
     @Test

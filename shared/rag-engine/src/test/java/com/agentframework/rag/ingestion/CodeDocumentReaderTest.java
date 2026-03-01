@@ -38,8 +38,8 @@ class CodeDocumentReaderTest {
 
         List<Document> docs = reader.readDocuments(tempDir);
         assertEquals(1, docs.size());
-        assertEquals("java", docs.get(0).getMetadata().get("language"));
-        assertEquals("App.java", docs.get(0).getMetadata().get("filePath"));
+        assertEquals("java", docs.getFirst().getMetadata().get("language"));
+        assertEquals("App.java", docs.getFirst().getMetadata().get("filePath"));
     }
 
     @Test

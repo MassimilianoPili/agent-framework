@@ -5,11 +5,14 @@ import com.agentframework.rag.model.CodeChunk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Contextual Retrieval enricher (Anthropic pattern).
@@ -17,6 +20,10 @@ import java.util.List;
  * <p>For each chunk, generates a 50-100 token context summary from the full document
  * and prepends it to the chunk content before embedding. This reduces retrieval
  * failure rate by ~35% (Anthropic benchmark).</p>
+ *
+ * <p>Uses virtual threads (Java 21) via {@code ragParallelExecutor} for parallel
+ * LLM calls — each chunk is enriched independently, achieving ~Nx speedup
+ * where N = number of chunks (up to carrier thread pool capacity).</p>
  *
  * <p>Falls back gracefully if the ChatClient call fails — returns the chunk unchanged.</p>
  */
@@ -43,14 +50,19 @@ public class ContextualEnricher {
 
     private final ChatClient.Builder chatClientBuilder;
     private final boolean enabled;
+    private final ExecutorService executor;
 
-    public ContextualEnricher(ChatClient.Builder chatClientBuilder, RagProperties properties) {
+    public ContextualEnricher(ChatClient.Builder chatClientBuilder,
+                              RagProperties properties,
+                              @Qualifier("ragParallelExecutor") ExecutorService ragParallelExecutor) {
         this.chatClientBuilder = chatClientBuilder;
         this.enabled = properties.ingestion().contextualEnrichment();
+        this.executor = ragParallelExecutor;
     }
 
     /**
      * Enrich chunks with contextual prefixes generated from the full document.
+     * Chunks are enriched in parallel using virtual threads.
      *
      * @param chunks       the chunks to enrich
      * @param fullDocument the complete document text (for context generation)
@@ -61,24 +73,40 @@ public class ContextualEnricher {
             return chunks;
         }
 
-        // Truncate document if too long (avoid exceeding context window)
         String truncatedDoc = truncateIfNeeded(fullDocument, 8000);
-        var enriched = new ArrayList<CodeChunk>(chunks.size());
 
-        for (CodeChunk chunk : chunks) {
-            try {
-                String context = generateContext(truncatedDoc, chunk.content());
-                enriched.add(new CodeChunk(chunk.content(), context, chunk.metadata()));
-            } catch (Exception e) {
-                log.warn("[RAG Enricher] Failed to generate context for chunk in {}: {}",
-                        chunk.metadata().filePath(), e.getMessage());
-                enriched.add(chunk); // Keep original chunk without context
-            }
+        // Fan-out: each chunk enriched in parallel via virtual threads
+        List<CompletableFuture<CodeChunk>> futures = chunks.stream()
+                .map(chunk -> CompletableFuture.supplyAsync(
+                        () -> enrichSingle(chunk, truncatedDoc), executor))
+                .toList();
+
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .get(5, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            log.warn("[RAG Enricher] Parallel enrichment timed out or was interrupted: {}", e.getMessage());
         }
+
+        List<CodeChunk> enriched = futures.stream()
+                .map(f -> f.getNow(null))
+                .filter(c -> c != null)
+                .toList();
 
         log.debug("[RAG Enricher] Enriched {}/{} chunks with contextual prefix",
                 enriched.stream().filter(c -> c.contextPrefix() != null).count(), chunks.size());
         return enriched;
+    }
+
+    private CodeChunk enrichSingle(CodeChunk chunk, String truncatedDoc) {
+        try {
+            String context = generateContext(truncatedDoc, chunk.content());
+            return new CodeChunk(chunk.content(), context, chunk.metadata());
+        } catch (Exception e) {
+            log.warn("[RAG Enricher] Failed to generate context for chunk in {}: {}",
+                    chunk.metadata().filePath(), e.getMessage());
+            return chunk;
+        }
     }
 
     private String generateContext(String document, String chunkContent) {
