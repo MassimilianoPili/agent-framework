@@ -21,6 +21,7 @@ import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
+import com.agentframework.gp.model.GpPrediction;
 import com.agentframework.orchestrator.gp.GpWorkerSelectionService;
 import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
@@ -491,27 +492,6 @@ public class OrchestrationService {
 
         int dispatched = 0;
         for (PlanItem item : dispatchable) {
-            // Token budget check: enforce per-workerType limits before dispatching
-            if (budget != null) {
-                TokenBudgetService.BudgetDecision decision =
-                        tokenBudgetService.checkBudget(planId, item.getWorkerType().name(), budget);
-                if (decision.action() == TokenBudgetService.BudgetDecision.Action.FAIL) {
-                    log.warn("Token budget FAIL_FAST for task {} (workerType={}, used={}, limit={})",
-                             item.getTaskKey(), item.getWorkerType(), decision.used(), decision.limit());
-                    item.transitionTo(ItemStatus.FAILED);
-                    item.setFailureReason("Token budget exceeded (used=" + decision.used()
-                            + ", limit=" + decision.limit() + ")");
-                    item.setCompletedAt(Instant.now());
-                    planItemRepository.save(item);
-                    continue;
-                } else if (decision.action() == TokenBudgetService.BudgetDecision.Action.SKIP) {
-                    log.info("Token budget NO_NEW_DISPATCH: skipping task {} (workerType={}, used={}, limit={})",
-                             item.getTaskKey(), item.getWorkerType(), decision.used(), decision.limit());
-                    continue; // item stays WAITING
-                }
-                // ALLOW or WARN — proceed with dispatch
-            }
-
             // SUB_PLAN items are handled inline — spawn a child plan instead of dispatching to a worker.
             if (item.getWorkerType() == WorkerType.SUB_PLAN) {
                 handleSubPlan(item, plan);
@@ -550,12 +530,15 @@ public class OrchestrationService {
             // Resolve worker profile for multi-stack types (BE, FE) when planner didn't assign one.
             // GP-based selection: if GP is enabled and there are multiple candidate profiles,
             // predict expected reward for each and select the best. Falls back to default.
+            // The GpPrediction is captured here for dynamic budget adjustment below.
+            GpPrediction gpPrediction = null;
             if (item.getWorkerProfile() == null) {
                 if (gpSelectionService != null
                         && profileRegistry.profilesForWorkerType(item.getWorkerType()).size() > 1) {
                     var selection = gpSelectionService.selectProfile(
                             item.getWorkerType(), item.getTitle(), item.getDescription());
                     item.setWorkerProfile(selection.selectedProfile());
+                    gpPrediction = selection.selectedPrediction();
                 } else {
                     String defaultProfile = profileRegistry.resolveDefaultProfile(item.getWorkerType());
                     if (defaultProfile != null) {
@@ -563,6 +546,15 @@ public class OrchestrationService {
                                   defaultProfile, item.getTaskKey(), item.getWorkerType());
                         item.setWorkerProfile(defaultProfile);
                     }
+                }
+            } else if (gpTaskOutcomeService != null && item.getWorkerProfile() != null) {
+                // Profile pre-assigned by planner — compute standalone GP prediction for budget
+                try {
+                    float[] emb = gpTaskOutcomeService.embedTask(item.getTitle(), item.getDescription());
+                    gpPrediction = gpTaskOutcomeService.predict(
+                            emb, item.getWorkerType().name(), item.getWorkerProfile());
+                } catch (Exception e) {
+                    log.debug("GP prediction for budget failed (non-blocking): {}", e.getMessage());
                 }
             }
 
@@ -588,6 +580,28 @@ public class OrchestrationService {
                         continue;
                     }
                 }
+            }
+
+            // Token budget check: enforce per-workerType limits with GP-adjusted dynamic budget.
+            // Placed after profile resolution so the GP prediction is available for budget modulation.
+            if (budget != null) {
+                TokenBudgetService.BudgetDecision decision =
+                        tokenBudgetService.checkBudget(planId, item.getWorkerType().name(), budget, gpPrediction);
+                if (decision.action() == TokenBudgetService.BudgetDecision.Action.FAIL) {
+                    log.warn("Token budget FAIL_FAST for task {} (workerType={}, used={}, effective={})",
+                             item.getTaskKey(), item.getWorkerType(), decision.used(), decision.effectiveLimit());
+                    item.transitionTo(ItemStatus.FAILED);
+                    item.setFailureReason("Token budget exceeded (used=" + decision.used()
+                            + ", effective=" + decision.effectiveLimit() + ")");
+                    item.setCompletedAt(Instant.now());
+                    planItemRepository.save(item);
+                    continue;
+                } else if (decision.action() == TokenBudgetService.BudgetDecision.Action.SKIP) {
+                    log.info("Token budget NO_NEW_DISPATCH: skipping task {} (workerType={}, used={}, effective={})",
+                             item.getTaskKey(), item.getWorkerType(), decision.used(), decision.effectiveLimit());
+                    continue; // item stays WAITING
+                }
+                // ALLOW or WARN — proceed with dispatch
             }
 
             // Create attempt entity first so its ID can be embedded in the task message for tracing

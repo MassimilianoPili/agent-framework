@@ -191,6 +191,8 @@ gp:
   cache:
     ttl-minutes: 5
     enabled: true
+  budget:
+    alpha: 1.0  # dynamic budget modulation: effectiveLimit = base × (1 + alpha × sigma²) × clip(mu, 0.3, 1.0)
 
 logging:
   level:
