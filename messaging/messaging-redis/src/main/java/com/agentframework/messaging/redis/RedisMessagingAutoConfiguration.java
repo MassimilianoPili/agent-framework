@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -23,6 +24,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 public class RedisMessagingAutoConfiguration {
 
     @Bean
+    @Primary
     public RedisConnectionFactory redisMessagingConnectionFactory(RedisMessagingProperties properties) {
         var config = new RedisStandaloneConfiguration(properties.getHost(), properties.getPort());
         config.setDatabase(properties.getDatabase());

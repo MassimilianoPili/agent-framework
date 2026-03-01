@@ -2,10 +2,12 @@ package com.agentframework.orchestrator.orchestration;
 
 import com.agentframework.orchestrator.domain.WorkerType;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,14 +24,13 @@ import java.util.stream.Collectors;
  *
  * Configuration loaded from application.yml under prefix "worker-profiles".
  */
-@Component
 @ConfigurationProperties(prefix = "worker-profiles")
 public class WorkerProfileRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(WorkerProfileRegistry.class);
 
-    private Map<String, ProfileEntry> profiles = Map.of();
-    private Map<String, String> defaults = Map.of();
+    private Map<String, ProfileEntry> profiles = new LinkedHashMap<>();
+    private Map<String, String> defaults = new LinkedHashMap<>();
 
     public Map<String, ProfileEntry> getProfiles() {
         return profiles;
@@ -56,26 +57,26 @@ public class WorkerProfileRegistry {
 
         // 1. Every profile must have non-blank topic and subscription
         profiles.forEach((name, entry) -> {
-            if (entry.topic() == null || entry.topic().isBlank()) {
+            if (entry.getTopic() == null || entry.getTopic().isBlank()) {
                 errors.add("Profile '" + name + "' has empty topic");
             }
-            if (entry.subscription() == null || entry.subscription().isBlank()) {
+            if (entry.getSubscription() == null || entry.getSubscription().isBlank()) {
                 errors.add("Profile '" + name + "' has empty subscription");
             }
         });
 
         // 2. Default profiles must reference existing profile entries
         defaults.forEach((type, profileName) -> {
-            if (profileName != null && !profiles.containsKey(profileName)) {
+            if (profileName != null && !profileName.isBlank() && !profiles.containsKey(profileName)) {
                 errors.add("Default for " + type + " references unknown profile '" + profileName + "'");
             }
         });
 
         // 3. No duplicate subscriptions across profiles
         Map<String, List<String>> subscriptionToProfiles = profiles.entrySet().stream()
-                .filter(e -> e.getValue().subscription() != null)
+                .filter(e -> e.getValue().getSubscription() != null)
                 .collect(Collectors.groupingBy(
-                        e -> e.getValue().subscription(),
+                        e -> e.getValue().getSubscription(),
                         Collectors.mapping(Map.Entry::getKey, Collectors.toList())));
         subscriptionToProfiles.forEach((sub, profileNames) -> {
             if (profileNames.size() > 1) {
@@ -90,7 +91,7 @@ public class WorkerProfileRegistry {
 
         // 4. Warn for profiles without ownsPaths (non-blocking)
         profiles.forEach((name, entry) -> {
-            if (entry.ownsPaths().isEmpty()) {
+            if (entry.getOwnsPaths().isEmpty()) {
                 log.warn("Profile '{}' has no ownsPaths — PathOwnershipSpec will reject all tasks", name);
             }
         });
@@ -121,7 +122,7 @@ public class WorkerProfileRegistry {
                     "Unknown worker profile '" + effectiveProfile + "' for type " + workerType);
         }
 
-        return entry.topic();
+        return entry.getTopic();
     }
 
     /**
@@ -140,14 +141,15 @@ public class WorkerProfileRegistry {
                     "Unknown worker profile '" + effectiveProfile + "' for type " + workerType);
         }
 
-        return entry.subscription();
+        return entry.getSubscription();
     }
 
     /**
      * Returns the default profile for a WorkerType, or null if the type has no profiles.
      */
     public String resolveDefaultProfile(WorkerType workerType) {
-        return defaults.get(workerType.name());
+        String profile = defaults.get(workerType.name());
+        return (profile != null && !profile.isBlank()) ? profile : null;
     }
 
     /**
@@ -156,7 +158,7 @@ public class WorkerProfileRegistry {
      */
     public List<String> profilesForWorkerType(WorkerType workerType) {
         return profiles.entrySet().stream()
-                .filter(e -> workerType.name().equals(e.getValue().workerType()))
+                .filter(e -> workerType.name().equals(e.getValue().getWorkerType()))
                 .map(Map.Entry::getKey)
                 .toList();
     }
@@ -177,20 +179,32 @@ public class WorkerProfileRegistry {
     }
 
     /**
-     * A single profile entry in the registry (immutable).
-     * Constructor-bound by Spring Boot from worker-profiles YAML.
+     * A single profile entry in the registry.
+     * JavaBean-bound by Spring Boot from worker-profiles YAML.
      */
-    public record ProfileEntry(String workerType, String topic, String subscription,
-                                String displayName, java.util.List<String> mcpServers,
-                                java.util.List<String> ownsPaths) {
-        public ProfileEntry {
-            mcpServers = mcpServers != null ? mcpServers : java.util.List.of();
-            ownsPaths = ownsPaths != null ? ownsPaths : java.util.List.of();
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class ProfileEntry {
+        private String workerType;
+        private String topic;
+        private String subscription;
+        private String displayName;
+        private List<String> mcpServers = new ArrayList<>();
+        private List<String> ownsPaths = new ArrayList<>();
+
+        public ProfileEntry(String workerType, String topic, String subscription,
+                            String displayName, List<String> mcpServers, List<String> ownsPaths) {
+            this.workerType = workerType;
+            this.topic = topic;
+            this.subscription = subscription;
+            this.displayName = displayName;
+            this.mcpServers = mcpServers != null ? mcpServers : new ArrayList<>();
+            this.ownsPaths = ownsPaths != null ? ownsPaths : new ArrayList<>();
         }
 
-        /** Compatibility constructor for existing YAML without capability fields. */
         public ProfileEntry(String workerType, String topic, String subscription, String displayName) {
-            this(workerType, topic, subscription, displayName, java.util.List.of(), java.util.List.of());
+            this(workerType, topic, subscription, displayName, new ArrayList<>(), new ArrayList<>());
         }
     }
 

@@ -24,6 +24,8 @@ spring:
     locations: classpath:db/migration
 
   ai:
+    model:
+      chat: anthropic     # Ollama is used only for embeddings (RAG), not as a chat model
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
       chat:
