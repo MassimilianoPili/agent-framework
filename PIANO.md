@@ -302,7 +302,7 @@ Proposta: estrarre in modulo `agent-common` condiviso.
 
 ---
 
-### 11. GP per Worker Selection
+### 11. GP per Worker Selection ✅
 
 **Problema**: il worker profile viene assegnato staticamente in `OrchestrationService.dispatchReadyItems()`
 (righe 523-530). `WorkerProfileRegistry.resolveDefaultProfile()` fa `defaults.get(workerType.name())`:
@@ -610,7 +610,7 @@ ADR-005 (18) ─────────────────► (standalone,
 | **RAG** | **RAG Pipeline + Graph RAG (3 sessioni) ✅** | **10g** | **Molto alto** | — |
 | 16 | Ralph-Loop (Quality Gate Feedback) | 1.5g | Alto | — |
 | 17 | SDK Scaffold Worker | 0.5g | Basso | — |
-| 11 | GP Worker Selection | 3g | Molto alto | pgvector, Ollama |
+| 11 | GP Worker Selection ✅ | 3g | Molto alto | pgvector, Ollama |
 | 14 | DPO con GP Residual | 1g | Alto | #11 |
 | 12 | Serendipita' Context Manager | 2g | Alto | #11 |
 | 13 | Council Taste Profile | 2g | Medio | #11 |
@@ -960,7 +960,7 @@ in `conductPrePlanningSession()` e `conductTaskSession()` prima di `consultMembe
 ### S5-A. Roadmap #11-#18
 
 8 nuove feature aggiunte alla roadmap con motivazioni architetturali complete:
-- **#11** GP Worker Selection (3g, foundation) — GP `(mu, sigma^2)` per profilo ottimale
+- **#11** GP Worker Selection (3g, foundation) — GP `(mu, sigma^2)` per profilo ottimale **[IMPLEMENTATO S6]**
 - **#12** Serendipita' Context Manager (2g, dipende #11) — GP residual per file discovery
 - **#13** Council Taste Profile (2g, dipende #11) — GP per decomposizione piano ottimale
 - **#14** DPO con GP Residual (1g, dipende #11) — strategia `gp_residual_surprise`
@@ -999,6 +999,81 @@ feedback storage, disabled flag, mixed items, empty findings.
 
 ---
 
+## Sessione 6 — GP Engine Module + Worker Selection (#11) ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-01. Modulo `shared/gp-engine` (matematica pura, 30 test),
+> integrazione orchestratore (entity, repository, service, selezione GP, reward feedback, 22 test).
+> Build verificata: gp-engine 30 test + orchestrator 244 test = 274 verdi (394 totali).
+> Commit: `bf012e0` (31 file, +2181 righe).
+
+### S6-A. Modulo `shared/gp-engine` (matematica pura, zero Spring runtime)
+
+Modulo Maven indipendente con Cholesky hand-rolled (matrice max 500x500, ~40M flop, <10ms).
+Auto-configuration `@ConditionalOnProperty(prefix="gp", name="enabled", havingValue="true")`.
+
+**Math core**:
+- `DenseMatrix`: `double[][]` row-major, `addDiagonal()`, `multiply(vec)`, `diagonal()`
+- `CholeskyDecomposition`: outer-product O(N^3/3), `solve()`, `logDeterminant()`
+- `RbfKernel`: `k(x,x') = sv * exp(-0.5 * ||x-x'||^2 / ls^2)`, matrice N×N, cross-kernel
+
+**Engine**:
+- `GaussianProcessEngine`: `fit(List<TrainingPoint>) → GpPosterior`, `predict(posterior, float[]) → GpPrediction`, `prior(mean)`
+- `GpModelCache`: `ConcurrentHashMap` con TTL configurabile, key `"BE:be-java"`, `invalidate()` su nuovo outcome
+
+**Model records**: `GpPrediction(mu, sigma2)` + `ucb(kappa)`, `TrainingPoint(embedding, reward, profile)`,
+`GpPosterior(alpha, cholesky, trainingEmbeddings, meanReward, kernel)`
+
+**Config**: `GpProperties` record (`enabled`, `kernel(sv,ls)`, `noiseVariance`, `maxTrainingSize`, `defaultPriorMean`, `cache(ttlMinutes,enabled)`)
+
+**File nuovi (14)**: `shared/gp-engine/pom.xml`, `DenseMatrix.java`, `CholeskyDecomposition.java`,
+`RbfKernel.java`, `GpPrediction.java`, `TrainingPoint.java`, `GpPosterior.java`,
+`GaussianProcessEngine.java`, `GpModelCache.java`, `GpAutoConfiguration.java`, `GpProperties.java`,
+`AutoConfiguration.imports`, 5 test file (30 test: DenseMatrix 3, Cholesky 4, RbfKernel 4, Engine 14, Cache 5)
+
+### S6-B. Integrazione orchestratore
+
+**Entity + Repository**: `TaskOutcome` JPA entity con `@Transient` embedding (pgvector via native query),
+`TaskOutcomeRepository` con `insertWithEmbedding()` (`cast(:embedding as vector)`),
+`findTrainingDataRaw()` (embedding come text), `updateActualReward()`.
+
+**Service**: `TaskOutcomeService` — embed task (concatena title+description), predict (fit/cache GP),
+record outcome at dispatch (ELO snapshot + GP prediction), update reward + invalidate cache.
+
+**Selection**: `GpWorkerSelectionService` — enumera profili candidati, embed → predict per ogni profilo →
+seleziona max mu → tie-break = default profile. Record: `ProfileSelection(selectedProfile, selectedPrediction, allPredictions)`.
+
+**Flyway**: `V8__gp_task_outcomes.sql` — tabella `task_outcomes` con `vector(1024)`, indici HNSW + B-tree.
+
+**File nuovi (7)**: `TaskOutcome.java`, `TaskOutcomeRepository.java`, `TaskOutcomeService.java`,
+`GpWorkerSelectionService.java`, `V8__gp_task_outcomes.sql`, `TaskOutcomeServiceTest.java` (12 test),
+`GpWorkerSelectionServiceTest.java` (6 test)
+
+### S6-C. Modifiche a file esistenti
+
+| File | Modifica |
+|------|----------|
+| `pom.xml` (root) | +`<module>shared/gp-engine</module>`, +dependencyManagement entry |
+| `pom.xml` (orchestrator) | +dependency `gp-engine` |
+| `WorkerProfileRegistry.java` | +`profilesForWorkerType(WorkerType)` (stream filter su profiles) |
+| `OrchestrationService.java` | +`Optional<GpWorkerSelectionService>` + `Optional<TaskOutcomeService>` nel costruttore, GP selection al dispatch, reward feedback dopo `computeProcessScore()` |
+| `OrchestrationServiceTest.java` | +`Optional.empty()` x2 nel costruttore (29 test invariati) |
+| `WorkerProfileRegistryTest.java` | +2 test (`profilesForWorkerType` multi/empty) |
+| `application.yml` | +sezione `gp:` (enabled: false, kernel, noise, cache) |
+
+### S6-D. Invarianti
+
+1. **`gp.enabled: false`** → zero bean GP creati, zero behavioral change, zero rischio regressione
+2. **Cold start** (0 training data) → GP ritorna prior (mu=0.5, sigma^2=max) → tie-break = default → stessa scelta di oggi
+3. **Single-profile type** (FE, TASK_MANAGER, etc.) → skip GP, usa default diretto
+4. **Cholesky failure** (matrice non SPD) → catch, log warn, fallback a prior
+
+### S6-E. Test (52 nuovi → 394 totali)
+
+**gp-engine** (30): DenseMatrix (3), CholeskyDecomposition (4), RbfKernel (4), GaussianProcessEngine (14), GpModelCache (5).
+**orchestrator** (22): TaskOutcomeService (12), GpWorkerSelectionService (6), WorkerProfileRegistry (+2), OrchestrationService (invariati, +Optional.empty nel costruttore).
+
+---
+
 ## Riepilogo File per Sessione
 
 | Sessione | File nuovi | File mod | Test nuovi | Test totali |
@@ -1008,6 +1083,7 @@ feedback storage, disabled flag, mixed items, empty findings.
 | **S3** (RAG_MANAGER + Integ.) ✅ | 12 | 4 | 48 | 356 |
 | **S4** (COMPENSATOR_MANAGER + Audit) ✅ | 2 | 1 | 8 | 364 |
 | **S5** (Ralph-Loop + Roadmap #11-#18) ✅ | 8 | 6 | 8 | 372 |
+| **S6** (GP Engine + Worker Selection #11) ✅ | 21 | 7 | 52 | 394 |
 
 ---
 

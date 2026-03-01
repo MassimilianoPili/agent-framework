@@ -17,4 +17,8 @@ public interface PreferencePairRepository extends JpaRepository<PreferencePair, 
 
     /** Checks if a pair already exists for a given task to avoid duplicates. */
     boolean existsByTaskKeyAndGenerationSource(String taskKey, String generationSource);
+
+    /** Returns pairs with high GP residual (most informative surprises), capped at limit. */
+    @Query("SELECT p FROM PreferencePair p WHERE p.gpResidual IS NOT NULL ORDER BY p.gpResidual DESC LIMIT :limit")
+    List<PreferencePair> findByGpResidualDesc(@Param("limit") int limit);
 }
