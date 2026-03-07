@@ -417,6 +417,46 @@ shapley:
   monte-carlo-samples: 10000       # approximation samples for large N
   max-exact-players: 10            # above this, use Monte Carlo
 
+# Model Predictive Control — receding horizon task scheduling
+mpc:
+  enabled: true
+  horizon: 3                        # prediction steps
+  max-candidates: 10                # max worker-task pairs per step
+
+# Fisher Information Metric — uncertainty decomposition
+fisher:
+  enabled: true
+  min-observations: 5               # minimum data points for Fisher estimate
+
+# Value of Information — exploration vs exploitation
+voi:
+  enabled: true
+  exploration-fraction: 0.15        # budget fraction reserved for exploration
+  monte-carlo-samples: 500          # MC integration samples for EVSI
+
+# Goodhart's Law Mitigation — metric health monitoring
+goodhart:
+  enabled: true
+  window-size: 50                   # rolling window for correlation tracking
+  divergence-threshold: 0.3         # Pearson r below this = divergence alert
+  min-sample-size: 10               # regressional Goodhart detection threshold
+
+# Cost Estimation — per-task token cost tracking (#26L1)
+cost:
+  default-pricing:
+    input-per-million: 3.0
+    output-per-million: 15.0
+  models:
+    claude-opus-4-6:
+      input-per-million: 15.0
+      output-per-million: 75.0
+    claude-sonnet-4-6:
+      input-per-million: 3.0
+      output-per-million: 15.0
+    claude-haiku-4-5:
+      input-per-million: 0.80
+      output-per-million: 4.0
+
 logging:
   level:
     com.agentframework: INFO

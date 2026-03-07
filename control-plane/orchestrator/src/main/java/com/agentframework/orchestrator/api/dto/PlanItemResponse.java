@@ -2,6 +2,7 @@ package com.agentframework.orchestrator.api.dto;
 
 import com.agentframework.orchestrator.domain.PlanItem;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -40,7 +41,17 @@ public record PlanItemResponse(
      * Predicted success probability from Bayesian logistic regression.
      * Range [0.0, 1.0]. Null if Bayesian prediction is not enabled or has not run.
      */
-    Float predictedSuccessProbability
+    Float predictedSuccessProbability,
+    /** Input tokens consumed by this task. Null if the worker did not report token usage. */
+    Long inputTokens,
+    /** Output tokens consumed by this task. Null if the worker did not report token usage. */
+    Long outputTokens,
+    /** Estimated cost in USD. Null if tokens or pricing are unavailable. */
+    BigDecimal estimatedCostUsd,
+    /** Number of times this item was re-queued by the ralph-loop (quality gate feedback). 0 = never looped. */
+    int ralphLoopCount,
+    /** Last quality gate feedback received when the item was re-queued. Null if never looped. */
+    String lastQualityGateFeedback
 ) {
 
     public static PlanItemResponse from(PlanItem item) {
@@ -60,7 +71,12 @@ public record PlanItemResponse(
             item.getIssueSnapshot(),
             item.getAggregatedReward(),
             item.getRewardSources(),
-            item.getPredictedSuccessProbability()
+            item.getPredictedSuccessProbability(),
+            item.getInputTokens(),
+            item.getOutputTokens(),
+            item.getEstimatedCostUsd(),
+            item.getRalphLoopCount(),
+            item.getLastQualityGateFeedback()
         );
     }
 }

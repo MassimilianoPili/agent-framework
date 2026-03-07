@@ -1,6 +1,7 @@
 package com.agentframework.orchestrator.api;
 
 import com.agentframework.orchestrator.api.dto.DispatchAttemptResponse;
+import com.agentframework.orchestrator.api.dto.PlanCostResponse;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
 import com.agentframework.orchestrator.api.dto.PlanResponse;
 import com.agentframework.orchestrator.api.dto.PlanSnapshotResponse;
@@ -467,5 +468,19 @@ public class PlanController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/cost
+     *
+     * <p>Returns the total and per-task token usage and estimated cost breakdown for a plan.
+     * Tasks that have not yet completed (or whose workers did not report token usage)
+     * contribute zero to the totals.</p>
+     */
+    @GetMapping("/{id}/cost")
+    public ResponseEntity<PlanCostResponse> getPlanCost(@PathVariable UUID id) {
+        return orchestrationService.getPlan(id)
+            .map(plan -> ResponseEntity.ok(PlanCostResponse.from(plan)))
+            .orElse(ResponseEntity.notFound().build());
     }
 }

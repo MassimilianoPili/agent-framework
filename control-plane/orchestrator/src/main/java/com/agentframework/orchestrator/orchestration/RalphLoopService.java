@@ -146,6 +146,8 @@ public class RalphLoopService {
         return type == WorkerType.BE
             || type == WorkerType.FE
             || type == WorkerType.AI_TASK
-            || type == WorkerType.CONTRACT;
+            || type == WorkerType.CONTRACT
+            || type == WorkerType.DBA
+            || type == WorkerType.MOBILE;
     }
 }

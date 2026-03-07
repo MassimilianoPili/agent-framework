@@ -49,4 +49,12 @@ public class QualityGateReport {
     public String getSummary() { return summary; }
     public List<String> getFindings() { return findings; }
     public Instant getGeneratedAt() { return generatedAt; }
+
+    /** Updates this report with new quality gate results (ralph-loop upsert). */
+    public void update(boolean passed, String summary, List<String> findings) {
+        this.passed = passed;
+        this.summary = summary;
+        this.findings = findings != null ? new ArrayList<>(findings) : new ArrayList<>();
+        this.generatedAt = Instant.now();
+    }
 }

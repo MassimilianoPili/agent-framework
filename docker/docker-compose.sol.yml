@@ -4,8 +4,8 @@ version: '3.8'
 #
 # Uses shared Docker infrastructure already running on the SOL server:
 #   - redis (redis:7-alpine) on the 'shared' network  → DB 3 messaging, DB 4 cache, DB 5 RAG cache
+#   - ollama (ollama/ollama:latest) on the 'shared' network → embedding + reranking models
 #   - agentfw-postgres (pgvector/pgvector:pg16) defined here, on the 'shared' network
-#   - ollama (ollama/ollama:latest) defined here, embedding + reranking models
 #
 # Required env file: docker/sol.env (not in VCS)
 #   ANTHROPIC_API_KEY=sk-ant-...
@@ -140,17 +140,33 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     restart: unless-stopped
 
-  # ── Ollama — Local Embedding + Reranking Models ─────────────────────────────
-  # After first start: docker exec agentfw-ollama ollama pull mxbai-embed-large
-  #                    docker exec agentfw-ollama ollama pull qwen2.5:1.5b
-  ollama:
-    image: ollama/ollama:latest
-    container_name: agentfw-ollama
+  # ── Mobile Workers ─────────────────────────────────────────────────────────
+  mobile-kotlin-worker:
+    build:
+      context: ..
+      dockerfile: execution-plane/workers/mobile-kotlin-worker/Dockerfile
+    container_name: agentfw-mobile-kotlin-worker
     networks: [shared]
-    volumes:
-      - /data/massimiliano/agent-framework/data/ollama:/root/.ollama
-    deploy:
-      resources:
-        limits:
-          memory: 3G
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     restart: unless-stopped
+
+  # ── Ollama ─────────────────────────────────────────────────────────────────
+  # Disabilitato: riusa l'istanza 'ollama' gia' attiva sulla rete shared.
+  # L'orchestrator punta a http://ollama:11434 (DNS Docker, container esistente).
+  # Se necessario un'istanza dedicata, decommentare il blocco sotto.
+  #
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: agentfw-ollama
+  #   networks: [shared]
+  #   volumes:
+  #     - /data/massimiliano/agent-framework/data/ollama:/root/.ollama
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 3G
+  #   restart: unless-stopped

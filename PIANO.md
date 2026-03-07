@@ -332,7 +332,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | 19 | Retry manuale TO_DISPATCH | 1g | Alto | S8 |
 | 20 | Modello LLM per task | 2g | Alto | — |
 | 22 | Orchestrator singleton (leader election) | 1.5g | Medio-alto | S8-H |
-| 26L1 | Cost tracking per task | 0.5g | Alto | — |
+| **26L1 ✅** | **Cost tracking per task** | 0.5g | Alto | — |
 | 24L2 | Tool configurabili (Livello 2: TOOL_MANAGER) | 1g | Medio | #23 |
 | 26L2 | Auto-split task costosi | 1.5g | Medio | #26L1, #11, #20 |
 | 21 | Redis topic splitting | 1g | Basso | — |
@@ -358,8 +358,8 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 22 | Orchestrator singleton (leader election) |
 | 23 ✅ | Enrichment Pipeline Activation |
 | 24 | Tool configurabili (toolHints + TOOL_MANAGER) |
-| 25 | mcp-bash-tool + mcp-python-tool |
-| 26 | Cost tracking per task + auto-split |
+| 25 ✅ | mcp-bash-tool + mcp-python-tool |
+| 26 | Cost tracking per task + auto-split (L1 ✅, L2 pending) |
 | 28 | Monitoring Dashboard UI |
 | 29 | Worker Lifecycle Management |
 | 30 | Hash Chain Tamper-Proof |

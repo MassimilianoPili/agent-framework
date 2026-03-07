@@ -71,6 +71,10 @@ class QualityGateServiceTest {
         // Ralph-loop: by default returns empty (no re-queue) so reward signals proceed.
         lenient().when(ralphLoopService.evaluateAndRetry(any(), anyBoolean(), any()))
             .thenReturn(List.of());
+
+        // Upsert: by default no existing report (first iteration).
+        lenient().when(reportRepository.findByPlanId(any(UUID.class)))
+            .thenReturn(Optional.empty());
     }
 
     // ── Annotation verification ──────────────────────────────────────────────
@@ -153,6 +157,37 @@ class QualityGateServiceTest {
         verify(reportRepository).save(captor.capture());
         assertThat(captor.getValue().isPassed()).isFalse();
         assertThat(captor.getValue().getFindings()).hasSize(2);
+    }
+
+    // ── Upsert on ralph-loop re-completion ───────────────────────────────────
+
+    @Test
+    void onPlanCompleted_existingReport_updatesInsteadOfInsert() {
+        Plan plan = createPlan();
+        PlanItem item = createItem(plan, "T1", WorkerType.BE, "be-java");
+        item.forceStatus(ItemStatus.DONE);
+
+        // Simulate existing report from first iteration
+        QualityGateReport existingReport = new QualityGateReport(
+            UUID.randomUUID(), plan, false, "old summary", List.of("old finding"));
+
+        when(planRepository.findById(PLAN_ID)).thenReturn(Optional.of(plan));
+        when(planItemRepository.findByPlanId(PLAN_ID)).thenReturn(List.of(item));
+        when(reportRepository.findByPlanId(PLAN_ID)).thenReturn(Optional.of(existingReport));
+        stubPrompts();
+        stubChatClient("{\"passed\":true,\"summary\":\"Fixed now\",\"findings\":[\"all clean\"]}");
+        when(reportRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.onPlanCompleted(new PlanCompletedEvent(PLAN_ID, PlanStatus.COMPLETED, 1, 0));
+
+        ArgumentCaptor<QualityGateReport> captor = ArgumentCaptor.forClass(QualityGateReport.class);
+        verify(reportRepository).save(captor.capture());
+        QualityGateReport saved = captor.getValue();
+        // Must be the same entity (updated), not a new one
+        assertThat(saved.getId()).isEqualTo(existingReport.getId());
+        assertThat(saved.isPassed()).isTrue();
+        assertThat(saved.getSummary()).isEqualTo("Fixed now");
+        assertThat(saved.getFindings()).containsExactly("all clean");
     }
 
     // ── Error handling ────────────────────────────────────────────────────────

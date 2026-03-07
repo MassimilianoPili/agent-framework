@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.config.EnrichmentProperties;
 import com.agentframework.orchestrator.council.CouncilProperties;
@@ -47,6 +48,7 @@ class MissingContextPropagationTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private HookManagerService hookManagerService;
     @Mock private TokenBudgetService tokenBudgetService;
+    @Mock private CostEstimationService costEstimationService;
     @Mock private PlanEventStore eventStore;
     @Mock private CouncilService councilService;
     @Mock private CouncilProperties councilProperties;
@@ -63,7 +65,7 @@ class MissingContextPropagationTest {
                 planRepository, planItemRepository, attemptRepository,
                 plannerService, taskProducer, profileRegistry,
                 eventPublisher, objectMapper, hookManagerService,
-                tokenBudgetService, eventStore, councilService,
+                tokenBudgetService, costEstimationService, eventStore, councilService,
                 councilProperties, rewardComputationService,
                 Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(),
