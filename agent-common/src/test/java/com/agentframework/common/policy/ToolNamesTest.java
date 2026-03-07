@@ -20,7 +20,7 @@ class ToolNamesTest {
 
     @Test
     void categories_containCorrectTools() {
-        assertThat(ToolNames.WRITE_TOOLS).containsExactly("fs_write");
+        assertThat(ToolNames.WRITE_TOOLS).containsExactly("fs_write", "bash_execute", "python_execute");
         assertThat(ToolNames.READ_TOOLS).containsExactly("fs_read", "fs_grep");
         assertThat(ToolNames.ALL_FS_TOOLS).containsExactly(
                 "fs_list", "fs_read", "fs_write", "fs_search", "fs_grep");
@@ -33,6 +33,8 @@ class ToolNamesTest {
     @Test
     void isWriteTool_andIsReadTool_classifyCorrectly() {
         assertThat(ToolNames.isWriteTool("fs_write")).isTrue();
+        assertThat(ToolNames.isWriteTool("bash_execute")).isTrue();
+        assertThat(ToolNames.isWriteTool("python_execute")).isTrue();
         assertThat(ToolNames.isWriteTool("fs_read")).isFalse();
         assertThat(ToolNames.isWriteTool("fs_list")).isFalse();
         assertThat(ToolNames.isWriteTool("unknown_tool")).isFalse();
