@@ -3685,11 +3685,54 @@ Fase 9e (agent found., ~5.5g):    #76 → #72
 ### Riepilogo sforzo complessivo Research Domains
 
 ```
-Fase 8 (#50-#61): 12 items, ~22.5g  [research-domains.md]
-Fase 9 (#62-#76): 15 items, ~33.0g  [research-domains-new.md]
-─────────────────────────────────────
-Totale:           27 items, ~55.5g
+Fase 8  (#50-#61): 12 items, ~22.5g  [research-domains.md]
+Fase 9  (#62-#76): 15 items, ~33.0g  [research-domains-new.md]
+Fase 10 (#77-#86): 10 items, ~24.0g  [research-domains-new.md]
+──────────────────────────────────────
+Totale:            37 items, ~79.5g
 ```
+
+---
+
+## Research Domains Extended — Fase 10 (#77-#86)
+
+10 nuovi concetti da neuroscienze computazionali, teoria dell'informazione, fisica statistica, controllo robusto, distributed computing, complexity science, topologia e teoria delle categorie. Documentazione completa: [`docs/agent-framework/research-domains-new.md`](../docs/agent-framework/research-domains-new.md)
+
+### Tabella items Fase 10
+
+| Tier | # | Dominio | Titolo | Sforzo | Valore |
+|------|---|---------|--------|--------|--------|
+| 0 | **79** | Info Theory | MDL / Kolmogorov Complexity (plan quality) | 2.0g | Alto |
+| 0 | **82** | Control | H-infinity Robust Control (worst-case dispatch) | 2.0g | Alto |
+| 0 | **84** | Complexity | Edge of Chaos (exploration-exploitation auto-tune) | 2.0g | Alto |
+| 1 | **77** | Neuroscience | Active Inference (Free Energy Principle) | 3.0g | Alto |
+| 1 | **78** | Info Theory | Information Bottleneck (embedding compression) | 2.5g | Medio-Alto |
+| 1 | **81** | Stat. Physics | Spin Glass & Simulated Annealing (dispatch ordering) | 2.0g | Medio-Alto |
+| 1 | **83** | Distributed | Byzantine Fault Tolerance (worker reliability) | 2.5g | Alto |
+| 2 | **80** | Stat. Physics | Renormalization Group (multi-scale decomposition) | 2.5g | Medio |
+| 2 | **85** | Topology | Persistent Homology (embedding landscape) | 3.0g | Medio-Alto |
+| 2 | **86** | Category Th. | Functorial Plan Semantics (compositionality) | 2.5g | Medio |
+| | | | **Totale Fase 10** | **24.0g** | |
+
+### Ordine implementazione Fase 10
+
+```
+Fase 10a (fondazioni, ~6.0g):       #79 → #82 → #84
+Fase 10b (core, ~10.0g):            #77 → #78 → #81 → #83
+Fase 10c (avanzato, ~8.0g):         #80 → #85 → #86
+                                     ─────────────────────
+                                     Totale: ~24.0g (#77-#86)
+```
+
+### Dipendenze critiche Fase 10
+
+- **GP Engine (#15)** prerequisito per #77, #78, #82, #84 (tutti interagiscono col GP posterior o UCB)
+- **#77 Active Inference è il nucleo**: unifica #78 (IB come caso speciale di free energy), influenza #84 (criticality come regime ottimale di free energy)
+- **#79 MDL + #80 RG**: coppia complementare — MDL misura semplicità, RG opera trasformazioni multi-scala
+- **#83 BFT + #74 Goodhart**: difesa congiunta — BFT contro worker inaffidabili, Goodhart contro metriche corrotte
+- **#85 Persistent Homology**: richiede pgvector embeddings (TaskOutcomeService) + #78 IB (topologia dello spazio compresso)
+- **#86 Functorial Semantics**: richiede PlannerService DAG + #80 RG (composizione multi-scala)
+- Nessuna Flyway migration — tutti in-memory o Redis DB 4
 
 ---
 
