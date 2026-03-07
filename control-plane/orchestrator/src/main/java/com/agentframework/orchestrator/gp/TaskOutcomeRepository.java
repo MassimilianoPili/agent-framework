@@ -201,6 +201,19 @@ public interface TaskOutcomeRepository extends JpaRepository<TaskOutcome, UUID> 
                                                     @Param("limit") int limit);
 
     /**
+     * Loads all completed outcomes for a specific plan (Shapley credit attribution).
+     * Returns rows: [worker_profile(String), actual_reward(Number), worker_type(String), task_key(String)].
+     */
+    @Query(value = """
+            SELECT worker_profile, actual_reward, worker_type, task_key
+            FROM task_outcomes
+            WHERE plan_id = :planId
+              AND actual_reward IS NOT NULL
+            ORDER BY created_at ASC
+            """, nativeQuery = true)
+    List<Object[]> findOutcomesByPlanId(@Param("planId") UUID planId);
+
+    /**
      * Finds the task outcome for a specific plan item (for serendipity collection).
      */
     @Query(value = """

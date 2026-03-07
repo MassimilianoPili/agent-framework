@@ -397,6 +397,16 @@ calibration:
   dutch-book-threshold: 0.15    # max|acc - conf| per alert
   check-interval-ms: 3600000   # ogni ora
 
+# VCG Mechanism Design (Vickrey-Clarke-Groves) — truthful task pricing
+vcg:
+  enabled: true
+
+# Shapley Value — fair credit attribution for plan contributors
+shapley:
+  enabled: true
+  monte-carlo-samples: 10000       # approximation samples for large N
+  max-exact-players: 10            # above this, use Monte Carlo
+
 logging:
   level:
     com.agentframework: INFO
