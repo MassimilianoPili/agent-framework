@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -50,7 +51,7 @@ public class PheromoneService {
     private final ObjectMapper objectMapper;
     private PheromoneMatrix matrix;
 
-    public PheromoneService(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
+    public PheromoneService(@Qualifier("redisMessagingTemplate") StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
     }
