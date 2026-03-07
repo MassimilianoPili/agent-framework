@@ -20,9 +20,6 @@ agent:
       worker-profile: 
       owns-paths:
         - docs/
-      write-tool-names:
-        - Write
-        - Edit
       audit:
         enabled: true
         include-input: false

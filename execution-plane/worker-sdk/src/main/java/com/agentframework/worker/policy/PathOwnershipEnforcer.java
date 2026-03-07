@@ -1,6 +1,7 @@
 package com.agentframework.worker.policy;
 
 import com.agentframework.common.policy.HookPolicy;
+import com.agentframework.common.policy.ToolNames;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -67,8 +68,8 @@ public class PathOwnershipEnforcer {
             return Optional.empty();
         }
 
-        // Only check write tools
-        if (!properties.getWriteToolNames().contains(toolName)) {
+        // Only check write tools (ToolNames registry + any extra names from config)
+        if (!ToolNames.isWriteTool(toolName) && !properties.getWriteToolNames().contains(toolName)) {
             return Optional.empty();
         }
 
@@ -114,7 +115,7 @@ public class PathOwnershipEnforcer {
     public Optional<String> checkReadOwnership(String toolName, String toolInput,
                                                List<String> relevantFiles) {
         // Only restrict read tools; only when an explicit allowlist is set
-        if ((!"Read".equals(toolName) && !"fs_read".equals(toolName))
+        if (!ToolNames.isReadTool(toolName)
                 || relevantFiles == null || relevantFiles.isEmpty()) {
             return Optional.empty();
         }

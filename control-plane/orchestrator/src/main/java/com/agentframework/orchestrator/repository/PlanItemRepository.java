@@ -8,9 +8,17 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface PlanItemRepository extends JpaRepository<PlanItem, UUID> {
+
+    /**
+     * Loads a PlanItem with its Plan eagerly fetched in a single query.
+     * Use this instead of {@code findById()} when the caller needs {@code item.getPlan()}.
+     */
+    @Query("SELECT i FROM PlanItem i JOIN FETCH i.plan WHERE i.id = :id")
+    Optional<PlanItem> findByIdWithPlan(@Param("id") UUID id);
 
     List<PlanItem> findByPlanIdAndStatus(UUID planId, ItemStatus status);
 
@@ -32,7 +40,7 @@ public interface PlanItemRepository extends JpaRepository<PlanItem, UUID> {
      * 3. All its dependencies (by taskKey) have status DONE
      */
     @Query("""
-        SELECT i FROM PlanItem i
+        SELECT i FROM PlanItem i JOIN FETCH i.plan
         WHERE i.plan.id = :planId
           AND i.status = com.agentframework.orchestrator.domain.ItemStatus.WAITING
           AND NOT EXISTS (
@@ -49,7 +57,7 @@ public interface PlanItemRepository extends JpaRepository<PlanItem, UUID> {
      * The plan must be RUNNING or PAUSED (not COMPLETED or permanently FAILED).
      */
     @Query("""
-        SELECT i FROM PlanItem i
+        SELECT i FROM PlanItem i JOIN FETCH i.plan
         WHERE i.status = com.agentframework.orchestrator.domain.ItemStatus.FAILED
           AND i.nextRetryAt IS NOT NULL
           AND i.nextRetryAt <= :now
@@ -59,4 +67,21 @@ public interface PlanItemRepository extends JpaRepository<PlanItem, UUID> {
           )
         """)
     List<PlanItem> findRetryEligible(@Param("now") Instant now);
+
+    /**
+     * Finds DISPATCHED items whose dispatchedAt is older than the given cutoff.
+     * These are stale tasks — workers that never reported back.
+     * The plan must still be active (RUNNING or PAUSED).
+     */
+    @Query("""
+        SELECT i FROM PlanItem i JOIN FETCH i.plan
+        WHERE i.status = com.agentframework.orchestrator.domain.ItemStatus.DISPATCHED
+          AND i.dispatchedAt IS NOT NULL
+          AND i.dispatchedAt <= :cutoff
+          AND i.plan.status IN (
+              com.agentframework.orchestrator.domain.PlanStatus.RUNNING,
+              com.agentframework.orchestrator.domain.PlanStatus.PAUSED
+          )
+        """)
+    List<PlanItem> findStaleDispatched(@Param("cutoff") Instant cutoff);
 }

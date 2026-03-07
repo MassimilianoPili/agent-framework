@@ -10,6 +10,7 @@ import com.agentframework.orchestrator.council.CouncilReport;
 import com.agentframework.orchestrator.council.CouncilService;
 import com.agentframework.orchestrator.domain.*;
 import com.agentframework.orchestrator.event.PlanCompletedEvent;
+import com.agentframework.orchestrator.event.TaskCompletedSideEffectEvent;
 import com.agentframework.orchestrator.eventsourcing.PlanEventStore;
 import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.orchestrator.messaging.AgentTaskProducer;
@@ -203,7 +204,7 @@ class OrchestrationServiceTest {
     }
 
     @Test
-    void onTaskCompleted_success_computesProcessScore() {
+    void onTaskCompleted_success_publishesSideEffectEvent() {
         UUID planId = UUID.randomUUID();
         PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
         item.transitionTo(ItemStatus.DISPATCHED);
@@ -214,11 +215,13 @@ class OrchestrationServiceTest {
 
         service.onTaskCompleted(result);
 
-        verify(rewardComputationService).computeProcessScore(eq(item), eq(result));
+        // Side-effects moved to TaskCompletedEventHandler; verify event is published
+        verify(eventPublisher).publishEvent(
+                eq(new TaskCompletedSideEffectEvent(item.getId(), result)));
     }
 
     @Test
-    void onTaskCompleted_reviewWorkerSuccess_distributesReviewScore() {
+    void onTaskCompleted_reviewWorkerSuccess_publishesSideEffectEvent() {
         UUID planId = UUID.randomUUID();
         PlanItem reviewItem = createItemWithPlan(WorkerType.REVIEW, "RV-001", planId, List.of());
         reviewItem.transitionTo(ItemStatus.DISPATCHED);
@@ -230,12 +233,13 @@ class OrchestrationServiceTest {
 
         service.onTaskCompleted(result);
 
-        verify(rewardComputationService).computeProcessScore(eq(reviewItem), eq(result));
-        verify(rewardComputationService).distributeReviewScore(eq(reviewItem));
+        // Side-effects (computeProcessScore, distributeReviewScore) moved to handler
+        verify(eventPublisher).publishEvent(
+                eq(new TaskCompletedSideEffectEvent(reviewItem.getId(), result)));
     }
 
     @Test
-    void onTaskCompleted_hookManagerSuccess_storesPolicies() {
+    void onTaskCompleted_hookManagerSuccess_publishesSideEffectEvent() {
         UUID planId = UUID.randomUUID();
         PlanItem hmItem = createItemWithPlan(WorkerType.HOOK_MANAGER, "HM-001", planId, List.of());
         hmItem.transitionTo(ItemStatus.DISPATCHED);
@@ -247,7 +251,9 @@ class OrchestrationServiceTest {
 
         service.onTaskCompleted(result);
 
-        verify(hookManagerService).storePolicies(planId, policiesJson);
+        // storePolicies moved to TaskCompletedEventHandler; verify event is published
+        verify(eventPublisher).publishEvent(
+                eq(new TaskCompletedSideEffectEvent(hmItem.getId(), result)));
     }
 
     @Test
@@ -259,7 +265,7 @@ class OrchestrationServiceTest {
 
         AgentResult result = successResult(planId, item.getId(), "BE-001", "{\"code\": \"ok\"}");
 
-        when(planItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
 
         service.onTaskCompleted(result);
 
@@ -279,7 +285,7 @@ class OrchestrationServiceTest {
         String missingCtxJson = "{\"missing_context\": [\"src/main/java/Foo.java\"]}";
         AgentResult result = successResult(planId, item.getId(), "BE-001", missingCtxJson);
 
-        when(planItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
         when(attemptRepository.findOpenAttempt(item.getId())).thenReturn(Optional.empty());
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
         when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
@@ -328,7 +334,7 @@ class OrchestrationServiceTest {
 
         AgentResult result = failureResult(planId, item.getId(), "BE-001", "Compilation error");
 
-        when(planItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
         when(attemptRepository.findOpenAttempt(item.getId())).thenReturn(Optional.empty());
         when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(1));
         when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -353,7 +359,7 @@ class OrchestrationServiceTest {
 
         AgentResult result = failureResult(planId, item.getId(), "BE-001", "Transient error");
 
-        when(planItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
         when(attemptRepository.findOpenAttempt(item.getId())).thenReturn(Optional.empty());
         // Attempt 1 of 3 — should schedule retry
         when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(1));
@@ -376,7 +382,7 @@ class OrchestrationServiceTest {
 
         AgentResult result = failureResult(planId, item.getId(), "BE-001", "Persistent error");
 
-        when(planItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
         when(attemptRepository.findOpenAttempt(item.getId())).thenReturn(Optional.empty());
         // Attempt 2 >= defaultAttemptsBeforePause(2) — should pause
         when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(2));
@@ -686,7 +692,7 @@ class OrchestrationServiceTest {
         original.transitionTo(ItemStatus.DONE);
         original.setResult("{\"code\": \"ok\"}");
 
-        when(planItemRepository.findById(original.getId())).thenReturn(Optional.of(original));
+        when(planItemRepository.findByIdWithPlan(original.getId())).thenReturn(Optional.of(original));
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(original));
         when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of());
@@ -713,7 +719,7 @@ class OrchestrationServiceTest {
                 WorkerType.BE, "be-java", List.of());
         plan.addItem(original);
 
-        when(planItemRepository.findById(original.getId())).thenReturn(Optional.of(original));
+        when(planItemRepository.findByIdWithPlan(original.getId())).thenReturn(Optional.of(original));
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(original));
         when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of());
@@ -821,7 +827,7 @@ class OrchestrationServiceTest {
      * the checkPlanCompletion path (findActiveByPlanId, findByPlanId, planRepository).
      */
     private void stubOnTaskCompletedCommon(PlanItem item, UUID planId) {
-        when(planItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
         when(attemptRepository.findOpenAttempt(item.getId())).thenReturn(Optional.empty());
         lenient().when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(1));
         when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));

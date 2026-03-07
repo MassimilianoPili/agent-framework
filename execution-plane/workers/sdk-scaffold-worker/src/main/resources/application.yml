@@ -20,9 +20,6 @@ agent:
       worker-profile: sdk-scaffold
       owns-paths:
         - generated/
-      write-tool-names:
-        - Write
-        - Edit
       audit:
         enabled: true
         include-input: false

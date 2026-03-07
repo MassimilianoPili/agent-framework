@@ -215,6 +215,7 @@ public abstract class AbstractWorker {
             context = contextBuilder.build(task, resolveSystemPromptFile(task), skillPaths());
             PolicyEnforcingToolCallback.setContextFiles(context.relevantFiles());
             PolicyEnforcingToolCallback.setTaskPolicy(context.policy()); // task-level HookPolicy (may be null)
+            PolicyEnforcingToolCallback.setDynamicOwnsPaths(task.dynamicOwnsPaths());
 
             // Run beforeExecute interceptors
             for (WorkerInterceptor interceptor : interceptors) {
@@ -320,6 +321,7 @@ public abstract class AbstractWorker {
             TOKEN_USAGE.remove();                            // always clean up to prevent ThreadLocal leak in thread pools
             PolicyEnforcingToolCallback.clearContextFiles(); // clear read-context allowlist
             PolicyEnforcingToolCallback.clearTaskPolicy();   // clear task-level HookPolicy
+            PolicyEnforcingToolCallback.clearDynamicOwnsPaths(); // clear dynamic ownsPaths
         }
 
         resultProducer.publish(result);

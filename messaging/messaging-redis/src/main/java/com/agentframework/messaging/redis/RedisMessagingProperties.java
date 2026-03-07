@@ -26,6 +26,9 @@ public class RedisMessagingProperties {
     /** Batch size for XREAD (max messages per poll). */
     private int batchSize = 10;
 
+    /** Idle time in ms before a pending message is reclaimed on startup. Default: 60s. */
+    private long reclaimIdleMs = 60000;
+
     public String getHost() { return host; }
     public void setHost(String host) { this.host = host; }
 
@@ -43,4 +46,7 @@ public class RedisMessagingProperties {
 
     public int getBatchSize() { return batchSize; }
     public void setBatchSize(int batchSize) { this.batchSize = batchSize; }
+
+    public long getReclaimIdleMs() { return reclaimIdleMs; }
+    public void setReclaimIdleMs(long reclaimIdleMs) { this.reclaimIdleMs = reclaimIdleMs; }
 }

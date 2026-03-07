@@ -73,6 +73,16 @@ public class PolicyEnforcingToolCallback implements ToolCallback {
     /** Clears the task-level HookPolicy. Call in finally to prevent ThreadLocal leaks. */
     public static void clearTaskPolicy() { TASK_POLICY.remove(); }
 
+    // Holds dynamic ownsPaths resolved from Plan.projectPath + profile's relative paths.
+    // Merged with the static/task-policy ownsPaths for the current task.
+    private static final ThreadLocal<List<String>> DYNAMIC_OWNS_PATHS = new ThreadLocal<>();
+
+    /** Sets dynamic ownsPaths (from AgentTask.dynamicOwnsPaths). */
+    public static void setDynamicOwnsPaths(List<String> paths) { DYNAMIC_OWNS_PATHS.set(paths); }
+
+    /** Clears dynamic ownsPaths. Call in finally to prevent ThreadLocal leaks. */
+    public static void clearDynamicOwnsPaths() { DYNAMIC_OWNS_PATHS.remove(); }
+
     public PolicyEnforcingToolCallback(ToolCallback delegate,
                                        PathOwnershipEnforcer enforcer,
                                        ToolAuditLogger auditLogger,
@@ -124,10 +134,23 @@ public class PolicyEnforcingToolCallback implements ToolCallback {
             return "{\"error\":true,\"message\":\"" + escapeJson(msg) + "\"}";
         }
 
-        // 1. Path ownership check — use task-level policy if present, else static config
+        // 1. Path ownership check — use task-level policy if present, else static config.
+        //    Dynamic ownsPaths (from Plan.projectPath) are merged with effective paths.
         List<String> effectivePaths = (taskPolicy != null && !taskPolicy.ownedPaths().isEmpty())
                 ? taskPolicy.ownedPaths()
                 : null; // null → checkOwnership falls back to PolicyProperties
+
+        // Merge dynamic ownsPaths from Plan.projectPath (if present)
+        List<String> dynamicPaths = DYNAMIC_OWNS_PATHS.get();
+        if (dynamicPaths != null && !dynamicPaths.isEmpty()) {
+            if (effectivePaths != null) {
+                List<String> merged = new ArrayList<>(effectivePaths);
+                merged.addAll(dynamicPaths);
+                effectivePaths = merged;
+            } else {
+                effectivePaths = dynamicPaths;
+            }
+        }
 
         Optional<String> violation = (effectivePaths != null)
                 ? enforcer.checkOwnership(toolName, toolInput, effectivePaths)

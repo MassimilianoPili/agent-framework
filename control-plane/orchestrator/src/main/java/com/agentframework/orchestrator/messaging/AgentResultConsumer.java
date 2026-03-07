@@ -11,6 +11,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Component
 public class AgentResultConsumer {
@@ -20,6 +23,7 @@ public class AgentResultConsumer {
     private final MessageListenerContainer listenerContainer;
     private final OrchestrationService orchestrationService;
     private final ObjectMapper objectMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Value("${messaging.agent-results.topic:agent-results}")
     private String resultsTopic;
@@ -29,10 +33,12 @@ public class AgentResultConsumer {
 
     public AgentResultConsumer(MessageListenerContainer listenerContainer,
                                OrchestrationService orchestrationService,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper,
+                               TransactionTemplate transactionTemplate) {
         this.listenerContainer = listenerContainer;
         this.orchestrationService = orchestrationService;
         this.objectMapper = objectMapper;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @PostConstruct
@@ -50,10 +56,15 @@ public class AgentResultConsumer {
 
     /**
      * Processes a received AgentResult message.
-     * Delegates to OrchestrationService.onTaskCompleted() which handles:
-     * - Updating item status in DB
-     * - Dispatching newly unblocked items
-     * - Checking plan completion
+     *
+     * <p>Uses an explicit TransactionTemplate so that the message ACK is registered
+     * as an {@code afterCommit} callback. This guarantees:
+     * <ul>
+     *   <li>On successful commit → ACK (message consumed)</li>
+     *   <li>On rollback → no ACK → Redis redelivers the message</li>
+     *   <li>If ACK itself fails after commit → idempotency guard in onTaskCompleted
+     *       skips the duplicate on redelivery</li>
+     * </ul>
      */
     private void handleMessage(String body, MessageAcknowledgment ack) {
         try {
@@ -62,8 +73,17 @@ public class AgentResultConsumer {
             log.info("Received AgentResult for task {} (plan={}, success={})",
                      result.taskKey(), result.planId(), result.success());
 
-            orchestrationService.onTaskCompleted(result);
-            ack.complete();
+            transactionTemplate.executeWithoutResult(status -> {
+                orchestrationService.onTaskCompleted(result);
+
+                TransactionSynchronizationManager.registerSynchronization(
+                        new TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                ack.complete();
+                            }
+                        });
+            });
         } catch (Exception e) {
             log.error("Failed to process AgentResult message: {}", e.getMessage(), e);
             ack.reject(e.getMessage());

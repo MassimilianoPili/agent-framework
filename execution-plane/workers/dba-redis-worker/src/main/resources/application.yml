@@ -21,9 +21,6 @@ agent:
       owns-paths:
         - database/
         - templates/dba/
-      write-tool-names:
-        - Write
-        - Edit
       audit:
         enabled: true
         include-input: false
