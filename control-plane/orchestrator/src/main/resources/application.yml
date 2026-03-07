@@ -368,6 +368,35 @@ drift:
   check-interval-ms: 3600000     # every hour
   threshold: 0.15                # W_1 above this triggers drift alert
 
+# Prospect Theory (Kahneman-Tversky) — behavioral bias for worker selection
+prospect-theory:
+  enabled: true
+  loss-aversion-lambda: 2.25    # lambda: peso perdite vs guadagni
+
+# Hedge Algorithm (Multiplicative Weights) — online learning regret bounds
+hedge:
+  enabled: true
+  learning-rate: 0.0            # 0 = auto: eta = sqrt(ln(K)/T)
+  horizon: 1000                 # T: orizzonte di pianificazione
+
+# Kelly Criterion — optimal budget fraction sizing
+kelly:
+  enabled: true
+  fractional-kelly: 0.5         # half-Kelly (conservativo)
+  max-fraction: 0.5             # clamp massimo
+
+# Optimal Stopping (Secretary Problem) — threshold-based acceptance
+optimal-stopping:
+  enabled: true
+  observation-fraction: 0.3679  # 1/e
+
+# Calibration Audit (Dutch Book) — prediction quality monitoring
+calibration:
+  enabled: true
+  num-bins: 10
+  dutch-book-threshold: 0.15    # max|acc - conf| per alert
+  check-interval-ms: 3600000   # ogni ora
+
 logging:
   level:
     com.agentframework: INFO

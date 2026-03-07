@@ -183,36 +183,7 @@ Proposta: estrarre in modulo `agent-common` condiviso.
 
 ---
 
-### 12. Serendipita' nel Context Manager
-
-**Problema**: il context-manager trova solo file semanticamente simili (RAG search coseno + BM25 via
-`HybridSearchService`). Non scopre file "sorprendenti" che storicamente si sono rivelati utili
-per task simili ma che la ricerca semantica non intercetta.
-
-**Soluzione**: GP residual per file discovery — `residual(file, task) = actual_usefulness - predicted_usefulness`.
-Se `residual >> 0`: il file era inaspettatamente utile → pattern latente da sfruttare.
-
-**Perche' non e' random exploration**: usa il residual positivo del GP, non randomicita'.
-E' **informed surprise** — file che hanno *sorpreso* il modello in task passati simili.
-Un file `SecurityConfig.java` inaspettatamente utile per un task "build CRUD API" suggerisce
-che quel progetto ha vincoli di sicurezza impliciti.
-
-**Perche' nel context-manager e non nel RAG_MANAGER**: CM opera *prima* del RAG nel DAG dei task.
-La serendipita' arricchisce il contesto iniziale; il RAG puo' poi cercare anche sui file sorpresa.
-Layering: serendipita' (storica) → RAG (semantica). Se fosse nel RAG, il CM non ne beneficerebbe.
-
-**Come si compone con RRF**: `HybridSearchService` fa RRF con k=60 su 2 ranked list
-(coseno + BM25). La serendipita' aggiunge una terza list (residual storico).
-RRF esteso a 3 sorgenti: `score(d) = 1/(k+r_cosine) + 1/(k+r_bm25) + 1/(k+r_serendipity)`.
-
-**Dati necessari**: collegamento `(task_embedding, suggested_files[], final_reward)` —
-ricavabile join-ando `plan_items` (reward) con risultati CONTEXT_MANAGER (lista file).
-Richiede `task_outcomes` di #11.
-
-**File nuovi**: `shared/gp-engine/SerendipityAnalyzer.java`.
-Modifica `context-manager-worker`, estensione `HybridSearchService` per terza sorgente RRF.
-
-**Sforzo**: 2g. **Dipendenze**: #11 (GP engine + task_outcomes). **Dati minimi**: ~100 task con file context.
+### 12. Serendipita' nel Context Manager ✅ → [PIANO_HISTORY.md]
 
 ---
 
@@ -249,34 +220,7 @@ Flyway per tabella `plan_outcomes` (spec embedding + reward finale piano).
 
 ---
 
-### 15. Active Learning per Token Budget
-
-**Problema**: `TokenBudgetService.checkBudget()` (riga 53) confronta `used >= limit` statico.
-Task facili sprecano budget (limite troppo alto), task difficili lo esauriscono (limite troppo basso).
-
-**Soluzione**: modulare il budget con le predizioni GP — `mu` per la qualita' attesa,
-`sigma^2` per l'incertezza.
-
-**Formula**: `dynamic_budget = base × (1 + alpha × sigma^2) × clip(mu, 0.3, 1.0)`.
-- `sigma^2` alto (incertezza) → piu' budget (active learning: lascia esplorare)
-- `mu` basso (qualita' attesa bassa) → riduce budget (non sprecare su task destinato a fallire)
-- `clip(mu, 0.3, 1.0)` impedisce di azzerare il budget
-
-**Perche' `sigma^2` come modulatore e non solo `mu`**: solo `mu` = "se predico fallimento,
-riduci budget" (miope). Aggiungere `sigma^2` = "se incerto, dai piu' budget" (active learning).
-L'incertezza e' informazione: un task incerto potrebbe rivelare pattern nuovi per il GP.
-
-**Perche' in `checkBudget` e non in `recordUsage`**: `checkBudget` opera *prima* del dispatch
-(riga 465 di `OrchestrationService`). `recordUsage` opera *dopo* (riga 280). Il budget dinamico
-deve modulare il limite *prima* che il task parta.
-
-**Enforcement mode invariato**: il budget dinamico modifica solo il limite numerico, non la policy
-(`FAIL_FAST`/`NO_NEW_DISPATCH`/`SOFT_LIMIT`). Single Responsibility Principle: la policy dice
-*cosa fare* quando il budget e' superato, il GP dice *quanto* budget dare.
-
-**File mod**: `TokenBudgetService.java` (`checkBudget` accetta `Optional<GPPrediction>`).
-
-**Sforzo**: 1g. **Dipendenze**: #11 (GP engine). **Dati minimi**: ~50 task con budget history.
+### 15. Active Learning per Token Budget ✅ → [PIANO_HISTORY.md]
 
 ---
 
@@ -284,56 +228,11 @@ deve modulare il limite *prima* che il task parta.
 
 ---
 
-### 17. SDK Scaffold Worker
-
-**Problema**: creare un progetto Agent SDK (Claude Code SDK, Python o TypeScript) richiede
-boilerplate ripetitivo: setup environment, installazione SDK, configurazione, gitignore,
-entry point, tool definitions, deployment config.
-
-**Soluzione**: worker con `workerType: AI_TASK` e `workerProfile: sdk-scaffold` che genera
-un progetto completo e verificato, guidato da skill files.
-
-**Perche' workerType `AI_TASK` e non un nuovo type**: lo scaffolding non ha semantica
-diversa da un generic AI task. Creare un WorkerType dedicato inquinerebbe l'enum
-(gia' 15 valori). Un `workerProfile: sdk-scaffold` basta per il routing nel
-`WorkerProfileRegistry`, coerente con il pattern esistente.
-
-**Perche' skill files e non codice Java**: lo scaffolding e' un task LLM-driven.
-Il worker generato dall'agent-compiler esegue le istruzioni della skill.
-Le skill sono modificabili senza rebuild — aggiornare un template e' un file edit.
-Pattern identico a `be-java`, `fe-react`, etc.
-
-**Perche' ralph-loop inline nella skill**: il verifier (type check + syntax) e'
-parte delle istruzioni della skill, non un servizio separato. Il worker esegue il loop
-autonomamente come parte dell'`execute()`. Il ralph-loop orchestratore (#16)
-e' a livello piano; qui e' a livello task (complementari, non duplicati).
-
-**File nuovi**: `agents/manifests/sdk-scaffold.agent.yml`, `skills/sdk-scaffold/SKILL.md`,
-`skills/sdk-scaffold/python-template.md`, `skills/sdk-scaffold/typescript-template.md`.
-
-**Sforzo**: 0.5g. **Dipendenze**: nessuna.
+### 17. SDK Scaffold Worker ✅ → [PIANO_HISTORY.md]
 
 ---
 
-### 18. ADR-005: GP + Serendipita' — Motivazioni Architetturali
-
-**Problema**: le scelte architetturali per #11-#15 hanno motivazioni profonde
-che non entrano in una roadmap item. Servono in un ADR dedicato con alternative
-scartate e ancoraggi al codice.
-
-**Perche' ADR e non commenti nel codice**: le motivazioni riguardano *perche'*
-una scelta e' stata fatta, non *come* funziona il codice. I commenti nel codice
-spiegano il come; gli ADR spiegano il perche' e le alternative scartate.
-
-**Contenuto**: per ogni feature #11-#15, il *perche'* di ogni scelta ancorato
-a righe specifiche del codice esistente. Include: schema `task_outcomes`,
-formula `processScore` in `RewardComputationService`, flusso dispatch in
-`OrchestrationService` (righe 449-540), Bradley-Terry in `EloRatingService`,
-delta filter in `PreferencePairGenerator` (riga 113).
-
-**File**: `docs/adr/ADR-005-gp-serendipity-evolution.md`.
-
-**Sforzo**: 0.5g. **Dipendenze**: nessuna (documenta #11-#15, non le implementa).
+### 18. ADR-005: GP + Serendipita' ✅ → [PIANO_HISTORY.md]
 
 ---
 
@@ -413,15 +312,15 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | lib | Modulo agent-common (HookPolicy) | 0.5g | Medio | — |
 | **RAG** | **RAG Pipeline + Graph RAG (3 sessioni) ✅** | **10g** | **Molto alto** | — |
 | 16 | Ralph-Loop (Quality Gate Feedback) | 1.5g | Alto | — |
-| 17 | SDK Scaffold Worker | 0.5g | Basso | — |
+| 17 | SDK Scaffold Worker ✅ | 0.5g | Basso | — |
 | 11 | GP Worker Selection ✅ | 3g | Molto alto | pgvector, Ollama |
 | 14 | DPO con GP Residual ✅ | 1g | Alto | #11 |
-| 12 | Serendipita' Context Manager | 2g | Alto | #11 |
+| 12 | Serendipita' Context Manager ✅ | 2g | Alto | #11 |
 | 13 | Council Taste Profile | 2g | Medio | #11 |
-| 15 | Active Token Budget | 1g | Medio | #11 |
-| 18 | ADR-005 (GP Motivazioni) | 0.5g | Medio | — |
-| **S8** | **Fix bug critici + resilienza (B1-B7, B9, B14-B16)** | **4g** | **Critico** | #27 (per S8-L) |
-| **#27** | **Centralizzazione nomi tool (ToolNames registry)** | **0.5g** | **Alto** | — (prerequisito) |
+| 15 | Active Token Budget ✅ | 1g | Medio | #11 |
+| 18 | ADR-005 (GP Motivazioni) ✅ | 0.5g | Medio | — |
+| **S8** | **Fix bug critici + resilienza (B1-B7, B9, B14-B16) ✅** | **4g** | **Critico** | #27 (per S8-L) |
+| **#27** | **Centralizzazione nomi tool (ToolNames registry) ✅** | **0.5g** | **Alto** | — (prerequisito) |
 | **B13** | **Fix nomi tool nei 22 manifest** | **0.5g** | **Alto** | #27 |
 | **B14** | **Fix Mustache template write-tool-names** | **0.5g** | **Alto** | #27 |
 | **B15** | **Project path dinamico in ownsPaths** | **0.5g** | **Alto** | — |
@@ -445,6 +344,62 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 ---
 ---
 
+# Stato implementazione #1-#49 (audit codice)
+
+Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-07.
+
+## Non implementati (30 item — nessun codice)
+
+| # | Item |
+|---|------|
+| 19 | Retry manuale TO_DISPATCH |
+| 20 | Modello LLM per task (solo campo `modelId` reserved null) |
+| 21 | Redis topic splitting per workerType |
+| 22 | Orchestrator singleton (leader election) |
+| 23 | Enrichment Pipeline Activation |
+| 24 | Tool configurabili (toolHints + TOOL_MANAGER) |
+| 25 | mcp-bash-tool + mcp-python-tool |
+| 26 | Cost tracking per task + auto-split |
+| 28 | Monitoring Dashboard UI |
+| 29 | Worker Lifecycle Management |
+| 30 | Hash Chain Tamper-Proof |
+| 31 | Verifiable Compute (firma worker) |
+| 32 | Policy-as-Code Immutabile |
+| 33 | Token Economics Double-Entry |
+| 34 | Federazione Multi-Server |
+| 35 | Context Quality Scoring |
+| 36 | Worker Pool Sizing (Queueing Theory) |
+| 37 | Adaptive Token Budget (PID) |
+| 38 | State Machine Verification (LTL) |
+| 39 | Policy Lattice Composition |
+| 40 | Shapley Value Reward Distribution |
+| 41 | Topological Pattern Detection |
+| 42 | Global Task Assignment (combinatoria) |
+| 43 | Differential Privacy metriche |
+| 44 | Execution Sandbox Containerizzato |
+| 45 | Merkle Tree DAG Verification |
+| 46 | Verifiable Council Deliberation |
+| 47 | Reputation Staking |
+| 48 | Content-Addressable Storage |
+| 49 | Quadratic Voting Council |
+
+## Parzialmente implementati (6 item — codice base, estensioni da fare)
+
+| # | Item | Cosa c'e' | Cosa manca |
+|---|------|-----------|------------|
+| 5 | SSE + TrackerSync | `SseEmitterRegistry` (147 righe), endpoint `/events` | TrackerSync non wired, late-join replay (#5b) |
+| 7 | Context Cache (TASK_MANAGER) | Enum `TASK_MANAGER` in WorkerType | Nessun `ContextCacheService` |
+| 8 | DAG + Mermaid | `PlanGraphService` (227 righe), `toMermaid()`, endpoint `/graph` | Miglioramenti UI |
+| 9 | Hierarchical Plans | `handleSubPlan()`, `SUB_PLAN` WorkerType, child plan | Estensioni previste |
+| 10 | HookPolicy Extensions | 7 file in `hooks/`, `HookManagerService` (134 righe) | Self-constraining agent extensions |
+| 13 | Council Taste Profile | `CouncilService` (8 file, SubmodularSelector, CoverageFunction) | Nessun `TasteProfile` |
+
+**Nota**: #5, #8, #9, #10 presenti dall'initial commit (`2c5d7cc`). Il piano li elenca come "da fare"
+perche' richiedono estensioni rispetto all'implementazione base.
+
+---
+---
+
 # Bug noti e fix pianificati
 
 Bug emersi dall'esplorazione del codice e dall'uso reale del framework.
@@ -455,27 +410,27 @@ Bug emersi dall'esplorazione del codice e dall'uso reale del framework.
 
 | # | Bug | Severita' | File / Righe | Root cause | Fix proposto |
 |---|-----|-----------|-------------|------------|-------------|
-| B1 | **ACK prima di commit** — `AgentResultConsumer.handleMessage()` fa `ack.reject()` (XACK + DLQ) anche se la transazione di `onTaskCompleted` ha fatto rollback. Il messaggio e' perso, il task resta DISPATCHED. | CRITICAL | `AgentResultConsumer.java:58-71`, `RedisStreamAcknowledgment.java:44-58` | ACK avviene fuori dal boundary transazionale Spring | Spostare XACK dentro la transazione, oppure usare pattern "ACK after commit" con `TransactionSynchronization.afterCommit()`. Se rollback → non ACK → Redis ri-consegna il messaggio. |
-| B2 | **Idempotency guard incompleto** — `onTaskCompleted()` guarda solo DONE/FAILED. Se un'eccezione causa rollback (reward computation, GP update), l'item resta DISPATCHED ma il messaggio e' in DLQ → task bloccato per sempre. | CRITICAL | `OrchestrationService.java:199-203` | Guard non copre DISPATCHED; side-effect (reward, GP, serendipity) nel path critico senza isolamento | Separare side-effect non critici in `@TransactionalEventListener(AFTER_COMMIT)`. La transizione DISPATCHED→DONE deve avere successo anche se i side-effect falliscono. |
-| B3 | **Piano mai completo** — conseguenza di B1+B2: `findActiveByPlanId` trova item DISPATCHED (non terminale) → `checkPlanCompletion` esce subito → piano resta RUNNING per sempre | CRITICAL | `OrchestrationService.java:696-710`, `PlanItemRepository.java:22-23` | Cascata da B1+B2 | Risolvere B1+B2. Aggiungere "stale task detector" schedulato che marca come FAILED task DISPATCHED da piu' di X minuti senza risultato. |
+| B1 ✅ | **ACK prima di commit** — `AgentResultConsumer.handleMessage()` fa `ack.reject()` (XACK + DLQ) anche se la transazione di `onTaskCompleted` ha fatto rollback. Il messaggio e' perso, il task resta DISPATCHED. | CRITICAL | `AgentResultConsumer.java:58-71`, `RedisStreamAcknowledgment.java:44-58` | ACK avviene fuori dal boundary transazionale Spring | Spostare XACK dentro la transazione, oppure usare pattern "ACK after commit" con `TransactionSynchronization.afterCommit()`. Se rollback → non ACK → Redis ri-consegna il messaggio. |
+| B2 ✅ | **Idempotency guard incompleto** — `onTaskCompleted()` guarda solo DONE/FAILED. Se un'eccezione causa rollback (reward computation, GP update), l'item resta DISPATCHED ma il messaggio e' in DLQ → task bloccato per sempre. | CRITICAL | `OrchestrationService.java:199-203` | Guard non copre DISPATCHED; side-effect (reward, GP, serendipity) nel path critico senza isolamento | Separare side-effect non critici in `@TransactionalEventListener(AFTER_COMMIT)`. La transizione DISPATCHED→DONE deve avere successo anche se i side-effect falliscono. |
+| B3 ✅ | **Piano mai completo** — conseguenza di B1+B2: `findActiveByPlanId` trova item DISPATCHED (non terminale) → `checkPlanCompletion` esce subito → piano resta RUNNING per sempre | CRITICAL | `OrchestrationService.java:696-710`, `PlanItemRepository.java:22-23` | Cascata da B1+B2 | Risolvere B1+B2. Aggiungere "stale task detector" schedulato che marca come FAILED task DISPATCHED da piu' di X minuti senza risultato. |
 
 ## Bug aggiuntivi
 
 | # | Bug | Severita' | File / Righe | Fix proposto |
 |---|-----|-----------|-------------|-------------|
-| B4 | **AutoRetryScheduler transazione unica** — `@Transactional` sull'intero loop. Se un retry fallisce, rollback di TUTTI. `nextRetryAt` resettato per tutti → retry immediato infinito. | HIGH | `AutoRetryScheduler.java:40-60` | Transaction separata per item (`REQUIRES_NEW`) o try-catch con restore `nextRetryAt` |
-| B5 | **Missing context error propagation** — se il CM task creato per fornire contesto fallisce, il task padre resta WAITING per sempre (nessuna propagazione fallimento) | HIGH | `OrchestrationService.java:804-835` | Se CM fallisce → propagare FAILED al task padre. Oppure count retry e fallire dopo N tentativi. |
-| B6 | **LazyInitializationException** — `item.getPlan()` con FetchType.LAZY in `onTaskCompleted()` e `retryFailedItem()` | HIGH | `OrchestrationService.java:281,356` | `JOIN FETCH plan` nella query repository |
-| B7 | **Race condition child plan completion** — no `@Version`, concurrent `onChildPlanCompleted` puo' sovrascrivere | HIGH | `OrchestrationService.java:975-1011` | Aggiungere `@Version` a PlanItem e Plan entities |
+| B4 ✅ | **AutoRetryScheduler transazione unica** — `@Transactional` sull'intero loop. Se un retry fallisce, rollback di TUTTI. `nextRetryAt` resettato per tutti → retry immediato infinito. | HIGH | `AutoRetryScheduler.java:40-60` | Transaction separata per item (`REQUIRES_NEW`) o try-catch con restore `nextRetryAt` |
+| B5 ✅ | **Missing context error propagation** — se il CM task creato per fornire contesto fallisce, il task padre resta WAITING per sempre (nessuna propagazione fallimento) | HIGH | `OrchestrationService.java:804-835` | Se CM fallisce → propagare FAILED al task padre. Oppure count retry e fallire dopo N tentativi. |
+| B6 ✅ | **LazyInitializationException** — `item.getPlan()` con FetchType.LAZY in `onTaskCompleted()` e `retryFailedItem()` | HIGH | `OrchestrationService.java:281,356` | `JOIN FETCH plan` nella query repository |
+| B7 ✅ | **Race condition child plan completion** — no `@Version`, concurrent `onChildPlanCompleted` puo' sovrascrivere | HIGH | `OrchestrationService.java:975-1011` | Aggiungere `@Version` a PlanItem e Plan entities |
 | B8 | **Dependency results "1 vs 3"** — task FE-001 con 3 dipendenze (AI-001/AI-002/AI-003) logga "with 1 dependency results". `buildContextJson()` filtra `item.getDependsOn()` contro `completedResults`. | MEDIUM | `OrchestrationService.java:748-759`, `AgentContextBuilder.java:67-80` | Aggiungere log diagnostico: `log.info("Task {} dependsOn={}, completedKeys={}", ...)`. Verificare che il planner popoli correttamente `dependsOn`. |
-| B9 | **Consumer group pending messages (PEL)** — al riavvio dell'orchestratore, `XREADGROUP` con `>` legge solo nuovi messaggi. Messaggi pending (in-flight al crash) non vengono reclamati → risultati persi. | MEDIUM | `RedisStreamListenerContainer.java` | Aggiungere `XAUTOCLAIM` all'avvio per reclamare messaggi pending oltre un idle timeout. |
+| B9 ✅ | **Consumer group pending messages (PEL)** — al riavvio dell'orchestratore, `XREADGROUP` con `>` legge solo nuovi messaggi. Messaggi pending (in-flight al crash) non vengono reclamati → risultati persi. | MEDIUM | `RedisStreamListenerContainer.java` | Aggiungere `XAUTOCLAIM` all'avvio per reclamare messaggi pending oltre un idle timeout. |
 | B10 | **Compensation task semantics** — riapertura plan COMPLETED/FAILED ambigua | MEDIUM | `OrchestrationService.java:365-430` | Piano di compensazione separato o flag speciale |
 | B11 | **Token budget check ordering** — GP prediction calcolata prima del budget check (costo non contabilizzato) | LOW | `OrchestrationService.java:629-650` | Spostare budget check prima di GP prediction |
 | B12 | **Optional service null checks** — `gpTaskOutcomeService` potrebbe essere null in path non protetti | LOW | `OrchestrationService.java:124-126, 549-554` | Usare Optional consistently |
-| B13 | **Tool names errati in tutti i 22 manifest** — i manifest `.agent.yml` elencano tool con nomi Claude Code (`Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`) che non esistono nel registro Spring AI MCP. I worker non trovano i tool e partono con 0/N tools. | HIGH | `agents/manifests/*.agent.yml` (tutti i 22 file) | Correggere i nomi con la mappatura MCP reale. `Edit` e `Grep` non hanno equivalente MCP → rimuovere. Aggiungere sempre `fs_list`. |
-| B14 | **Mustache template hardcoda write-tool-names errati** — `application.yml.mustache` (righe 30-32) genera `write-tool-names: [Write, Edit]` hardcoded, ignorando i nomi MCP reali. `PolicyProperties.java` ha il default corretto (`["Write", "Edit", "fs_write"]`), ma il template lo sovrascrive. Risultato: `PathOwnershipEnforcer` non controlla mai `fs_write` perche' non e' nella lista dei write-tool-names → un worker puo' scrivere ovunque con `fs_write` senza violazione path ownership. | HIGH | `agent-compiler-maven-plugin/.../templates/application.yml.mustache:30-32`, `PolicyProperties.java:37` | Aggiornare il template Mustache per generare `write-tool-names` dinamicamente dal manifest (includendo `fs_write`, `bash_execute`, etc.) oppure rimuovere la sezione hardcoded e lasciare i default di `PolicyProperties`. |
-| B15 | **ownsPaths statici — manca il project path dinamico** — i manifest dichiarano `ownsPaths` statici (`backend/`, `frontend/`, `docs/`, `eval/`). Ma il path del progetto in corso (es. `cps4/`) non viene propagato dall'orchestratore. Un `ai-task` con `ownsPaths: [eval/]` non puo' scrivere in `cps4/` anche se il task lo richiede. L'orchestratore deve almeno propagare il path del piano/progetto come owned path per ogni worker. | HIGH | `agents/manifests/*.agent.yml` (ownsPaths), `AgentTaskProducer.java`, `WorkerTaskConsumer.java`, `PathOwnershipEnforcer.java:49-99` | L'orchestratore aggiunge il project path (dal campo `Plan.projectPath` o dalla spec del piano) ai `ownsPaths` del task al momento del dispatch. Design: `AgentTask.dynamicOwnsPaths` (lista propagata via Redis) + merge con i `ownsPaths` statici dal manifest nel `PathOwnershipEnforcer`. |
-| B16 | **HOOK_MANAGER schema con nomi Claude Code** — `hook-manager.agent.yml:34` mostra esempio `["Read", "Write", "Edit", "Glob", "Grep", "Bash"]`. Il HOOK_MANAGER worker (LLM) genera HookPolicy con questi nomi. `PolicyEnforcingToolCallback` al livello 2 blocca i tool MCP reali (`fs_read`, `fs_write`) perche' non sono nell'allowlist della policy. Il fallback statico `HookPolicyResolver.DEFAULT_TOOL_ALLOWLISTS` ha i nomi corretti — ma viene usato solo se il HOOK_MANAGER non ha generato policy. | HIGH | `hook-manager.agent.yml:34`, `PolicyEnforcingToolCallback.java:113-125`, `HookPolicyResolver.java:35-46` | Aggiornare lo schema in `hook-manager.agent.yml` con nomi MCP reali. Centralizzare i nomi in un'unica source of truth (vedi #27). |
+| B13 ✅ | **Tool names errati in tutti i 22 manifest** — i manifest `.agent.yml` elencano tool con nomi Claude Code (`Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`) che non esistono nel registro Spring AI MCP. I worker non trovano i tool e partono con 0/N tools. | HIGH | `agents/manifests/*.agent.yml` (tutti i 22 file) | Correggere i nomi con la mappatura MCP reale. `Edit` e `Grep` non hanno equivalente MCP → rimuovere. Aggiungere sempre `fs_list`. |
+| B14 ✅ | **Mustache template hardcoda write-tool-names errati** — `application.yml.mustache` (righe 30-32) genera `write-tool-names: [Write, Edit]` hardcoded, ignorando i nomi MCP reali. `PolicyProperties.java` ha il default corretto (`["Write", "Edit", "fs_write"]`), ma il template lo sovrascrive. Risultato: `PathOwnershipEnforcer` non controlla mai `fs_write` perche' non e' nella lista dei write-tool-names → un worker puo' scrivere ovunque con `fs_write` senza violazione path ownership. | HIGH | `agent-compiler-maven-plugin/.../templates/application.yml.mustache:30-32`, `PolicyProperties.java:37` | Aggiornare il template Mustache per generare `write-tool-names` dinamicamente dal manifest (includendo `fs_write`, `bash_execute`, etc.) oppure rimuovere la sezione hardcoded e lasciare i default di `PolicyProperties`. |
+| B15 ✅ | **ownsPaths statici — manca il project path dinamico** — i manifest dichiarano `ownsPaths` statici (`backend/`, `frontend/`, `docs/`, `eval/`). Ma il path del progetto in corso (es. `cps4/`) non viene propagato dall'orchestratore. Un `ai-task` con `ownsPaths: [eval/]` non puo' scrivere in `cps4/` anche se il task lo richiede. L'orchestratore deve almeno propagare il path del piano/progetto come owned path per ogni worker. | HIGH | `agents/manifests/*.agent.yml` (ownsPaths), `AgentTaskProducer.java`, `WorkerTaskConsumer.java`, `PathOwnershipEnforcer.java:49-99` | L'orchestratore aggiunge il project path (dal campo `Plan.projectPath` o dalla spec del piano) ai `ownsPaths` del task al momento del dispatch. Design: `AgentTask.dynamicOwnsPaths` (lista propagata via Redis) + merge con i `ownsPaths` statici dal manifest nel `PathOwnershipEnforcer`. |
+| B16 ✅ | **HOOK_MANAGER schema con nomi Claude Code** — `hook-manager.agent.yml:34` mostra esempio `["Read", "Write", "Edit", "Glob", "Grep", "Bash"]`. Il HOOK_MANAGER worker (LLM) genera HookPolicy con questi nomi. `PolicyEnforcingToolCallback` al livello 2 blocca i tool MCP reali (`fs_read`, `fs_write`) perche' non sono nell'allowlist della policy. Il fallback statico `HookPolicyResolver.DEFAULT_TOOL_ALLOWLISTS` ha i nomi corretti — ma viene usato solo se il HOOK_MANAGER non ha generato policy. | HIGH | `hook-manager.agent.yml:34`, `PolicyEnforcingToolCallback.java:113-125`, `HookPolicyResolver.java:35-46` | Aggiornare lo schema in `hook-manager.agent.yml` con nomi MCP reali. Centralizzare i nomi in un'unica source of truth (vedi #27). |
 | B18 | **No singleton per task — double processing** — se un worker crasha durante l'esecuzione, il messaggio resta nel Redis PEL (Pending Entries List). Quando il worker viene riavviato (Docker `restart: unless-stopped`), il messaggio pendente puo' essere reclamato (XCLAIM) e riprocessato. Ma se nel frattempo l'`AutoRetryScheduler` ha gia' ri-dispatchato il task, **due worker processano lo stesso task in parallelo**. Risultato: scritture duplicate, conflitti su file, token sprecati, risultato incoerente. Nessun lock distribuito impedisce il double processing. | HIGH | `WorkerTaskConsumer.java` (nessun lock pre-process), `AutoRetryScheduler.java` (ri-dispatcha senza check PEL), `RedisStreamListenerContainer.java` (nessun XCLAIM) | `TaskLockService` — lock distribuito Redis (`SETNX task:{taskKey}:lock {consumerId} EX 300`). Il worker acquisisce il lock prima di processare. Se lock gia' acquisito → NACK, il messaggio torna in coda. TTL 5 min come safety net (worker crash). Heartbeat ogni 60s per task lunghi. |
 | B17 | **Context overflow da `fs_read` senza limiti** — un worker (es. AI-001 audit) che chiama `fs_read` su file grandi (HTML ~80KB, CSS ~80KB, JS ~30KB) accumula migliaia di token per ogni chiamata. Con un sito di 11 pagine (es. CPS), 48 tool call portano il prompt a 208K token, superando il limite di 200K del modello. Il LLM non ha visibilita' sul budget token residuo e continua a leggere file finche' non viene troncato. Nessun meccanismo di protezione: ne' `maxTokens` nel manifest, ne' auto-compacting nel worker SDK, ne' `limit` parametro nel tool `fs_read`. | CRITICAL | `WorkerChatClient.java` (nessun token counting pre-call), `fs_read` tool (nessun parametro `limit`), manifests `*.agent.yml` (nessun campo `maxTokens`) | Fix a 3 livelli: **(1)** campo `maxTokens` nel manifest → il worker SDK lo propaga come `maxOutputTokens` nella chat request (quick fix); **(2)** **auto-compacting nel worker SDK** — prima di ogni tool call, stimare token accumulati (system + messaggi + tool results). Se si supera una soglia (es. 75% del context window), compattare la storia: sostituire i risultati vecchi di tool call con un riassunto LLM compresso (un `fs_read` da 80KB → "file X: 1400 righe HTML, struttura header/nav/main/footer, Bootstrap 5" — da ~20K a ~200 token). Il worker continua a lavorare con contesto compresso, senza interrompere il task. Pattern analogo a Claude Code auto-compress; **(3)** parametro `limit` (righe/byte) nel tool `fs_read` — il worker sceglie quanto leggere per file (prevenzione upstream). Livello 2 e' il fix architetturale — il worker non crasha mai, si auto-compatta. |
 | B19 | **DispatchAttempt orfani — non-unique result** — `findOpenAttempt(itemId)` usa `Optional<DispatchAttempt>` con query `completedAt IS NULL`, che attende 0 o 1 risultato. Ma ogni retry (`retryFailedItem` → `dispatchReadyItems`) crea un **nuovo** `DispatchAttempt` senza chiudere il precedente. Con 2+ attempt aperti, Spring Data JPA lancia `IncorrectResultSizeDataAccessException`. Cascata: `onTaskCompleted()` chiama `findOpenAttempt` → eccezione → risultato del worker perso → item resta DISPATCHED → piano bloccato (B3). Scenari che creano orfani: rollback transazione in `onTaskCompleted` (B1), worker crash senza risultato + stale detector che marca FAILED senza chiudere l'attempt, race condition su `dispatchReadyItems` concorrenti. | HIGH | `DispatchAttemptRepository.java:18-19` (query single-result), `OrchestrationService.java:206` (chiama `findOpenAttempt`), `OrchestrationService.java:342-364` (`retryFailedItem` non chiude attempt precedente) | **Fix immediato ✅ applicato**: `ORDER BY a.attemptNumber DESC LIMIT 1` nella query — restituisce solo l'attempt piu' recente anche con multipli aperti. **Fix strutturale** (futuro): (1) `closeOrphanedAttempts(itemId)` bulk update in `retryFailedItem` prima del nuovo dispatch; (2) `onTaskCompleted` difensivo — chiudere TUTTI gli attempt aperti (`findByItemIdAndCompletedAtIsNull` + loop) con log warning se >1. |
@@ -685,216 +640,7 @@ I nomi dei tool attraversano tre livelli di enforcement, TUTTI devono usare gli 
 ---
 ---
 
-# Sessione 8 — Fix bug critici + resilienza
-
-> **Obiettivo**: risolvere la catena B1-B3 (task bloccato / risultato perso / piano mai completo)
-> e i bug HIGH B4-B7. Aggiungere resilienza consumer group Redis.
-
-## S8-A. ACK after commit (B1)
-
-Il fix fondamentale: l'ACK del messaggio Redis deve avvenire SOLO dopo il commit della transazione.
-
-**Approccio**: `TransactionSynchronizationManager.registerSynchronization()` in `AgentResultConsumer`.
-Alternativa piu' robusta: rendere `handleMessage` partecipe della transazione Spring, e registrare
-l'ACK come `afterCommit` callback. Se rollback → no ACK → Redis ri-consegna.
-
-```java
-private void handleMessage(String body, MessageAcknowledgment ack) {
-    AgentResult result = objectMapper.readValue(body, AgentResult.class);
-    orchestrationService.onTaskCompleted(result);
-    // Se siamo qui, la transazione e' committed (no exception)
-    ack.complete();
-}
-```
-
-**File**: `AgentResultConsumer.java`, `RedisStreamListenerContainer.java` (gestire re-delivery)
-
-## S8-B. Side-effect isolation (B2)
-
-Separare i side-effect non critici dalla transizione di stato:
-- **Path critico** (nella transazione): `item.transitionTo(DONE/FAILED)` + `planItemRepository.save(item)` + `checkPlanCompletion` + `dispatchReadyItems`
-- **After-commit** (via `@TransactionalEventListener(phase=AFTER_COMMIT)`): reward computation, GP update, serendipity collection, hook policy storage, plan event publish
-
-**File**: `OrchestrationService.java` (refactor `onTaskCompleted`), nuovo `TaskCompletedEventHandler.java` per i side-effect
-
-## S8-C. Stale task detector (B3)
-
-`@Scheduled` che cerca task DISPATCHED da piu' di N minuti (configurabile, default 30min) senza risultato.
-Azioni: log warning, opzionalmente marca come FAILED con motivo "stale_timeout".
-
-**File**: `StaleTaskDetectorScheduler.java` (NEW), `application.yml` (config timeout)
-
-## S8-D. AutoRetryScheduler fix (B4)
-
-Wrappare ogni retry in transazione separata:
-
-```java
-for (PlanItem item : eligible) {
-    try {
-        retryService.retryInNewTransaction(item.getId());  // @Transactional(REQUIRES_NEW)
-    } catch (Exception e) {
-        log.error("...");
-    }
-}
-```
-
-**File**: `AutoRetryScheduler.java`, `RetryTransactionService.java` (NEW)
-
-## S8-E. Missing context propagation (B5)
-
-In `onTaskCompleted`, se il task completato e' un CM creato per context retry:
-- Se FAILED → trovare il task padre (che dipende da questo CM) → marcare FAILED
-- Se DONE → il padre si sblocca normalmente (dipendenza soddisfatta)
-
-**File**: `OrchestrationService.java` (sezione `onTaskCompleted`, gestione CM failure)
-
-## S8-F. LazyInitializationException fix (B6)
-
-Aggiungere `JOIN FETCH` nelle query repository:
-
-```java
-@Query("SELECT i FROM PlanItem i JOIN FETCH i.plan WHERE i.id = :itemId")
-Optional<PlanItem> findByIdWithPlan(@Param("itemId") UUID itemId);
-```
-
-**File**: `PlanItemRepository.java`, `OrchestrationService.java` (usare `findByIdWithPlan`)
-
-## S8-G. Optimistic locking (B7)
-
-Aggiungere `@Version` a PlanItem e Plan:
-
-```java
-@Version
-private Long version;
-```
-
-Gestire `OptimisticLockException` nel handler con retry.
-
-**File**: `PlanItem.java`, `Plan.java`, Flyway V10 (`ALTER TABLE ... ADD COLUMN version BIGINT DEFAULT 0`)
-
-## S8-H. Consumer group resilience (B9)
-
-All'avvio dell'orchestratore, reclamare messaggi pending:
-
-```java
-@PostConstruct
-public void reclaimPendingMessages() {
-    // XAUTOCLAIM agent-results orchestrator-group consumer-id idle-timeout 0-0
-    // Processa i messaggi reclamati come normali
-}
-```
-
-**File**: `AgentResultConsumer.java` (+`reclaimPendingMessages()`), `RedisStreamListenerContainer.java` (+metodo `autoclaim`)
-
-## S8-J. Fix Mustache template write-tool-names (B14)
-
-Il template `application.yml.mustache` genera `write-tool-names: [Write, Edit]` hardcoded.
-Due opzioni di fix:
-
-**Opzione A** — Rimuovere la sezione dal template, lasciare i default di `PolicyProperties`:
-```yaml
-# Rimuovere righe 30-32 dal template, PolicyProperties usa:
-# writeToolNames = ["Write", "Edit", "fs_write"]
-```
-
-**Opzione B** — Generare dinamicamente dal manifest (preferita):
-```yaml
-write-tool-names:
-  {{#writeToolEntries}}
-  - {{name}}
-  {{/writeToolEntries}}
-```
-Con `WorkerGenerator` che popola `writeToolEntries` dai tool con attributo `write: true` nel manifest.
-
-**File**: `application.yml.mustache`, `WorkerGenerator.java` (se opzione B), `PolicyProperties.java` (aggiornare default con tutti i nomi MCP write)
-
-## S8-K. Project path dinamico in ownsPaths (B15)
-
-L'orchestratore deve propagare il path del progetto in corso come owned path per ogni worker.
-
-**Design**:
-- `Plan.projectPath` — campo esistente o nuovo (es. `cps4/`, `backend/user-service/`)
-- `AgentTask.dynamicOwnsPaths` — nuovo campo (lista propagata via Redis)
-- `AgentTaskProducer.buildTask()` — aggiunge `plan.getProjectPath()` ai `dynamicOwnsPaths`
-- `WorkerTaskConsumer` — merge `dynamicOwnsPaths` con gli `ownsPaths` statici dal manifest
-- `PathOwnershipEnforcer.checkOwnership()` — riceve la lista merged
-
-```java
-// In AgentTaskProducer.buildTask():
-List<String> dynamicPaths = new ArrayList<>();
-if (plan.getProjectPath() != null) {
-    dynamicPaths.add(plan.getProjectPath());
-}
-task.setDynamicOwnsPaths(dynamicPaths);
-```
-
-**File**: `AgentTask.java`, `AgentTaskProducer.java`, `WorkerTaskConsumer.java`,
-`PathOwnershipEnforcer.java`, `Plan.java` (campo `projectPath` se non esiste)
-
-## S8-L. Centralizzazione nomi tool — ToolNames registry (B13 + B14 + B16)
-
-Invece di fixare B13, B14 e B16 separatamente, centralizzare tutti i nomi tool in un'unica source of truth.
-
-**Design**: classe `ToolNames` nel modulo `worker-sdk` (usata sia dai worker che dall'orchestratore).
-
-```java
-public final class ToolNames {
-    // Tool MCP filesystem (mcp-filesystem-tools, 5 tool)
-    public static final String FS_LIST   = "fs_list";
-    public static final String FS_READ   = "fs_read";
-    public static final String FS_WRITE  = "fs_write";
-    public static final String FS_SEARCH = "fs_search";
-    public static final String FS_GREP   = "fs_grep";
-
-    // Categorie filesystem
-    public static final List<String> WRITE_TOOLS = List.of(FS_WRITE);
-    public static final List<String> READ_TOOLS  = List.of(FS_READ, FS_GREP);
-    public static final List<String> ALL_FS_TOOLS = List.of(FS_LIST, FS_READ, FS_WRITE, FS_SEARCH, FS_GREP);
-    public static final List<String> READONLY_FS_TOOLS = List.of(FS_LIST, FS_READ, FS_SEARCH, FS_GREP);
-
-    // Prefissi librerie (per discovery dinamica — ~548 tool totali)
-    // Ogni libreria usa un prefisso coerente: azure_*, devops_*, ocp_*, jira_*,
-    // docker_*, playwright_*, db_*, mongo_*, embeddings_*, graph_*, api_*
-    // Il registry ToolNames centralizza solo i tool usati nelle policy di enforcement.
-    // I tool specifici di dominio (azure_*, devops_*, etc.) sono gestiti dal manifest allowlist.
-
-    // Tool futuri (dopo #25)
-    // public static final String BASH_EXECUTE   = "bash_execute";
-    // public static final String PYTHON_EXECUTE = "python_execute";
-
-    public static boolean isWriteTool(String name) {
-        return WRITE_TOOLS.contains(name);
-    }
-
-    public static boolean isReadTool(String name) {
-        return READ_TOOLS.contains(name);
-    }
-}
-```
-
-**Consumatori da aggiornare** (tutti leggono da `ToolNames`):
-
-| File | Attuale | Dopo |
-|------|---------|------|
-| `HookPolicyResolver.java:35-46` | `List.of("fs_list", "fs_read", ...)` letterali | `ToolNames.ALL_FS_TOOLS`, `ToolNames.READONLY_FS_TOOLS` |
-| `PolicyProperties.java:43` | `["Write", "Edit", "fs_write"]` | Default da `ToolNames.WRITE_TOOLS` |
-| `PathOwnershipEnforcer.java:117` | `"Read".equals(toolName)` hardcoded | `ToolNames.isReadTool(toolName)` |
-| `hook-manager.agent.yml:34` | `["Read", "Write", "Edit", ...]` | `["fs_list", "fs_read", "fs_write", "fs_search", "fs_grep"]` |
-| `application.yml.mustache:30-32` | `[Write, Edit]` hardcoded | Rimuovere — delegare a `PolicyProperties` default |
-
-**File**: `ToolNames.java` (NEW in `worker-sdk`), + aggiornamento dei 5 file sopra.
-
-## S8-M. Test attesi (~28)
-
-- `AgentResultConsumerTest`: ACK solo dopo commit (3 test)
-- `OrchestrationServiceTest`: side-effect isolation (4 test), stale detection (2 test)
-- `AutoRetrySchedulerTest`: transazione per-item (3 test)
-- `PlanItem/Plan`: optimistic locking conflict (2 test)
-- `RedisStreamListenerContainerTest`: pending message reclaim (3 test)
-- `MissingContextPropagationTest`: CM failure → parent failure (3 test)
-- `PathOwnershipEnforcerTest`: dynamic ownsPaths merge + fs_write check (3 test)
-- `WorkerGeneratorTest`: write-tool-names generation (2 test)
-- `ToolNamesTest`: costanti, categorie, `isWriteTool()`, `isReadTool()` (3 test)
+# Sessione 8 — Fix bug critici + resilienza ✅ → [PIANO_HISTORY.md]
 
 ---
 ---
@@ -4384,9 +4130,10 @@ Le sezioni completate (✅) sono state spostate in **PIANO_HISTORY.md** per mant
 questo documento focalizzato sul piano di evoluzione futuro.
 
 **PIANO_HISTORY.md** contiene:
-- Feature implementate: #1, #2, #3, #4, #6, #11, #14, #16 (motivazioni architetturali complete)
+- Feature implementate: #1, #2, #3, #4, #6, #11, #12, #14, #15, #16, #17, #18 (motivazioni architetturali complete)
 - RAG Pipeline: piano dettagliato 3 sessioni, struttura modulo, config YAML, fonti
-- Session log: S1, S2, S3, S5, S6, S7 (file nuovi/modificati, test, commit)
+- Bug fix: B1-B7, B9, B13-B16 (sessione S8)
+- Session log: S1, S2, S3, S5, S6, S7, S8-serendipity, S8-bugfix, S8-workers, S8-research, S9
 - Riepilogo file per sessione (tabella riassuntiva)
 
 _→ Dettagli in PIANO_HISTORY.md_

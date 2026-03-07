@@ -23,6 +23,7 @@ import java.util.UUID;
  *   <li>{@code PLAN_RESUMED} — paused plan was manually resumed</li>
  *   <li>{@code SYSTEM_CRITICALITY} — system-level criticality alert (sandpile model, C &gt;= 0.8)</li>
  *   <li>{@code WORKER_DRIFT_DETECTED} — Wasserstein drift detected in a worker profile's reward distribution</li>
+ *   <li>{@code CALIBRATION_DRIFT} — GP prediction calibration drift detected (Dutch Book vulnerability)</li>
  * </ul>
  */
 public record SpringPlanEvent(
@@ -44,6 +45,7 @@ public record SpringPlanEvent(
     public static final String PLAN_RESUMED    = "PLAN_RESUMED";
     public static final String SYSTEM_CRITICALITY = "SYSTEM_CRITICALITY";
     public static final String WORKER_DRIFT_DETECTED = "WORKER_DRIFT_DETECTED";
+    public static final String CALIBRATION_DRIFT = "CALIBRATION_DRIFT";
 
     /** Factory for system-level events without a specific plan context. */
     public static SpringPlanEvent forSystem(String eventType) {
