@@ -39,7 +39,8 @@ spec:
   tools:
     dependencies: []
     allowlist:
-      - Read
+      - fs_list
+      - fs_read
     mcpServers:
       - tracker
 

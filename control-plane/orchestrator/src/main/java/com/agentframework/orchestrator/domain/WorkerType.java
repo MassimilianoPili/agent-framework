@@ -3,6 +3,24 @@ package com.agentframework.orchestrator.domain;
 public enum WorkerType {
     BE,
     FE,
+
+    /**
+     * DBA (Database Administration) worker for schema design, migration planning,
+     * indexing, query optimization, and database-specific configuration.
+     * Routed by workerProfile: dba-postgres, dba-mongo, dba-redis, etc.
+     *
+     * <p>TaskKey prefix: {@code DB-}</p>
+     */
+    DBA,
+
+    /**
+     * MOBILE worker for iOS, Android, and cross-platform mobile app development.
+     * Routed by workerProfile: mobile-swift, mobile-kotlin.
+     *
+     * <p>TaskKey prefix: {@code MB-}</p>
+     */
+    MOBILE,
+
     AI_TASK,
     CONTRACT,
     REVIEW {

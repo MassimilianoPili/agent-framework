@@ -40,12 +40,11 @@ spec:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
     allowlist:
-      - Read
-      - Write
-      - Edit
-      - Glob
-      - Grep
-      - Bash
+      - fs_list
+      - fs_read
+      - fs_search
+      - fs_grep
+      - fs_write
     mcpServers:
       - repo-fs
       - openapi

@@ -1,0 +1,74 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: mobile-swift-worker
+  displayName: "Mobile iOS (Swift) Worker"
+  description: >
+    Handles iOS mobile development — Swift 5.9+/6, SwiftUI, UIKit, async/await,
+    SPM, XCTest, Xcode project configuration, and App Store submission preparation.
+
+spec:
+  workerType: MOBILE
+  workerProfile: mobile-swift
+  topic: agent-tasks
+  subscription: mobile-swift-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/mobile-swift/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the mobile task using Swift for iOS.
+
+      Follow these principles:
+      - Swift 5.9+ / Swift 6: strict concurrency, @Observable, async/await
+      - SwiftUI first, UIKit when needed (complex layouts, legacy integration)
+      - MVVM or TCA architecture, clean separation of concerns
+      - Swift Package Manager (SPM) for dependencies
+      - XCTest + Swift Testing for unit and UI tests
+      - Codable for JSON serialization, URLSession for networking
+      - SwiftData or Core Data for persistence
+      - Accessibility: VoiceOver, Dynamic Type support
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "test_results": {
+          "total": 0,
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - ios/
+      - mobile/
+      - templates/mobile/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

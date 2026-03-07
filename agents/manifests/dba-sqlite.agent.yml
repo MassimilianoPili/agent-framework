@@ -1,0 +1,73 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: dba-sqlite-worker
+  displayName: "DBA SQLite/libSQL Worker"
+  description: >
+    Handles SQLite/libSQL database administration — PRAGMA tuning, WAL mode,
+    FTS5, schema migrations, and embedded database optimization.
+
+spec:
+  workerType: DBA
+  workerProfile: dba-sqlite
+  topic: agent-tasks
+  subscription: dba-sqlite-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/dba-sqlite/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the database task using SQLite or libSQL.
+
+      Follow these principles:
+      - SQLite 3.x / libSQL (Turso): embedded database patterns
+      - PRAGMA tuning: journal_mode=WAL, synchronous, cache_size
+      - Virtual tables: FTS5, R*Tree, JSON1
+      - Schema migrations via user_version PRAGMA
+      - Connection pooling: single writer, multiple readers
+      - Backup strategies: .backup command, VACUUM
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "analysis": {
+          "estimated_gain": "performance improvement description",
+          "space_overhead": "disk space impact",
+          "downtime_required": "none/minimal/required"
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-sql-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - db_query
+      - db_tables
+      - db_count
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - database/
+      - templates/dba/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

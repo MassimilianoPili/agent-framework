@@ -1,0 +1,77 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: dba-postgres-worker
+  displayName: "DBA PostgreSQL Worker"
+  description: >
+    Handles PostgreSQL database administration — schema design, indexing,
+    query optimization, Flyway migrations, partitioning, and performance tuning.
+
+spec:
+  workerType: DBA
+  workerProfile: dba-postgres
+  topic: agent-tasks
+  subscription: dba-postgres-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/dba-postgres/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the database task using PostgreSQL.
+
+      Follow these principles:
+      - PostgreSQL 16+: modern SQL features, JSONB, array types
+      - Indexes: B-tree, GIN, GiST, BRIN — always justify with EXPLAIN
+      - Partitioning: range, list, hash for large tables
+      - Migrations: Flyway reversible scripts (V{ver}__{desc}.sql)
+      - Extensions: pgvector, pg_trgm, PostGIS, AGE when needed
+      - Security: roles, privileges, RLS (Row Level Security)
+      - Performance: pg_stat_statements, autovacuum tuning
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "analysis": {
+          "estimated_gain": "performance improvement description",
+          "space_overhead": "disk space impact",
+          "downtime_required": "none/minimal/required"
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-sql-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - db_query
+      - db_tables
+      - db_list_schemas
+      - db_count
+      - db_list_databases
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - database/
+      - templates/dba/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

@@ -1624,6 +1624,1120 @@ Un tipo non nella mappa viene eseguito in-process (manager leggeri).
 **Priorita'**: ALTA — abilita kill, singleton, e semplifica l'architettura (da Redis PEL a HTTP diretto).
 
 ---
+
+# Roadmap items #30-#34 — Blockchain-Inspired Enhancements
+
+Cinque concetti ispirati alla blockchain — senza blockchain vera — per aggiungere garanzie
+crittografiche di integrita' al framework. Costo infrastrutturale zero: i primitivi crittografici
+(hash chain, firme Ed25519, commitment) danno le stesse garanzie senza consenso distribuito.
+
+## #30 — Hash Chain Tamper-Proof su `plan_event`
+
+**Problema**: `plan_event` e' append-only ma non offre garanzia crittografica che gli eventi
+non siano stati modificati retroattivamente. Un attore con accesso al DB (o un bug) potrebbe
+alterare payload/timestamp di eventi passati senza che il sistema lo rilevi. Per audit esterni
+o compliance, serve una prova matematica di integrita'.
+
+**Soluzione**: ogni evento include `event_hash = SHA-256(previous_hash + event_type + payload + occurred_at)`.
+Il primo evento del piano (genesis) usa hash zero (`0x00...`). La catena e' verificabile
+offline con una query SELECT + scan sequenziale.
+
+**Design**:
+
+```java
+// In PlanEventStore.java — modifica del metodo append()
+public PlanEvent append(UUID planId, UUID itemId, String eventType, Object payload) {
+    String payloadJson = serialize(payload);
+    String previousHash = repository.findTopByPlanIdOrderBySequenceNumberDesc(planId)
+            .map(PlanEvent::getEventHash)
+            .orElse("0".repeat(64)); // genesis: 64 zero hex chars
+
+    String eventHash = HashUtil.sha256(previousHash + "|" + eventType + "|" + payloadJson + "|" + now);
+
+    PlanEvent event = new PlanEvent();
+    event.setEventHash(eventHash);
+    event.setPreviousHash(previousHash);
+    // ... resto invariato
+    return repository.save(event);
+}
+```
+
+- `PlanEvent.java`: +2 campi (`eventHash VARCHAR(64) NOT NULL`, `previousHash VARCHAR(64) NOT NULL`)
+- `PlanEventStore.java`: calcolo hash nel metodo `append()`, query per ultimo hash del piano
+- `PlanEventRepository.java`: `findTopByPlanIdOrderBySequenceNumberDesc()`
+- `HashChainVerifier.java` (NEW): verifica sequenziale `O(N)` della catena per un piano
+- `PlanController.java`: `GET /api/v1/plans/{id}/verify-integrity` — restituisce `{valid: bool, brokenAt: seqNum}`
+- Flyway V11: `ALTER TABLE plan_event ADD COLUMN event_hash VARCHAR(64) NOT NULL DEFAULT '', ADD COLUMN previous_hash VARCHAR(64) NOT NULL DEFAULT ''`
+
+**Migrazione dati esistenti**: script Flyway che ricalcola la catena per tutti gli eventi esistenti
+(ordinati per `plan_id, sequence_number`). Operazione one-shot, idempotente.
+
+**Performance**: SHA-256 di ~1KB payload = ~1 microsecondo. La query per l'ultimo hash e' O(1)
+con l'indice esistente `idx_plan_event_plan_seq`. Nessun impatto misurabile.
+
+**Chain break detection**: se `HashChainVerifier` trova un hash non corrispondente, logga
+`SECURITY WARNING` e pubblica un `SpringPlanEvent` di tipo `INTEGRITY_VIOLATION`.
+Non blocca il sistema (graceful degradation), ma segnala l'anomalia.
+
+**Sforzo**: 0.5g. **Dipendenze**: nessuna.
+**Impatto**: basso rischio, alto valore per audit/compliance.
+
+---
+
+## #31 — Verifiable Compute (Firma Crittografica Output Worker)
+
+**Problema**: l'orchestratore riceve `AgentResult` dal worker via Redis, ma non ha modo di
+verificare che il risultato provenga effettivamente dal worker dichiarato. Un attore malevolo
+con accesso a Redis potrebbe iniettare risultati falsi. Con worker esterni (SaaS, multi-tenant),
+il rischio diventa concreto.
+
+**Soluzione**: ogni worker firma crittograficamente il proprio output con Ed25519.
+L'orchestratore verifica la firma prima di processare il risultato.
+
+**Design**:
+
+```java
+// In agent-common (shared, zero dipendenze esterne)
+public record SignedResultEnvelope(
+    String resultJson,                // payload originale
+    String provenanceJson,            // Provenance serializzata
+    String policyHash,                // SHA-256 della HookPolicy ricevuta
+    String workerSignature,           // Ed25519 signature (Base64)
+    String workerPublicKey,           // Ed25519 public key (Base64) — per key discovery
+    String signedAt                   // ISO-8601 timestamp
+) {}
+```
+
+- `WorkerKeyManager.java` (NEW, in worker-sdk): gestione keypair Ed25519 per worker
+  - Chiavi generate al primo avvio, persistite in `/keys/{workerType}.key` (volume Docker)
+  - Rotazione: parametro `worker.key-rotation-days: 90`, rigenera e re-registra
+  - Public key registrata all'orchestratore via endpoint `POST /api/v1/workers/keys`
+- `ResultSigner.java` (NEW, in worker-sdk): firma il risultato prima di pubblicarlo
+  - `sign(resultJson, provenance, policyHash) → SignedResultEnvelope`
+  - Chiamato in `AbstractWorker.process()` dopo `execute()`, prima di `resultProducer.publish()`
+- `SignatureVerifier.java` (NEW, in orchestrator): verifica la firma all'arrivo del risultato
+  - `verify(SignedResultEnvelope, registeredPublicKey) → boolean`
+  - Chiamato in `OrchestrationService.onTaskCompleted()` come primo step
+- `WorkerKeyRegistry.java` (NEW, in orchestrator): registry delle public key per worker type
+  - Persistito in DB (Flyway V11: tabella `worker_keys`)
+  - Cache in-memory `ConcurrentHashMap<String, PublicKey>`
+
+**Chiavi Java**: `java.security.KeyPairGenerator.getInstance("Ed25519")` (Java 15+, no BouncyCastle).
+
+**Failure path**: firma invalida → item marcato `FAILED` con `failureReason: "SIGNATURE_VERIFICATION_FAILED"`,
+evento `INTEGRITY_VIOLATION` nel log. Nessun retry automatico (potrebbe essere attacco).
+
+**Abilitato di default**: `worker.signing.enabled: true` (default true — nessun progetto in corso, nessun rischio backward compatibility).
+Se disabilitato (`false`), `onTaskCompleted()` accetta risultati senza firma.
+
+**Sforzo**: 2g. **Dipendenze**: promuovere `HashUtil` da worker-sdk a agent-common.
+**Impatto**: fondamentale per scenari multi-tenant e worker esterni.
+
+---
+
+## #32 — Policy-as-Code Immutabile (Commitment crittografico HookPolicy)
+
+**Problema**: le HookPolicy generate dal HOOK_MANAGER sono conservate in-memory
+(`ConcurrentHashMap` in `HookManagerService`). Un bug, una race condition, o un attore
+malevolo con accesso al processo potrebbe alterare la policy tra la generazione e l'enforcement.
+Il worker riceve la policy nell'`AgentTask`, ma non puo' verificare che corrisponda
+a quella originale.
+
+**Soluzione**: commitment crittografico — quando HOOK_MANAGER genera una policy, il sistema
+calcola `policy_hash = SHA-256(canonical_json(policy))` e lo persiste in DB.
+Il worker riceve sia la policy che il suo hash. `PolicyEnforcingToolCallback` verifica
+il match prima di applicare la policy.
+
+**Design**:
+
+- Al salvataggio in `HookManagerService.storePolicies()`:
+  - Calcola `SHA-256(canonical_json(policy))` per ogni task
+  - Persiste hash in `plan_items.policy_hash` (nuovo campo, Flyway V11)
+  - L'hash e' immutabile: nessun UPDATE successivo ammesso (enforced da CHECK constraint o applicativo)
+- `AgentTask` include gia' `HookPolicy policy`; aggiungere campo `String policyHash`
+- `PolicyEnforcingToolCallback.initialize()`: ricalcola hash dalla policy ricevuta,
+  confronta con `policyHash`. Mismatch → rifiuta esecuzione, segnala `POLICY_TAMPERED`
+
+```java
+// In PolicyEnforcingToolCallback
+String receivedHash = HashUtil.sha256(canonicalJson(taskPolicy));
+if (!receivedHash.equals(expectedPolicyHash)) {
+    throw new PolicyTamperedException("Policy hash mismatch: expected " + expectedPolicyHash);
+}
+```
+
+**Canonical JSON**: ObjectMapper con `ORDER_MAP_ENTRIES_BY_KEYS = true` e `SORT_PROPERTIES_ALPHABETICALLY = true`
+per garantire determinismo della serializzazione (altrimenti ordini diversi → hash diversi).
+
+**Sforzo**: 1g. **Dipendenze**: #23 (Enrichment Pipeline — senza HOOK_MANAGER attivo, non ci sono policy).
+**Impatto**: chiude il gap di trust tra generazione e enforcement delle policy.
+
+---
+
+## #33 — Token Economics (Contabilita' Double-Entry per Budget)
+
+**Problema**: il sistema di budget attuale (`PlanTokenUsageService`) e' un contatore monotonico:
+somma i token consumati e confronta con il ceiling. Manca il concetto di "produzione" di valore —
+un task che ha avuto un alto reward ha "restituito" valore al sistema. Non c'e' visibilita'
+sul ROI per-task o per-workerType.
+
+**Soluzione**: contabilita' double-entry con token virtuali. Ogni piano parte con un "pool" di token.
+Ogni task "spende" dal pool (debit) e il reward "restituisce" una frazione (credit).
+Il saldo netto mostra l'efficienza reale del piano.
+
+**Design**:
+
+```
+Piano budget: 200.000 token
++-- CM-001: debit 5.000, credit 0 (infra, no reward)
++-- BE-001: debit 45.000, credit 13.500 (reward 0.90 x 15.000 base)
++-- BE-002: debit 80.000, credit 8.000 (reward 0.40 x 20.000 base)
+|           ^ retry: debit 30.000 aggiuntivi
++-- FE-001: debit 20.000, credit 9.000 (reward 0.90 x 10.000 base)
++-- REVIEW: debit 10.000, credit 0 (infra)
+    ─────────────────
+    Total debit:  190.000
+    Total credit:  30.500
+    Net spend:    159.500
+    Efficiency:   16.1% returned
+```
+
+- Flyway V11: tabella `token_ledger` (`plan_id`, `item_id`, `entry_type` ENUM('DEBIT','CREDIT'), `amount`, `balance_after`, `description`, `created_at`)
+- `TokenLedgerService.java` (NEW):
+  - `debit(planId, itemId, amount, description)` — registra spesa, aggiorna saldo
+  - `credit(planId, itemId, amount, description)` — registra ritorno basato su reward
+  - `getBalance(planId)` — saldo corrente
+  - `getLedger(planId)` — storico completo
+  - Credit formula: `baseCredit = tokenBudgetPerType x aggregatedReward`
+  - Credits emessi solo per domain worker (BE, FE, AI_TASK), non per infra (CM, HOOK_MANAGER, REVIEW)
+- `PlanController.java`: `GET /api/v1/plans/{id}/budget/ledger` — tabella double-entry
+- `OrchestrationService`: integrazione debit al dispatch, credit al reward computation
+
+**Invariante contabile**: `SUM(debit) - SUM(credit) = net_spend`. Verificabile con query SQL.
+
+**Beneficio**: visibilita' sull'efficienza dei worker. Un workerType che ha costantemente
+`credit/debit < 0.1` ha un pessimo rapporto costo/qualita'. Alimenta decisioni GP e ELO.
+
+**Sforzo**: 1.5g. **Dipendenze**: nessuna (il reward system esiste gia').
+**Impatto**: medio — migliora l'osservabilita', non cambia il comportamento.
+
+---
+
+## #34 — Federazione Multi-Server (Design Interfacce)
+
+**Problema**: il framework e' single-server. Se evolvesse verso federazione — piu' orchestratori
+che collaborano su piani condivisi, o agent di organizzazioni diverse — servirebbe un protocollo
+di sincronizzazione degli eventi e di trust tra server. Oggi e' premature implementarlo, ma
+definire le interfacce permette di non precludere l'evoluzione.
+
+**Soluzione (solo interfacce, nessuna implementazione)**: definire SPI per federazione.
+
+**Design**:
+
+```java
+// In agent-common — interfacce che i futuri provider implementeranno
+
+/** Identita' crittografica di un server nel cluster federato */
+public record ServerIdentity(
+    String serverId,         // UUID stabile
+    String displayName,      // "SOL-1", "SOL-2"
+    String publicKey,        // Ed25519 public key (Base64)
+    String endpoint,         // https://sol-2.example.com/api/v1/federation
+    Instant registeredAt
+) {}
+
+/** Sync di eventi tra server federati */
+public interface FederationEventSync {
+    /** Pubblica un evento locale ai peer */
+    void broadcast(PlanEvent event, String signature);
+
+    /** Riceve eventi da un peer, verifica firma, merge nella sequenza locale */
+    void receive(PlanEvent event, String signature, ServerIdentity sender);
+
+    /** Richiede eventi mancanti (late-join, riconnessione) */
+    List<PlanEvent> requestMissing(UUID planId, long fromSequence, ServerIdentity peer);
+}
+
+/** Dispatch di task a worker su server remoti */
+public interface FederationTaskRouter {
+    /** Determina quale server ha il worker migliore per questo task */
+    ServerIdentity route(AgentTask task, List<ServerIdentity> availableServers);
+
+    /** Dispatcha un task a un server remoto */
+    void dispatchRemote(AgentTask task, ServerIdentity target);
+}
+
+/** Consenso federato per operazioni critiche */
+public interface FederationConsensus {
+    /** Propone un'azione che richiede consenso (es. plan cancellation, policy override) */
+    CompletableFuture<ConsensusResult> propose(String action, Object payload);
+}
+
+public record ConsensusResult(
+    boolean approved,
+    int votesFor, int votesAgainst,
+    Map<String, String> serverVotes  // serverId -> "approve"/"reject"
+) {}
+```
+
+**Protocollo sync eventi**: Merkle tree degli hash eventi (#30) per riconciliazione
+efficiente. Ogni server mantiene il Merkle root del proprio ramo. Al sync, confronto root →
+scambio solo dei sottoalberi divergenti.
+
+**Conflitti**: CRDT (Conflict-free Replicated Data Types) per lo stato del piano.
+`ItemStatus` come stato convergente: `max(status_A, status_B)` con ordinamento
+`WAITING < DISPATCHED < DONE < FAILED`. Mai conflitto semantico.
+
+**Auth inter-server**: mTLS con certificati Ed25519 (riusa le chiavi del #31).
+JWT federato: ogni server emette JWT firmati con la propria chiave, gli altri verificano
+con la public key dal registry.
+
+**Cosa NON implementare ora**:
+- Nessun provider concreto (solo SPI)
+- Nessuna migrazione DB
+- Nessun endpoint REST
+- Solo interfacce Java + Javadoc + test delle interfacce (contract test)
+
+**File**: `agent-common/.../federation/ServerIdentity.java`, `FederationEventSync.java`,
+`FederationTaskRouter.java`, `FederationConsensus.java`, `ConsensusResult.java`
+
+**Sforzo**: 1g (solo interfacce + Javadoc). **Dipendenze**: #30 (hash chain per Merkle), #31 (chiavi Ed25519 per mTLS).
+**Impatto**: nessuno oggi, ma sblocca l'evoluzione futura senza breaking changes.
+
+---
+
+## Idee aggiuntive blockchain-inspired (da valutare per roadmap futura)
+
+### A. Merkle Tree per DAG Verification
+Ogni nodo del DAG (plan item) ha un hash che include gli hash dei suoi predecessori.
+Il root hash rappresenta l'intero piano. Qualsiasi modifica a qualsiasi task cambia
+il root hash → tamper detection istantanea a livello piano.
+Utile quando il DAG viene serializzato/deserializzato (REST, SSE, export).
+
+### B. Commit-Reveal per Council Votes
+Problema: i Council member vedono i voti degli altri (anchoring bias).
+Soluzione 2 fasi: (1) ogni membro invia `SHA-256(vote + nonce)`, (2) dopo tutti i commit,
+ogni membro rivela `vote + nonce`. Il coordinator verifica `hash(revealed) == committed`.
+Previene che un membro modifichi il suo voto dopo aver visto gli altri.
+Complessita': bassa. Valore: medio (i member sono LLM, non umani — l'anchoring bias
+e' meno rilevante se le chiamate sono parallele e indipendenti, come gia' avviene nel CouncilService).
+
+### C. Reputation Staking
+I worker "mettono in gioco" punti reputazione prima di accettare un task.
+Se il task ha successo, recuperano lo stake + bonus. Se fallisce, perdono lo stake.
+Meccanismo: `worker_elo_stats.staked_reputation` (sottratto prima del dispatch,
+restituito + bonus dopo reward computation).
+Effetto: worker con bassa reputazione non accettano task rischiosi (self-selection).
+Integrazione naturale con GP engine (UCB policy diventa risk-aware).
+
+### D. Content-Addressable Storage per Artifact
+I risultati dei worker (codice generato, file modificati) vengono salvati con
+chiave = SHA-256(content). Due task che producono lo stesso output puntano allo
+stesso storage. Deduplica naturale, verifica integrita' gratis.
+Pattern: simile a Git objects (blob → tree → commit).
+
+---
+
+## Riepilogo items blockchain-inspired e priorita'
+
+| # | Titolo | Sforzo | Dipendenze | Valore |
+|---|--------|--------|------------|--------|
+| 30 | Hash Chain Tamper-Proof | 0.5g | nessuna | Alto (audit/compliance) |
+| 31 | Verifiable Compute (firma worker) | 2g | HashUtil in agent-common | Alto (multi-tenant) |
+| 32 | Policy-as-Code Immutabile | 1g | #23 | Medio-Alto (trust) |
+| 33 | Token Economics Double-Entry | 1.5g | nessuna | Medio (osservabilita') |
+| 34 | Federazione (solo interfacce) | 1g | #30, #31 | Basso oggi, alto futuro |
+
+**Ordine consigliato**: #30 → #32 → #31 → #33 → #34
+(#30 e' fondazione per tutti; #32 sblocca trust policies; #31 e' il piu' complesso ma autonomo;
+#33 e' indipendente; #34 solo interfacce, ultimo)
+
+**Totale**: ~6 giorni di lavoro.
+
+---
+
+# Mathematical Foundations (#35-#43)
+
+Roadmap items ispirati a branche matematiche non ancora esplorate nel framework.
+Ogni branca risolve un problema concreto dell'orchestrazione multi-agent.
+
+---
+
+## #35 — Context Quality Scoring (Teoria dell'Informazione)
+
+**Problema**: il CONTEXT_MANAGER produce contesto per i worker, ma non c'e' modo di misurare
+*quanto* informativo sia. Un contesto con 50 file irrilevanti e' rumore — il worker spreca token.
+Non esiste feedback loop sulla qualita' del contesto.
+
+**Soluzione**: metriche information-theoretic per valutare e migliorare il contesto.
+
+**Design**:
+
+- **Mutual Information** `I(Context; Result)`: quanta informazione condividono contesto e risultato.
+  Calcolata a posteriori sugli embeddings (pgvector 1024-dim gia' presente in `task_outcomes`):
+  ```
+  ContextQualityScore = I(context_embedding; result_reward)
+                      = H(result_reward) - H(result_reward | context_embedding)
+  ```
+  Se MI e' bassa → il contesto non sta aiutando. Feedback al CONTEXT_MANAGER.
+
+- **Entropia del contesto** `H(Context)`: contesto ad alta entropia = troppo vario/rumoroso.
+  Contesto a bassa entropia = troppo specifico (rischio tunnel vision).
+  Target: entropia media — contesto focalizzato ma non troppo ristretto.
+
+- **KL Divergence** tra distribuzione file selezionati dal CM e distribuzione file effettivamente usati dal worker
+  (ricavata da `Provenance.toolsUsed` + file letti).
+  `D_KL(P_used || P_selected)` alto → CM seleziona file che il worker ignora.
+
+- `ContextQualityService.java` (NEW): calcola MI, H, KL dopo ogni task completato
+- `ContextQualityFeedback` record (NEW): score + suggerimenti (rimuovere file a bassa MI, aggiungere file mancanti)
+- Integrazione: `RewardComputationService` include context quality come quarto reward source
+- Flyway V12: `ALTER TABLE task_outcomes ADD COLUMN context_quality_score DOUBLE PRECISION`
+
+**File**: `ContextQualityService.java` (NEW), `RewardComputationService.java` (modifica),
+`task_outcomes` (migrazione), `ContextQualityFeedback.java` (NEW, in agent-common)
+
+**Sforzo**: 2g. **Dipendenze**: RAG pipeline attiva (#23), `task_outcomes` con embeddings (#15).
+**Impatto**: alto — chiude il feedback loop sulla qualita' del contesto, migliora progressivamente il CM.
+
+---
+
+## #36 — Worker Pool Sizing (Queueing Theory)
+
+**Problema**: quanti worker servono? Quanto aspettera' un task in coda? Se il piano ha 20 task BE
+ma un solo worker BE, qual e' il throughput atteso? Non c'e' modo di predire colli di bottiglia.
+
+**Soluzione**: modelli di queueing theory per predire tempi di attesa e dimensionare i worker pool.
+
+**Design**:
+
+- **Legge di Little**: `L = lambda * W` (task in coda = tasso arrivo x tempo medio).
+  `lambda` = task ready per dispatch / tempo, `W` = durata media task per workerType (da `plan_items.durationMs`).
+  Pre-calcolo: dato un piano con N task BE e durata media 2 min → `W_total = N * 2min / num_workers`.
+
+- **Erlang C**: probabilita' che un task debba aspettare, dato c worker e carico `rho = lambda / (c * mu)`.
+  Se `P(wait) > 0.5` → suggerisce di aggiungere worker.
+  ```java
+  double erlangC(int c, double rho) {
+      double a = c * rho;
+      double erlangB = Math.pow(a, c) / factorial(c);
+      // ... formula ricorsiva standard
+      return erlangB / (erlangB + (1 - rho) * sum);
+  }
+  ```
+
+- **Critical Path Method**: il DAG definisce un ordinamento parziale.
+  Il percorso critico = sequenza piu' lunga di dipendenze.
+  `criticalPathDuration = sum(durata stimata dei task sul percorso critico)`.
+  Task fuori dal percorso critico possono aspettare senza impattare il tempo totale.
+
+- `QueueAnalyzer.java` (NEW): analisi pre-dispatch
+  - `analyze(Plan plan) → QueueMetrics`
+  - `QueueMetrics`: estimatedCompletionTime, optimalWorkerCount (per tipo), bottleneckWorkerType, criticalPath
+- `PlanController.java`: `GET /api/v1/plans/{id}/queue-analysis` → QueueMetrics (pre-esecuzione) o live metrics
+- Dati storici: `plan_items` con `durationMs` per calibrare lambda e mu
+
+**File**: `QueueAnalyzer.java` (NEW), `QueueMetrics.java` (NEW, in agent-common),
+`PlanController.java` (endpoint), `CriticalPathCalculator.java` (NEW — topological sort + max-path sul DAG)
+
+**Sforzo**: 1.5g. **Dipendenze**: nessuna (usa dati storici in `plan_items`).
+**Impatto**: alto — predice colli di bottiglia prima dell'esecuzione, guida il sizing nel modello JVM-per-type (#29).
+
+---
+
+## #37 — Adaptive Token Budget (Teoria del Controllo — PID)
+
+**Problema**: il budget token e' un ceiling statico. Se un task consuma troppo, il piano va in PAUSED.
+Non c'e' meccanismo adattivo — il budget non si aggiusta in base a come sta andando l'esecuzione.
+
+**Soluzione**: controllore PID che aggiusta il `maxTokenBudget` nei HookPolicy dei task successivi
+in base all'errore cumulativo (budget previsto vs consumato).
+
+**Design**:
+
+```
+u(t) = Kp * e(t) + Ki * integral(e) + Kd * de/dt
+
+e(t) = budget_stimato_task - budget_consumato_task
+Kp = 0.5   (reazione proporzionale all'errore)
+Ki = 0.1   (correzione drift cumulativo)
+Kd = 0.2   (reazione alla velocita' di cambiamento)
+```
+
+- **P** (proporzionale): task consuma 35k invece di 20k previsti → e = -15k → riduce budget task successivi
+- **I** (integrale): accumulo errore → se sistematicamente over-budget, riduce progressivamente
+- **D** (derivativa): se la velocita' di consumo accelera, interviene prima
+
+- `PidBudgetController.java` (NEW):
+  - `update(planId, actualTokens, estimatedTokens) → adjustedBudget`
+  - Stato persistito: `error_integral`, `last_error` (per termine derivativo)
+  - Vincoli: output clampato tra `minBudget` (non sotto 5k) e `maxBudget` (non sopra piano)
+  - Anti-windup: integrale limitato per evitare saturazione
+- Integrazione: `OrchestrationService.dispatchReadyItems()` chiama PID prima di costruire `AgentTask`
+  - Il PID modifica `HookPolicy.maxTokenBudget` per il task corrente
+  - Se output PID negativo (budget in eccesso) → alloca surplus a task successivi
+- `application.yml`: `budget.pid.kp: 0.5, budget.pid.ki: 0.1, budget.pid.kd: 0.2, budget.pid.enabled: true`
+
+**Stabilita'**: i coefficienti Kp, Ki, Kd devono soddisfare il criterio di Routh-Hurwitz.
+Con i valori proposti, il sistema e' stabile (nessuna oscillazione). Verificabile con simulazione
+su dati storici `plan_items.tokensUsed`.
+
+**File**: `PidBudgetController.java` (NEW), `OrchestrationService.java` (integrazione dispatch),
+`HookManagerService.java` (PID override del maxTokenBudget), `application.yml`
+
+**Sforzo**: 1g. **Dipendenze**: #32 (policy immutabile — il PID deve agire *prima* del commitment hash).
+**Impatto**: alto — budget dinamico riduce PAUSED inutili e ottimizza l'allocazione.
+
+---
+
+## #38 — State Machine Verification (Logica Temporale LTL/CTL)
+
+**Problema**: la state machine di `PlanItem` e `Plan` ha transizioni complesse (ralph-loop, retry,
+sub-plan, approval, cancellation). Non c'e' garanzia formale che non esistano deadlock, livelock,
+o stati irraggiungibili. I bug nelle transizioni si scoprono solo a runtime.
+
+**Soluzione**: model checking con proprieta' espresse in logica temporale. Verifica statica
+esaustiva di tutte le transizioni possibili.
+
+**Design**:
+
+Proprieta' da verificare:
+```
+P1: sempre(DISPATCHED -> eventualmente(DONE | FAILED | CANCELLED))     // no deadlock
+P2: sempre(retryCount <= maxRetries)                                     // bounded retry
+P3: sempre(ralphLoopCount <= maxRalphLoops)                              // bounded quality loops
+P4: sempre(allItemsTerminal -> planTerminal)                             // plan completion
+P5: mai(CANCELLED -> eventualmente(DISPATCHED))                          // CANCELLED terminale
+P6: sempre(AWAITING_APPROVAL -> eventualmente(WAITING | FAILED))         // approval risolto
+```
+
+- `StateMachineVerifier.java` (NEW): enumerazione esaustiva degli stati raggiungibili
+  - Input: `ItemStatus[]` transizioni ammesse, vincoli (maxRetry, maxRalph)
+  - Output: `VerificationResult` con proprieta' verificate/violate + counterexample
+  - Spazio stati: ~7 stati item x 5 stati plan x 3 retry x 2 ralph = ~210 stati (trattabile)
+  - Eseguito come **test JUnit** (compilazione-time, non runtime)
+
+- Transizioni ammesse (grafo esplicito):
+  ```java
+  Map<ItemStatus, Set<ItemStatus>> ALLOWED = Map.of(
+      WAITING,            Set.of(DISPATCHED, CANCELLED),
+      DISPATCHED,         Set.of(DONE, FAILED, CANCELLED),
+      DONE,               Set.of(WAITING),           // solo ralph-loop
+      FAILED,             Set.of(WAITING, TO_DISPATCH, CANCELLED),
+      AWAITING_APPROVAL,  Set.of(WAITING, FAILED),
+      TO_DISPATCH,        Set.of(DISPATCHED),
+      CANCELLED,          Set.of()                    // terminale
+  );
+  ```
+
+- `StateMachineVerifierTest.java` (NEW): test che verifica P1-P6 a ogni build.
+  Se una refactoring rompe una proprieta' → il build fallisce con counterexample.
+
+**P4 (DONE → WAITING) e' intenzionalmente violata**: dal ralph-loop. Il verifier la segnala
+come "controlled violation" con annotazione `@AllowedViolation("ralph-loop, bounded by maxRalphLoops")`.
+
+**File**: `StateMachineVerifier.java` (NEW), `StateMachineVerifierTest.java` (NEW),
+`ItemStatus.java` (aggiungere metodo `allowedTransitions()`)
+
+**Sforzo**: 1g. **Dipendenze**: nessuna.
+**Impatto**: medio-alto — trova deadlock e transizioni illegali a compile-time, non a runtime.
+
+---
+
+## #39 — Policy Lattice Composition (Teoria dei Reticoli)
+
+**Problema**: le HookPolicy provengono da fonti multiple (HOOK_MANAGER, planner toolHints, config statica).
+Non c'e' un meccanismo formale per comporle. Quale vince? Come si combinano allowedTools da fonti diverse?
+
+**Soluzione**: le policy formano un reticolo (lattice) dove `meet` (intersezione) produce la policy
+piu' restrittiva. La composizione e' deterministica e associativa.
+
+**Design**:
+
+```java
+// HookPolicy come elemento di un meet-semilattice
+public class PolicyLattice {
+
+    /** Meet: intersezione (policy piu' restrittiva) */
+    public static HookPolicy meet(HookPolicy a, HookPolicy b) {
+        return new HookPolicy(
+            intersection(a.allowedTools(), b.allowedTools()),     // tools comuni
+            intersection(a.ownedPaths(), b.ownedPaths()),         // path comuni
+            intersection(a.allowedMcpServers(), b.allowedMcpServers()),
+            a.auditEnabled() || b.auditEnabled(),                 // audit se almeno una lo richiede
+            min(a.maxTokenBudget(), b.maxTokenBudget()),          // budget piu' basso
+            intersection(a.allowedNetworkHosts(), b.allowedNetworkHosts()),
+            max(a.requiredHumanApproval(), b.requiredHumanApproval()), // approval piu' stringente
+            min(a.approvalTimeoutMinutes(), b.approvalTimeoutMinutes()),
+            max(a.riskLevel(), b.riskLevel()),                    // risk piu' alto
+            min(a.estimatedTokens(), b.estimatedTokens()),
+            a.shouldSnapshot() || b.shouldSnapshot()              // snapshot se almeno una lo richiede
+        );
+    }
+
+    /** Composizione multi-source */
+    public static HookPolicy compose(HookPolicy hookManager, HookPolicy planner, HookPolicy staticConfig) {
+        return meet(meet(hookManager, planner), staticConfig);
+    }
+}
+```
+
+- Ordinamento parziale: `a <= b` sse `a` e' piu' restrittiva di `b` (per ogni campo)
+- Proprieta' lattice: `meet(a, a) = a` (idempotente), `meet(a, b) = meet(b, a)` (commutativa),
+  `meet(meet(a, b), c) = meet(a, meet(b, c))` (associativa)
+- `BOTTOM` = policy che vieta tutto (zero tool, zero path)
+- `TOP` = policy che permette tutto (wildcard)
+
+- Integrazione: `HookManagerService.resolvePolicy()` usa `PolicyLattice.compose()` invece di fallback a cascata
+- ItemStatus CRDT (per #34 federazione): `max(status_A, status_B)` formalizzato come join nel lattice
+  `WAITING < DISPATCHED < DONE < FAILED < CANCELLED`
+
+**File**: `PolicyLattice.java` (NEW, in agent-common), `HookManagerService.java` (usare compose),
+`PolicyLatticeTest.java` (NEW — verifica proprieta' lattice con property-based testing)
+
+**Sforzo**: 0.5g. **Dipendenze**: nessuna.
+**Impatto**: medio — formalizza un pattern gia' presente informalmente, previene errori di composizione.
+
+---
+
+## #40 — Shapley Value per Reward Distribution (Mechanism Design)
+
+**Problema**: il reward e' assegnato solo al domain worker che produce il risultato finale.
+I worker infrastrutturali (CM, HOOK_MANAGER, SCHEMA_MANAGER) che hanno contribuito al successo
+non ricevono credit. Questo distorce le metriche ELO e GP per gli infra worker.
+
+**Soluzione**: Shapley Value per distribuire equamente il reward lungo il DAG di dipendenze.
+
+**Design**:
+
+Lo Shapley Value di un worker `i` nella coalizione `N`:
+```
+phi_i = sum over S subset N\{i} of:
+    |S|! * (|N|-|S|-1)! / |N|! * [v(S union {i}) - v(S)]
+```
+
+Dove `v(S)` = valore della coalizione S = reward del task se solo i worker in S avessero contribuito.
+
+**Approssimazione pratica** (il calcolo esatto e' O(2^n), ma il DAG ha struttura):
+- Il DAG limita le coalizioni possibili (un worker non puo' contribuire senza i suoi predecessori)
+- Monte Carlo sampling: campiona K permutazioni del DAG, calcola il contributo marginale medio
+- K = 100 permutazioni → errore < 5% per piani tipici (5-20 task)
+
+```java
+public class ShapleyCalculator {
+    /** Calcola Shapley approssimato per ogni task nel piano */
+    public Map<String, Double> computeShapley(Plan plan, double totalReward) {
+        Map<String, Double> values = new HashMap<>();
+        for (int k = 0; k < MONTE_CARLO_SAMPLES; k++) {
+            List<String> permutation = randomTopologicalOrder(plan.getDag());
+            Set<String> coalition = new HashSet<>();
+            for (String taskKey : permutation) {
+                double marginal = marginalContribution(taskKey, coalition, plan);
+                values.merge(taskKey, marginal / MONTE_CARLO_SAMPLES, Double::sum);
+                coalition.add(taskKey);
+            }
+        }
+        return values;
+    }
+}
+```
+
+- `marginalContribution()`: usa il `processScore` del task + quanto i task successivi
+  migliorano con/senza questo task nel contesto
+- `ShapleyCalculator.java` (NEW): calcolo Monte Carlo
+- `RewardComputationService`: integrazione — dopo aggregatedReward, calcola Shapley e distribuisce
+  una quota di reward ai predecessori nel DAG
+- `plan_items`: `shapley_value DOUBLE PRECISION` (Flyway V12) — quanto credit ha ricevuto dal DAG
+- `worker_elo_stats`: aggiornamento ELO include Shapley (non solo reward diretto)
+
+**Effetto**: i worker infra (CM, HOOK_MANAGER) ricevono credit proporzionale al loro contributo.
+L'ELO e il GP riflettono il valore reale, non solo chi produce l'output finale.
+
+**Sforzo**: 2g. **Dipendenze**: nessuna (reward system gia' presente).
+**Impatto**: alto — corregge una distorsione fondamentale nelle metriche, incentiva qualita' degli infra worker.
+
+---
+
+## #41 — Topological Pattern Detection (Persistent Homology)
+
+**Problema**: le metriche scalari (reward, ELO, token) non catturano la *struttura* dei pattern
+di esecuzione. Certi problemi ricorrenti (cluster di fallimenti correlati, cicli di retry,
+regioni dello spazio parametri mai esplorate) hanno una forma topologica.
+
+**Soluzione**: Persistent Homology sugli embeddings 1024-dim dei `task_outcomes` per identificare
+feature topologiche stabili.
+
+**Design**:
+
+- **Betti Numbers**: beta_0 = cluster distinti (profili worker separati), beta_1 = cicli (pattern retry ricorrenti),
+  beta_2 = vuoti (regioni inesplorate dello spazio dei task)
+- **Persistence Diagram**: feature che persistono su molte scale = segnale; feature effimere = rumore
+- **Rips Complex**: costruito sugli embeddings `task_outcomes.embedding` (pgvector 1024-dim, gia' indicizzato HNSW)
+
+Implementazione:
+- Libreria Java: [javaplex](https://github.com/appliedtopology/javaplex) o implementazione custom
+  del Vietoris-Rips complex (per 1024-dim embeddings, sampling necessario: ~200 punti max)
+- `TopologicalAnalyzer.java` (NEW):
+  - `analyze(List<TaskOutcomeEmbedding>) → TopologyReport`
+  - `TopologyReport`: bettiNumbers, persistenceDiagram, significantFeatures
+- `PlanController.java`: `GET /api/v1/analytics/topology` → report con interpretazione
+  - beta_1 > 0: "Esistono pattern ciclici di retry — investigare causa root"
+  - beta_0 alto: "I worker operano in cluster separati — bassa trasferibilita' cross-profile"
+  - beta_2 > 0: "Regioni dello spazio dei task mai esplorate — considerare UCB exploration"
+
+**Frequenza**: analisi batch (non real-time). Eseguita dopo ogni 50+ task_outcomes completati.
+Risultati cachati in Redis (key: `agentfw:topology:{hash(filtro)}`).
+
+**File**: `TopologicalAnalyzer.java` (NEW), `TopologyReport.java` (NEW, in agent-common),
+`PlanController.java` (endpoint analytics)
+
+**Sforzo**: 2.5g. **Dipendenze**: `task_outcomes` con embeddings (#15), RAG pipeline attiva (#23).
+**Impatto**: medio — fornisce insight avanzati, non cambia il comportamento. Valore per debugging e tuning.
+
+---
+
+## #42 — Global Task Assignment (Ottimizzazione Combinatoria)
+
+**Problema**: il GP engine ottimizza worker-per-task (locale). Non considera l'assegnamento *globale*
+— dato l'intero piano con N task e M worker profiles, qual e' l'assegnamento che minimizza
+il tempo totale o massimizza la qualita' complessiva?
+
+**Soluzione**: Hungarian Algorithm per assegnamento ottimale + Critical Path Method per scheduling.
+
+**Design**:
+
+- **Cost Matrix**: `C[i][j]` = costo stimato di assegnare task_i a worker_profile_j.
+  Costo = GP-predicted reward negato (massimizzare reward = minimizzare costo negato).
+  Se il profile non supporta il workerType → costo = infinito.
+
+- **Hungarian Algorithm** (O(n^3)): trova l'assegnamento che minimizza il costo totale.
+  Per piani tipici (5-30 task) → < 1ms. Trattabile anche per 100+ task.
+
+- **Critical Path Method** (CPM):
+  - Calcola il percorso critico (sequenza piu' lunga nel DAG pesato per durata stimata)
+  - Task sul percorso critico: assegnare il worker migliore (GP mu piu' alta)
+  - Task fuori dal percorso critico: possono tollerare worker meno ottimali (budget saving)
+
+```java
+public class GlobalAssignmentSolver {
+    public AssignmentResult solve(Plan plan, List<WorkerProfile> profiles) {
+        double[][] costMatrix = buildCostMatrix(plan, profiles);  // GP predictions
+        int[] assignment = hungarianAlgorithm(costMatrix);        // O(n^3)
+
+        List<String> criticalPath = cpCalculator.findCriticalPath(plan.getDag());
+        // Boost: task su critical path ricevono il profile ottimale (override Hungarian se necessario)
+
+        return new AssignmentResult(assignment, criticalPath, estimatedCompletion);
+    }
+}
+```
+
+- `GlobalAssignmentSolver.java` (NEW): Hungarian + CPM
+- `CriticalPathCalculator.java` (NEW, riutilizzabile da #36 QueueAnalyzer)
+- Integrazione: `GpWorkerSelectionService` → se `global-assignment.enabled: true`,
+  usa `GlobalAssignmentSolver` invece di selezione per-task
+- `PlanController.java`: `GET /api/v1/plans/{id}/assignment-preview` → mostra assegnamento proposto prima dell'esecuzione
+
+**File**: `GlobalAssignmentSolver.java` (NEW), `CriticalPathCalculator.java` (NEW, condiviso con #36),
+`GpWorkerSelectionService.java` (integrazione), `AssignmentResult.java` (NEW)
+
+**Sforzo**: 2g. **Dipendenze**: GP engine (#15) per le predizioni di costo.
+**Impatto**: alto — ottimizzazione globale vs locale, riduce il tempo totale del piano.
+
+---
+
+## #43 — Differential Privacy per Metriche Federate
+
+**Problema**: nello scenario federato (#34), i server condividono metriche (ELO, reward, token usage).
+Ma queste metriche rivelano informazioni sul codice e i pattern dei clienti. Un server curioso
+potrebbe inferire il tipo di lavoro svolto da un altro server analizzando le metriche.
+
+**Soluzione**: epsilon-differential privacy — aggiungere rumore calibrato alle metriche
+prima di condividerle. Garanzia matematica che un singolo task non influenza significativamente l'output.
+
+**Design (solo interfacce + implementazione base, coerente con #34)**:
+
+```java
+// In agent-common
+public interface DifferentialPrivacyMechanism {
+    /** Aggiunge rumore Laplace calibrato */
+    double privatize(double trueValue, double sensitivity, double epsilon);
+
+    /** Composizione: budget di privacy dopo K query */
+    double remainingBudget(double initialEpsilon, int queriesUsed);
+}
+
+// Implementazione
+public class LaplaceMechanism implements DifferentialPrivacyMechanism {
+    public double privatize(double trueValue, double sensitivity, double epsilon) {
+        double scale = sensitivity / epsilon;
+        return trueValue + laplaceSample(scale);
+    }
+}
+```
+
+- `sensitivity` per ELO = 32 (K-factor massimo cambiamento per singolo task)
+- `sensitivity` per reward = 2.0 (range [-1, +1])
+- `epsilon = 1.0` → rumore ~32 punti ELO → utile per ranking comparativo, inutile per reverse-engineering
+- Composizione: dopo K query, `epsilon_totale = K * epsilon_singola`. Budget finito → limitare le query.
+
+- `DifferentialPrivacyMechanism.java` (NEW, in agent-common): interfaccia SPI
+- `LaplaceMechanism.java` (NEW): implementazione Laplace
+- `FederationMetricsExporter.java` (NEW): applica DP prima di esportare metriche ai peer
+- Integrazione con `FederationEventSync` (#34): eventi broadcast includono metriche privatizzate
+- `application.yml`: `federation.privacy.epsilon: 1.0, federation.privacy.budget-per-day: 10.0`
+
+**File**: `DifferentialPrivacyMechanism.java` (NEW), `LaplaceMechanism.java` (NEW),
+`FederationMetricsExporter.java` (NEW), `application.yml`
+
+**Sforzo**: 1g. **Dipendenze**: #34 (Federazione — senza federazione, nessuna metrica da condividere).
+**Impatto**: medio — necessario solo per scenari multi-tenant con data privacy requirements.
+
+---
+
+## Riepilogo unificato — Tutti i 14 items (#30-#43)
+
+### Grafo di dipendenze
+
+```
+Dipendenze INTERNE (tra #30-#43):
+
+  #30 Hash Chain ─────────────────┐
+       │                          │
+       ├──► #34 Federazione ◄─────┤
+       │         │                │
+       │         └──► #43 DP      │
+       │                          │
+  #31 Verifiable Compute ─────────┘
+
+  #32 Policy Immutabile
+       │
+       └──► #37 PID Budget
+
+  #36 Queueing ─── condivide CriticalPathCalculator ───► #42 Global Assignment
+
+Dipendenze ESTERNE (da roadmap items precedenti):
+
+  #23 Enrichment Pipeline ──► #32, #35, #41
+  #15 GP Engine ────────────► #35, #41, #42
+```
+
+### Tier di implementazione
+
+```
+TIER 0 — Nessuna dipendenza (possono partire subito, in parallelo)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #30  Hash Chain Tamper-Proof         0.5g  fondazione crittografica
+  #33  Token Economics Double-Entry    1.5g
+  #36  Worker Pool Sizing (Queueing)   1.5g  condivide CriticalPathCalculator con #42
+  #38  State Machine Verification      1.0g  test compilazione, nessun rischio runtime
+  #39  Policy Lattice Composition      0.5g  leggero, formalizza pattern esistente
+  #40  Shapley Value Reward            2.0g
+                                       ────
+                                       7.0g totale Tier 0
+
+TIER 1 — Dipende da Tier 0 o da dipendenze esterne
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #31  Verifiable Compute (Ed25519)    2.0g  richiede promozione HashUtil (da #30)
+  #32  Policy-as-Code Immutabile       1.0g  richiede #23 (Enrichment Pipeline)
+                                       ────
+                                       3.0g totale Tier 1
+
+TIER 2 — Dipende da Tier 1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #34  Federazione (interfacce)        1.0g  richiede #30 + #31
+  #37  Adaptive Token Budget (PID)     1.0g  richiede #32 (il PID aggiusta PRIMA del commitment)
+                                       ────
+                                       2.0g totale Tier 2
+
+TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #35  Context Quality (Info Theory)   2.0g  richiede #23 + #15
+  #42  Global Assignment (Hungarian)   2.0g  richiede #15, condivide CPCalc con #36
+  #41  Topological Pattern Detection   2.5g  richiede #23 + #15 + dati sufficienti in task_outcomes
+  #43  Differential Privacy            1.0g  richiede #34 (Federazione)
+                                       ────
+                                       7.5g totale Tier 3
+```
+
+### Tabella completa ordinata per Tier
+
+| Tier | # | Branca | Titolo | Sforzo | Dip. interne | Dip. esterne | Valore |
+|------|---|--------|--------|--------|-------------|-------------|--------|
+| 0 | **30** | Crittografia | Hash Chain Tamper-Proof | 0.5g | — | — | Alto |
+| 0 | **38** | Verifica Formale | State Machine Verification | 1.0g | — | — | Medio-Alto |
+| 0 | **39** | Teoria Reticoli | Policy Lattice Composition | 0.5g | — | — | Medio |
+| 0 | **36** | Queueing Theory | Worker Pool Sizing | 1.5g | — | — | Alto |
+| 0 | **40** | Mechanism Design | Shapley Value Reward | 2.0g | — | — | Alto |
+| 0 | **33** | Token Economics | Double-Entry Budget | 1.5g | — | — | Medio |
+| 1 | **31** | Crittografia | Verifiable Compute (Ed25519) | 2.0g | #30 | — | Alto |
+| 1 | **32** | Crittografia | Policy-as-Code Immutabile | 1.0g | — | #23 | Medio-Alto |
+| 2 | **37** | Teoria Controllo | Adaptive Token Budget (PID) | 1.0g | #32 | — | Alto |
+| 2 | **34** | Crittografia | Federazione (interfacce) | 1.0g | #30, #31 | — | Futuro |
+| 3 | **35** | Info Theory | Context Quality Scoring | 2.0g | — | #23, #15 | Alto |
+| 3 | **42** | Ottimizzazione | Global Task Assignment | 2.0g | (#36 shared) | #15 | Alto |
+| 3 | **41** | Topologia | Topological Pattern Detection | 2.5g | — | #23, #15 | Medio |
+| 3 | **43** | Diff. Privacy | Metriche Federate Private | 1.0g | #34 | — | Medio |
+
+### Note sulle dipendenze critiche
+
+1. **#30 e' il prerequisito universale**: la promozione di `HashUtil` a `agent-common` (necessaria per #30)
+   sblocca #31, che a sua volta sblocca #34 e #43. Fare #30 per primo e' obbligatorio.
+
+2. **#23 (Enrichment Pipeline) blocca 4 items**: #32, #35, #41, e indirettamente #37 (via #32).
+   Se #23 non e' ancora implementato, il Tier 1-3 deve aspettare. Alternativa: #32 puo' essere
+   implementato con HookPolicy statiche (test-only) senza #23, poi attivato quando #23 e' pronto.
+
+3. **#15 (GP Engine) blocca 3 items**: #35, #41, #42. Queste feature usano i `task_outcomes`
+   con embeddings generati dal GP engine. Senza GP, mancano i dati di training.
+
+4. **#36 e #42 condividono `CriticalPathCalculator`**: implementare #36 prima di #42 consente
+   di riusare il codice. Il `CriticalPathCalculator` calcola il percorso critico nel DAG — topological
+   sort + longest path (O(V+E), banale per DAG).
+
+5. **#37 (PID) deve agire PRIMA di #32 (commitment hash)**: il PID aggiusta `maxTokenBudget`
+   nella HookPolicy. Se la policy viene "sigillata" con hash commitment (#32), il PID deve
+   completare la sua regolazione *prima* del commitment. Ordine: PID aggiusta → hash sigilla → dispatch.
+
+6. **#40 (Shapley) e' autonomo ma potenzia #33 (Token Economics)**: Shapley distribuisce reward
+   lungo il DAG; Token Economics traccia debit/credit. Insieme danno visibilita' completa su
+   chi spende e chi contribuisce.
+
+7. **#43 (DP) ha senso solo con #34 (Federazione)**: senza federazione, non ci sono metriche
+   da condividere e la privacy e' irrilevante. Implementare solo se #34 viene attivato.
+
+### Ordine consigliato di implementazione
+
+```
+Fase 1 (fondazioni, ~3.5g):  #30 → #38 → #39
+Fase 2 (pratico, ~5g):       #36 → #33 → #40
+Fase 3 (trust, ~4g):         #31 → #32 → #37
+Fase 4 (avanzato, ~7g):      #34 → #35 → #42 → #41 → #43
+                              ─────────────────────
+                              Totale: ~19.5g
+```
+
+### Codice condiviso tra items
+
+| Classe | Usata da | Modulo |
+|--------|----------|--------|
+| `HashUtil.java` (promossa) | #30, #31, #32 | agent-common |
+| `CriticalPathCalculator.java` | #36, #42 | orchestrator |
+| `PolicyLattice.java` | #39, #32 (canonical JSON) | agent-common |
+
+**Totale Mathematical Foundations**: ~19.5 giorni di lavoro.
+
+---
+
+# Execution Sandbox (#44)
+
+---
+
+## #44 — Execution Sandbox Containerizzato (Framework + Worker Isolation)
+
+**Problema**: i worker domain (BE, FE) generano codice ma non possono compilarlo ne' testarlo.
+`mcp-bash-tool` (#25) permetterebbe l'esecuzione shell, ma sul filesystem del server SOL —
+conflitti di librerie, versioni incompatibili, rischio sicurezza (un worker malintenzionato o un bug
+potrebbe eseguire `rm -rf /data`). Servono:
+1. Isolamento del toolchain: ogni worker type ha il proprio ambiente (JDK 21, GnuCOBOL, Go, etc.)
+2. Isolamento del processo: nessun accesso al filesystem del server
+3. Isolamento della rete: il codice compilato non puo' fare chiamate esterne
+4. Resource limits: CPU, memoria, timeout per evitare DoS
+5. Containerizzazione del framework stesso: l'orchestratore e i worker girano in container
+
+**Soluzione**: Approccio C (dual-layer) — il framework gira in container Docker (orchestratore + N worker JVM),
+e quando un worker deve compilare/testare, spawna un sandbox container effimero via Docker socket.
+
+**Design a 2 livelli**:
+
+**Livello 1 — Framework containerizzato (Docker Compose)**
+
+```yaml
+# /data/massimiliano/agent-framework/docker-compose.yml
+services:
+  orchestrator:
+    build: .
+    profiles: [orchestrator]
+    environment:
+      SPRING_PROFILES_ACTIVE: orchestrator
+      WORKER_RUNTIMES: >
+        {"AI_TASK":"http://worker-ai:8100",
+         "REVIEW":"http://worker-review:8101"}
+    mem_limit: 256m
+    networks: [agent-net, shared]
+    depends_on: [redis, postgres]
+
+  worker-ai:
+    build: .
+    profiles: [worker]
+    environment:
+      SPRING_PROFILES_ACTIVE: worker
+      WORKER_TYPE: AI_TASK
+      SERVER_PORT: 8100
+      DOCKER_HOST: unix:///var/run/docker.sock   # per spawning sandbox
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Docker-in-Docker (socket)
+      - workspace:/workspace                          # volume condiviso col sandbox
+    mem_limit: 1g
+    networks: [agent-net]
+
+  worker-review:
+    build: .
+    profiles: [worker]
+    environment:
+      SPRING_PROFILES_ACTIVE: worker
+      WORKER_TYPE: REVIEW
+      SERVER_PORT: 8101
+    mem_limit: 512m
+    networks: [agent-net]
+
+  # Manager leggeri: in-process nell'orchestratore (nessun container separato)
+  # HOOK_MANAGER, CONTEXT_MANAGER, TASK_MANAGER → thread nell'orchestratore JVM
+
+networks:
+  agent-net:
+    internal: true        # isolata, nessun accesso esterno
+  shared:
+    external: true        # per accedere a redis, postgres, proxy-ai
+```
+
+Nota: stessa immagine Docker per orchestratore e worker. Il profilo Spring (`SPRING_PROFILES_ACTIVE`)
+determina il comportamento. `@Profile("orchestrator")` attiva `OrchestrationService`,
+`@Profile("worker")` attiva `WorkerRuntime`.
+
+**Livello 2 — Execution Sandbox (container effimeri per compilazione/test)**
+
+Ogni worker spawna un container Docker effimero per compilare/testare il codice generato.
+Il container e' distrutto dopo l'esecuzione.
+
+```java
+public class SandboxExecutor {
+    private final DockerClient docker;  // com.github.docker-java (o ProcessBuilder → docker CLI)
+
+    public SandboxResult execute(SandboxRequest request) {
+        // 1. Scrivi il codice generato nel workspace volume
+        writeToWorkspace(request.files(), request.workspacePath());
+
+        // 2. Costruisci il comando docker run
+        String containerId = docker.createContainer(
+            ContainerConfig.builder()
+                .image(request.sandboxImage())              // es. "agent-sandbox-java:21"
+                .cmd(request.command())                      // es. ["mvn", "test", "-f", "/code/pom.xml"]
+                .networkDisabled(true)                       // --network none
+                .readonlyRootfs(true)                        // filesystem immutabile
+                .memory(request.memoryLimit())                // 512 MB default
+                .cpuQuota(100_000)                            // 1 CPU
+                .user("1000:1000")                            // non-root
+                .binds(List.of(
+                    request.workspacePath() + ":/code:ro",   // codice sorgente read-only
+                    request.outputPath() + ":/out:rw"        // output read-write
+                ))
+                .build()
+        ).getId();
+
+        // 3. Start + wait (con timeout)
+        docker.startContainer(containerId);
+        WaitResponse wait = docker.waitContainer(containerId, request.timeoutSeconds());
+
+        // 4. Leggi output
+        String stdout = docker.logs(containerId, STDOUT);
+        String stderr = docker.logs(containerId, STDERR);
+        int exitCode = wait.statusCode();
+
+        // 5. Cleanup
+        docker.removeContainer(containerId, true);  // force remove
+
+        return new SandboxResult(exitCode, stdout, stderr, readOutputFiles(request.outputPath()));
+    }
+}
+```
+
+**Sandbox images pre-built**:
+
+| Image | Base | Toolchain | Size |
+|-------|------|-----------|------|
+| `agent-sandbox-java:21` | eclipse-temurin:21-jdk-alpine | Maven 3.9, Gradle 8 | ~350 MB |
+| `agent-sandbox-cobol` | alpine:3.21 | GnuCOBOL 3.2, gcc, copybook parser | ~150 MB |
+| `agent-sandbox-go:1.22` | golang:1.22-alpine | go, golangci-lint | ~300 MB |
+| `agent-sandbox-python:3.12` | python:3.12-slim | pip, pytest, ruff | ~200 MB |
+| `agent-sandbox-node:22` | node:22-alpine | npm, pnpm, vitest | ~200 MB |
+| `agent-sandbox-rust` | rust:1-alpine | cargo, clippy | ~500 MB |
+| `agent-sandbox-cpp` | gcc:14 | gcc, cmake, make, valgrind | ~300 MB |
+| `agent-sandbox-dotnet` | mcr.microsoft.com/dotnet/sdk:8.0-alpine | dotnet CLI | ~400 MB |
+
+Le immagini sono pre-built e cached sul server. Al primo task di un tipo, il pull puo' richiedere tempo.
+Dopo il primo pull, il container parte in ~1s (nessun warmup JVM, solo exec del compilatore).
+
+**Integrazione con worker-sdk**:
+
+- `SandboxExecutor.java` (NEW, in worker-sdk): spawna container, gestisce timeout/cleanup
+- `SandboxRequest.java` (NEW): image, command, files, memory, timeout, networkDisabled
+- `SandboxResult.java` (NEW): exitCode, stdout, stderr, outputFiles
+- `mcp-bash-tool` (#25): delegato a `SandboxExecutor` invece di `ProcessBuilder` diretto
+  - `bash_execute` → `SandboxExecutor.execute()` con l'immagine appropriata per il worker type
+  - Totale isolamento: il "bash" del worker e' in realta' un container effimero
+- `AbstractWorker`: nuovo metodo `executeSandbox(SandboxRequest)` accessibile a tutti i worker
+
+**Sicurezza** (difesa in profondita'):
+
+| Livello | Meccanismo | Cosa blocca |
+|---------|-----------|-------------|
+| 1 | `--network none` | Nessun accesso internet o rete Docker |
+| 2 | `--read-only` + tmpfs selettivi | Filesystem immutabile (tranne /tmp e /out) |
+| 3 | `--user 1000:1000` | Non-root, nessun capability Linux |
+| 4 | `--memory 512m --cpus 1` | DoS prevention |
+| 5 | Timeout (default 120s, max 600s) | Fork bomb, loop infiniti |
+| 6 | Volume codice `:ro` | Il sandbox non puo' modificare il sorgente |
+| 7 | No Docker socket nel sandbox | Il sandbox non puo' spaware altri container |
+| 8 | seccomp profile (opzionale) | Blocca syscall pericolose (reboot, mount, etc.) |
+
+**COBOL-specifico** (`agent-sandbox-cobol`):
+
+```dockerfile
+FROM alpine:3.21
+RUN apk add --no-cache gnucobol gcc musl-dev make
+# Copybook directory standard
+RUN mkdir -p /copylib
+WORKDIR /code
+# Default: compila tutti i .cob, esegui test
+ENTRYPOINT ["sh", "-c"]
+CMD ["cobc -x -o /out/program *.cob && /out/program"]
+```
+
+- Copybook montati da volume condiviso: `-v /copylib:/copylib:ro`
+- JCL runner simulato: parser minimale che traduce JCL → sequenza di comandi shell
+- Supporto VSAM: file sequenziali simulati con file flat su /out
+- DB2 simulato: SQLite come stand-in per query SQL embedded (preprocessore EXEC SQL)
+
+**File da creare**:
+
+| File | Modulo | Descrizione |
+|------|--------|-------------|
+| `SandboxExecutor.java` | worker-sdk | Spawna container Docker effimeri |
+| `SandboxRequest.java` | agent-common | Record: image, command, files, limits |
+| `SandboxResult.java` | agent-common | Record: exitCode, stdout, stderr, outputFiles |
+| `SandboxProperties.java` | worker-sdk | Config: default image per workerType, limiti, timeout |
+| `docker-compose.yml` | root | Framework containerizzato (orchestratore + N worker) |
+| `Dockerfile.sandbox-java` | sandbox/ | Immagine sandbox Java 21 |
+| `Dockerfile.sandbox-cobol` | sandbox/ | Immagine sandbox GnuCOBOL |
+| `Dockerfile.sandbox-go` | sandbox/ | Immagine sandbox Go 1.22 |
+| (altri Dockerfile per ciascun linguaggio) | sandbox/ | |
+
+**File da modificare**:
+
+| File | Modifica |
+|------|----------|
+| `AbstractWorker.java` | Aggiungere `executeSandbox()` method |
+| `application.yml` | Config sandbox: images, limiti, Docker socket path |
+| `mcp-bash-tool` (#25) | Usare `SandboxExecutor` come backend |
+
+**Sforzo**: 3g (Livello 1 framework: 1g, Livello 2 sandbox: 1.5g, Dockerfile per linguaggi: 0.5g).
+**Dipendenze**: #29 (Worker Lifecycle — per il modello JVM-per-type), #25 (mcp-bash-tool — per l'integrazione).
+**Impatto**: **Molto alto** — sblocca compilazione/test nei worker, prerequisito per qualsiasi uso reale del framework.
+
+**Totale Execution Sandbox**: ~3 giorni di lavoro.
+
+---
 ---
 
 # Pattern Claude Code → Agent Framework

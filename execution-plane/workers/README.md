@@ -3,14 +3,18 @@
 Moduli Maven worker del framework. La maggior parte sono generati automaticamente dal
 `agent-compiler-maven-plugin` a partire dai manifest in `agents/manifests/*.agent.yml`.
 I worker di sistema (`COMPENSATOR_MANAGER`, `TASK_MANAGER`) sono scritti a mano e non generati.
-`SUB_PLAN` non è un worker — è gestito inline dall'orchestrator.
+`SUB_PLAN` non e' un worker — e' gestito inline dall'orchestrator.
 
-Ogni modulo worker è un'applicazione Spring Boot autonoma che estende `AbstractWorker`.
+Ogni modulo worker e' un'applicazione Spring Boot autonoma che estende `AbstractWorker`.
 
 > **NON MODIFICARE** questi file a mano. Sono rigenerabili e le modifiche verranno
 > sovrascritte. Per cambiare comportamento, modificare il manifest e rigenerare.
 
 ## Worker List
+
+41 manifest, 48 moduli Maven (41 generati + 7 manuali/speciali).
+
+### Infrastructure Workers
 
 | Modulo | Type | Profile | Topic | Subscription | Owns Paths | Generato |
 |--------|------|---------|-------|-------------|-----------|---------|
@@ -18,22 +22,81 @@ Ogni modulo worker è un'applicazione Spring Boot autonoma che estende `Abstract
 | `schema-manager-worker` | SCHEMA_MANAGER | — | agent-tasks | schema-manager-worker-sub | `.` (read-only) | ✓ |
 | `hook-manager-worker` | HOOK_MANAGER | — | agent-tasks | hook-manager-worker-sub | `.` (read-only) | ✓ |
 | `task-manager-worker` | TASK_MANAGER | — | agent-tasks | task-manager-worker-sub | `issues/` | ✗ |
-| `be-java-worker` | BE | be-java | agent-tasks | be-java-worker-sub | `backend/` | ✓ |
-| `be-go-worker` | BE | be-go | agent-tasks | be-go-worker-sub | `backend/` | ✓ |
-| `be-rust-worker` | BE | be-rust | agent-tasks | be-rust-worker-sub | `backend/` | ✓ |
-| `be-node-worker` | BE | be-node | agent-tasks | be-node-worker-sub | `backend/` | ✓ |
-| `fe-react-worker` | FE | fe-react | agent-tasks | fe-react-worker-sub | `frontend/` | ✓ |
-| `ai-task-worker` | AI_TASK | — | agent-tasks | ai-task-worker-sub | `eval/` | ✓ |
-| `contract-worker` | CONTRACT | — | agent-tasks | contract-worker-sub | `contracts/` | ✓ |
-| `review-worker` | REVIEW | — | agent-reviews | review-worker-sub | `docs/` | ✓ |
 | `audit-manager-worker` | AUDIT_MANAGER | — | agent-tasks | audit-manager-worker-sub | `audit/` | ✓ |
 | `event-manager-worker` | EVENT_MANAGER | — | agent-tasks | event-manager-worker-sub | `.` (read-only) | ✓ |
 | `compensator-manager-worker` | COMPENSATOR_MANAGER | — | agent-tasks | compensator-manager-worker-sub | `.` | ✗ |
-| `advisory-worker` | MANAGER/SPECIALIST | — | agent-tasks | advisory-worker-sub | `.` (read-only) | ✗ |
+| `advisory-worker` | MANAGER/SPECIALIST | — | agent-advisory | advisory-worker-sub | `.` (read-only) | ✗ |
 | _(inline orchestrator)_ | SUB_PLAN | — | — | — | — | — |
 
+### Backend Workers (BE × 14)
+
+| Modulo | Profile | Subscription | Owns Paths | Generato |
+|--------|---------|-------------|-----------|---------|
+| `be-java-worker` | be-java | be-java-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-go-worker` | be-go | be-go-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-rust-worker` | be-rust | be-rust-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-node-worker` | be-node | be-node-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-python-worker` | be-python | be-python-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-dotnet-worker` | be-dotnet | be-dotnet-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-kotlin-worker` | be-kotlin | be-kotlin-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-elixir-worker` | be-elixir | be-elixir-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-laravel-worker` | be-laravel | be-laravel-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-cpp-worker` | be-cpp | be-cpp-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-quarkus-worker` | be-quarkus | be-quarkus-worker-sub | `backend/`, `templates/be/` | ✓ |
+| `be-ocaml-worker` | be-ocaml | be-ocaml-worker-sub | `backend/`, `templates/be/` | ✓ |
+
+Tutti su topic `agent-tasks`, tipo `BE`.
+
+### Frontend Workers (FE × 6)
+
+| Modulo | Profile | Subscription | Owns Paths | Generato |
+|--------|---------|-------------|-----------|---------|
+| `fe-react-worker` | fe-react | fe-react-worker-sub | `frontend/`, `templates/fe/` | ✓ |
+| `fe-angular-worker` | fe-angular | fe-angular-worker-sub | `frontend/`, `templates/fe/` | ✓ |
+| `fe-vue-worker` | fe-vue | fe-vue-worker-sub | `frontend/`, `templates/fe/` | ✓ |
+| `fe-svelte-worker` | fe-svelte | fe-svelte-worker-sub | `frontend/`, `templates/fe/` | ✓ |
+| `fe-nextjs-worker` | fe-nextjs | fe-nextjs-worker-sub | `frontend/`, `templates/fe/` | ✓ |
+| `fe-vanillajs-worker` | fe-vanillajs | fe-vanillajs-worker-sub | `frontend/`, `templates/fe/` | ✓ |
+
+Tutti su topic `agent-tasks`, tipo `FE`.
+
+### DBA Workers (DBA × 10)
+
+| Modulo | Profile | Subscription | Owns Paths | Generato |
+|--------|---------|-------------|-----------|---------|
+| `dba-postgres-worker` | dba-postgres | dba-postgres-worker-sub | `database/`, `templates/dba/` | ✓ |
+| `dba-mysql-worker` | dba-mysql | dba-mysql-worker-sub | `database/`, `templates/dba/` | ✓ |
+| `dba-mssql-worker` | dba-mssql | dba-mssql-worker-sub | `database/`, `templates/dba/` | ✓ |
+| `dba-oracle-worker` | dba-oracle | dba-oracle-worker-sub | `database/`, `templates/dba/` | ✓ |
+| `dba-mongo-worker` | dba-mongo | dba-mongo-worker-sub | `database/`, `templates/dba/` | ✓ |
+| `dba-redis-worker` | dba-redis | dba-redis-worker-sub | `database/`, `templates/dba/` | ✓ |
+| `dba-sqlite-worker` | dba-sqlite | dba-sqlite-worker-sub | `database/`, `templates/dba/` | ✓ |
+| `dba-cassandra-worker` | dba-cassandra | dba-cassandra-worker-sub | `database/`, `templates/dba/` | ✓ |
+| `dba-graphdb-worker` | dba-graphdb | dba-graphdb-worker-sub | `database/`, `templates/dba/` | ✓ |
+| `dba-vectordb-worker` | dba-vectordb | dba-vectordb-worker-sub | `database/`, `templates/dba/` | ✓ |
+
+Tutti su topic `agent-tasks`, tipo `DBA`.
+
+### Mobile Workers (MOBILE × 2)
+
+| Modulo | Profile | Subscription | Owns Paths | Generato |
+|--------|---------|-------------|-----------|---------|
+| `mobile-swift-worker` | mobile-swift | mobile-swift-worker-sub | `ios/`, `mobile/`, `templates/mobile/` | ✓ |
+| `mobile-kotlin-worker` | mobile-kotlin | mobile-kotlin-worker-sub | `android/`, `mobile/`, `templates/mobile/` | ✓ |
+
+Tutti su topic `agent-tasks`, tipo `MOBILE`.
+
+### Other Domain Workers
+
+| Modulo | Type | Profile | Topic | Subscription | Owns Paths | Generato |
+|--------|------|---------|-------|-------------|-----------|---------|
+| `ai-task-worker` | AI_TASK | — | agent-tasks | ai-task-worker-sub | `cps4/`, `cps3/` | ✓ |
+| `sdk-scaffold-worker` | AI_TASK | sdk-scaffold | agent-tasks | sdk-scaffold-worker-sub | `generated/`, `skills/sdkscaffold/` | ✓ |
+| `contract-worker` | CONTRACT | — | agent-tasks | contract-worker-sub | `contracts/` | ✓ |
+| `review-worker` | REVIEW | — | agent-reviews | review-worker-sub | `docs/` | ✓ |
+
 > **Colonna Generato**: ✓ = prodotto da `agent-compiler-maven-plugin` (non modificare a mano);
-> ✗ = scritto manualmente (modificabile); — = non è un worker Spring Boot.
+> ✗ = scritto manualmente (modificabile); — = non e' un worker Spring Boot.
 
 ## Struttura generata
 
@@ -42,7 +105,7 @@ Ogni modulo segue la stessa struttura:
 ```
 be-java-worker/
 ├── pom.xml                          # Dipendenze: worker-sdk, MCP tools, Spring AI
-├── Dockerfile                       # FROM eclipse-temurin:17-jre + fat JAR
+├── Dockerfile                       # FROM eclipse-temurin:21-jre + fat JAR
 └── src/main/
     ├── java/com/agentframework/workers/generated/bejavaworker/
     │   ├── BeJavaWorker.java        # Estende AbstractWorker (@Component @Generated)
@@ -84,15 +147,21 @@ policy:
 ## Come rigenerare
 
 ```bash
-# Rigenerare tutti i moduli worker
-mvn com.agentframework:agent-compiler-maven-plugin:1.0.0-SNAPSHOT:generate-workers
+# Build completo (single command: genera moduli + compila tutto il reactor)
+./build.sh -DskipTests
 
-# Rigenerare anche la registry
-mvn com.agentframework:agent-compiler-maven-plugin:1.0.0-SNAPSHOT:generate-registry
+# Solo rigenerare moduli + registry (senza compilare)
+mvn -N \
+    com.agentframework:agent-compiler-maven-plugin:1.0.0-SNAPSHOT:validate-manifests \
+    com.agentframework:agent-compiler-maven-plugin:1.0.0-SNAPSHOT:generate-workers \
+    com.agentframework:agent-compiler-maven-plugin:1.0.0-SNAPSHOT:generate-registry
 
-# Build completo
-mvn clean install
+# Build reactor senza rigenerare (i moduli devono gia' esistere)
+mvn clean install -DskipTests
 ```
+
+`build.sh` risolve il chicken-and-egg di Maven: prima genera i moduli con `-N` (non-recursive),
+poi compila il reactor completo con i moduli appena generati.
 
 ## Esecuzione locale
 
@@ -129,10 +198,11 @@ agent.worker.policy:
 
 ## Aggiungere un nuovo worker
 
-1. Creare manifest: `agents/manifests/be-python.agent.yml`
-2. Rigenerare: `mvn agent-compiler:generate-workers agent-compiler:generate-registry`
-3. Aggiungere al `pom.xml` root: `<module>execution-plane/workers/be-python-worker</module>`
-4. Build: `mvn clean install`
+1. Creare manifest: `agents/manifests/<name>.agent.yml`
+2. Creare SKILL.md: `.claude/agents/<name>/SKILL.md` (polyglot header)
+3. Build: `./build.sh -DskipTests` (genera il modulo + compila)
+
+Il plugin aggiunge automaticamente il modulo al `pom.xml` root durante la generazione.
 
 Vedi [Agent Compiler Plugin](../agent-compiler-maven-plugin/README.md) per il formato manifest completo.
 
@@ -142,6 +212,8 @@ Vedi [Agent Compiler Plugin](../agent-compiler-maven-plugin/README.md) per il fo
 |-----------------|--------|--------|---------|
 | `be-java` | `be-java-worker/` | `BeJavaWorker` | `bejavaworker` |
 | `fe-react` | `fe-react-worker/` | `FeReactWorker` | `fereactworker` |
+| `dba-postgres` | `dba-postgres-worker/` | `DbaPostgresWorker` | `dbapostgresworker` |
+| `mobile-swift` | `mobile-swift-worker/` | `MobileSwiftWorker` | `mobileswiftworker` |
 | `ai-task` | `ai-task-worker/` | `AiTaskWorker` | `aitaskworker` |
 
 Conversione: kebab-case → PascalCase (classe), lowercase senza trattini (package).

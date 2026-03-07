@@ -44,6 +44,7 @@ spec:
       - fs_read
       - fs_write
       - fs_search
+      - fs_grep
     mcpServers:
       - repo-fs
       - test

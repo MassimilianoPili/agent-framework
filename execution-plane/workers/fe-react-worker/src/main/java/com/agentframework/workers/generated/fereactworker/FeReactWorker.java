@@ -32,10 +32,11 @@ public class FeReactWorker extends AbstractWorker {
     private static final Logger log = LoggerFactory.getLogger(FeReactWorker.class);
 
     private static final List<String> TOOL_ALLOWLIST = List.of(
-        "Read",
-        "Write",
-        "Edit",
-        "Bash"
+        "fs_list",
+        "fs_read",
+        "fs_write",
+        "fs_search",
+        "fs_grep"
     );
 
     private static final List<String> SKILL_PATHS = List.of(
@@ -68,6 +69,11 @@ public class FeReactWorker extends AbstractWorker {
     @Override
     public String workerType() {
         return "FE";
+    }
+
+    @Override
+    public String workerProfile() {
+        return "fe-react";
     }
 
     @Override

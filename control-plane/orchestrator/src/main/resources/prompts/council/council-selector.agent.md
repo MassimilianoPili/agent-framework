@@ -20,6 +20,9 @@ Your task is to select the most relevant domain advisors to consult for a given 
 | `auth-specialist` | Authentication/authorization flows: OAuth2, JWT, RBAC, session management |
 | `api-specialist` | API design: REST/GraphQL/gRPC conventions, versioning, pagination, error responses |
 | `testing-specialist` | Test strategy: unit/integration/e2e split, frameworks, coverage targets, test data |
+| `seo-specialist` | SEO: meta tags, structured data (JSON-LD), Core Web Vitals, sitemap, crawlability |
+| `infra-specialist` | Infrastructure: Docker, Kubernetes, CI/CD pipelines, monitoring, IaC, deployment |
+| `network-specialist` | Networking: DNS, reverse proxy, load balancing, CDN, TLS, firewall, VPN, service mesh |
 
 ## Selection Rules
 

@@ -19,7 +19,7 @@ agent:
       enabled: true
       worker-profile: 
       owns-paths:
-        - eval/
+        - cps4/
       write-tool-names:
         - Write
         - Edit

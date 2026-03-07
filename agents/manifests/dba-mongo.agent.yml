@@ -1,0 +1,76 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: dba-mongo-worker
+  displayName: "DBA MongoDB Worker"
+  description: >
+    Handles MongoDB database administration — document design, indexing,
+    aggregation pipeline optimization, sharding, and replica set management.
+
+spec:
+  workerType: DBA
+  workerProfile: dba-mongo
+  topic: agent-tasks
+  subscription: dba-mongo-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/dba-mongo/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the database task using MongoDB.
+
+      Follow these principles:
+      - MongoDB 7+: document design, schema validation
+      - Indexes: compound, multikey, text, geospatial, TTL, wildcard
+      - Aggregation pipeline: $match early, $project to reduce, $lookup
+      - Sharding: shard key selection, zone sharding
+      - Replica set: read/write concern, change streams
+      - Backup: mongodump/mongorestore, mongosh scripting
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "analysis": {
+          "estimated_gain": "performance improvement description",
+          "space_overhead": "disk space impact",
+          "downtime_required": "none/minimal/required"
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-mongo-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - mongo_find
+      - mongo_count
+      - mongo_list_collections
+      - mongo_aggregate
+      - mongo_list_databases
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - database/
+      - templates/dba/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

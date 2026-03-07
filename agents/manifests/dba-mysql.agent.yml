@@ -1,0 +1,76 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: dba-mysql-worker
+  displayName: "DBA MySQL/MariaDB Worker"
+  description: >
+    Handles MySQL/MariaDB database administration — schema design, InnoDB tuning,
+    indexing, replication, stored procedures, and query optimization.
+
+spec:
+  workerType: DBA
+  workerProfile: dba-mysql
+  topic: agent-tasks
+  subscription: dba-mysql-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/dba-mysql/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the database task using MySQL/MariaDB.
+
+      Follow these principles:
+      - MySQL 8.0+ / MariaDB 10.11+: modern SQL, window functions, CTEs
+      - InnoDB: buffer pool sizing, redo log, adaptive hash index
+      - Indexes: B-tree, full-text, spatial, invisible indexes
+      - Query optimization: EXPLAIN FORMAT=TREE, slow query log
+      - Replication: source-replica, group replication, GTID
+      - Security: user management, authentication plugins, SSL
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "analysis": {
+          "estimated_gain": "performance improvement description",
+          "space_overhead": "disk space impact",
+          "downtime_required": "none/minimal/required"
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-sql-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - db_query
+      - db_tables
+      - db_list_schemas
+      - db_count
+      - db_list_databases
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - database/
+      - templates/dba/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

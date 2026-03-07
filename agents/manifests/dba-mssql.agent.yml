@@ -1,0 +1,76 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: dba-mssql-worker
+  displayName: "DBA SQL Server Worker"
+  description: >
+    Handles SQL Server database administration — T-SQL, execution plans,
+    columnstore indexes, Always On, DMVs, and performance tuning.
+
+spec:
+  workerType: DBA
+  workerProfile: dba-mssql
+  topic: agent-tasks
+  subscription: dba-mssql-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/dba-mssql/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the database task using SQL Server.
+
+      Follow these principles:
+      - SQL Server 2022+: T-SQL, temporal tables, JSON support
+      - Indexes: clustered, nonclustered, columnstore, filtered
+      - Execution plans: SET STATISTICS IO/TIME, actual vs estimated
+      - DMVs: sys.dm_exec_*, sys.dm_os_* for diagnostics
+      - Always On availability groups, log shipping
+      - Security: TDE, Row Level Security, dynamic data masking
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "analysis": {
+          "estimated_gain": "performance improvement description",
+          "space_overhead": "disk space impact",
+          "downtime_required": "none/minimal/required"
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-sql-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - db_query
+      - db_tables
+      - db_list_schemas
+      - db_count
+      - db_list_databases
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - database/
+      - templates/dba/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3
