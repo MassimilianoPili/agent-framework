@@ -1,0 +1,1136 @@
+
+
+I'll start by examining the cps4 directory structure and all HTML files to understand what exists, then systematically replace all emoji icons with inline SVGs.
+
+Let me first check what's already in cps4:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "ls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/ 2>/dev/null || echo 'cps4 does not exist yet'"}}
+</tool_call>
+<tool_response>
+total 188
+drwxr-xr-x 5 massimiliano massimiliano  4096 Jun 18 11:44 .
+drwxr-xr-x 9 massimiliano massimiliano  4096 Jun 18 11:44 ..
+-rw-r--r-- 1 massimiliano massimiliano 13498 Jun 18 11:44 about.html
+-rw-r--r-- 1 massimiliano massimiliano 17498 Jun 18 11:44 activities.html
+-rw-r--r-- 1 massimiliano massimiliano 13498 Jun 18 11:44 booking.html
+-rw-r--r-- 1 massimiliano massimiliano 11498 Jun 18 11:44 contact.html
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 11:44 css
+-rw-r--r-- 1 massimiliano massimiliano 13498 Jun 18 11:44 events.html
+-rw-r--r-- 1 massimiliano massimiliano 14498 Jun 18 11:44 facilities.html
+-rw-r--r-- 1 massimiliano massimiliano 12498 Jun 18 11:44 index.html
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 11:44 img
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 11:44 js
+-rw-r--r-- 1 massimiliano massimiliano 14498 Jun 18 11:44 membership.html
+-rw-r--r-- 1 massimiliano massimiliano 13498 Jun 18 11:44 news.html
+-rw-r--r-- 1 massimiliano massimiliano 12498 Jun 18 11:44 schedule.html
+-rw-r--r-- 1 massimiliano massimiliano 14498 Jun 18 11:44 trainers.html
+</tool_response>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "ls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/css/ /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/js/ /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/"}}
+</tool_call>
+<tool_response>
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/css/:
+total 88
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 11:44 .
+drwxr-xr-x 5 massimiliano massimiliano  4096 Jun 18 11:44 ..
+-rw-r--r-- 1 massimiliano massimiliano 81920 Jun 18 11:44 style.css
+
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/:
+total 8
+drwxr-xr-x 2 massimiliano massimiliano 4096 Jun 18 11:44 .
+drwxr-xr-x 5 massimiliano massimiliano 4096 Jun 18 11:44 ..
+
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/js/:
+total 40
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 11:44 .
+drwxr-xr-x 5 massimiliano massimiliano  4096 Jun 18 11:44 ..
+-rw-r--r-- 1 massimiliano massimiliano 31744 Jun 18 11:44 main.js
+</tool_response>
+
+Now let me read all 11 HTML files in cps4 to get the full picture:
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/index.html"}}
+</tool_call>
+<tool_response>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPS Group - Centro Sportivo Polivalente San Sperate</title>
+    <meta name="description" content="Centro Sportivo Polivalente di San Sperate - Il tuo centro sportivo completo con piscina, palestra, campi da tennis e molto altro">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700;800&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <span class="logo-text">CPS</span>
+                    <span class="logo-sub">GROUP</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link active">Home</a></li>
+                <li><a href="about.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="activities.html" class="nav-link">Attività</a></li>
+                <li><a href="facilities.html" class="nav-link">Strutture</a></li>
+                <li><a href="schedule.html" class="nav-link">Orari</a></li>
+                <li><a href="trainers.html" class="nav-link">Istruttori</a></li>
+                <li><a href="membership.html" class="nav-link">Abbonamenti</a></li>
+                <li><a href="events.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="booking.html" class="nav-link">Prenota</a></li>
+                <li><a href="contact.html" class="nav-link">Contatti</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="hero-content">
+            <div class="hero-badge">🏆 Centro Sportivo d'Eccellenza</div>
+            <h1 class="hero-title">
+                Il Tuo Sport,<br>
+                <span class="highlight">La Nostra Passione</span>
+            </h1>
+            <p class="hero-subtitle">Centro Sportivo Polivalente di San Sperate — Strutture all'avanguardia, istruttori qualificati e un'atmosfera unica per raggiungere i tuoi obiettivi sportivi</p>
+            <div class="hero-buttons">
+                <a href="activities.html" class="btn btn-primary">Scopri le Attività</a>
+                <a href="booking.html" class="btn btn-secondary">Prenota Ora</a>
+            </div>
+        </div>
+        <div class="hero-stats">
+            <div class="stat-item">
+                <span class="stat-number">500+</span>
+                <span class="stat-label">Membri Attivi</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">15+</span>
+                <span class="stat-label">Attività Sportive</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">20+</span>
+                <span class="stat-label">Istruttori Qualificati</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">10</span>
+                <span class="stat-label">Anni di Esperienza</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Perché Scegliere CPS Group?</h2>
+                <p>Offriamo un'esperienza sportiva completa e personalizzata</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🏊</div>
+                    <h3>Piscina Olimpionica</h3>
+                    <p>Vasca da 50 metri con corsie dedicate per nuoto libero, corsi e allenamenti agonistici</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💪</div>
+                    <h3>Palestra Attrezzata</h3>
+                    <p>Oltre 200 attrezzi di ultima generazione per allenamenti personalizzati e di gruppo</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎾</div>
+                    <h3>Campi da Tennis</h3>
+                    <p>6 campi in terra rossa e superficie dura, disponibili per lezioni e tornei</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚽</div>
+                    <h3>Calcio a 5</h3>
+                    <p>4 campi da calcio a 5 con manto erboso sintetico di ultima generazione</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🧘</div>
+                    <h3>Yoga & Pilates</h3>
+                    <p>Sale dedicate per yoga, pilates e discipline olistiche con istruttori certificati</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏋️</div>
+                    <h3>Corsi di Gruppo</h3>
+                    <p>Oltre 30 corsi settimanali: spinning, zumba, aerobica, crossfit e molto altro</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Activities Preview -->
+    <section class="activities-preview">
+        <div class="container">
+            <div class="section-header">
+                <h2>Le Nostre Attività</h2>
+                <p>Scopri tutte le discipline sportive che offriamo</p>
+            </div>
+            <div class="activities-grid">
+                <div class="activity-card">
+                    <div class="activity-image">
+                        <img src="img/swimming.jpg" alt="Nuoto" loading="lazy">
+                        <div class="activity-overlay">
+                            <span class="activity-tag">Acquatica</span>
+                        </div>
+                    </div>
+                    <div class="activity-info">
+                        <h3>Nuoto</h3>
+                        <p>Corsi per tutti i livelli, dal principiante all'agonista</p>
+                        <a href="activities.html" class="btn-link">Scopri di più →</a>
+                    </div>
+                </div>
+                <div class="activity-card">
+                    <div class="activity-image">
+                        <img src="img/fitness.jpg" alt="Fitness" loading="lazy">
+                        <div class="activity-overlay">
+                            <span class="activity-tag">Fitness</span>
+                        </div>
+                    </div>
+                    <div class="activity-info">
+                        <h3>Fitness</h3>
+                        <p>Allenamenti personalizzati con i nostri personal trainer</p>
+                        <a href="activities.html" class="btn-link">Scopri di più →</a>
+                    </div>
+                </div>
+                <div class="activity-card">
+                    <div class="activity-image">
+                        <img src="img/tennis.jpg" alt="Tennis" loading="lazy">
+                        <div class="activity-overlay">
+                            <span class="activity-tag">Racchette</span>
+                        </div>
+                    </div>
+                    <div class="activity-info">
+                        <h3>Tennis</h3>
+                        <p>Lezioni individuali e di gruppo per ogni età</p>
+                        <a href="activities.html" class="btn-link">Scopri di più →</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Membership CTA -->
+    <section class="membership-cta">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Inizia Oggi il Tuo Percorso Sportivo</h2>
+                <p>Scegli l'abbonamento più adatto a te e unisciti alla nostra community sportiva</p>
+                <div class="cta-features">
+                    <span>✅ Primo mese gratuito</span>
+                    <span>✅ Nessun costo di iscrizione</span>
+                    <span>✅ Accesso a tutte le strutture</span>
+                    <span>✅ Istruttore personale incluso</span>
+                </div>
+                <a href="membership.html" class="btn btn-primary btn-large">Vedi gli Abbonamenti</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="testimonials">
+        <div class="container">
+            <div class="section-header">
+                <h2>Cosa Dicono i Nostri Membri</h2>
+            </div>
+            <div class="testimonials-grid">
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p>"Struttura fantastica! Ho migliorato le mie prestazioni nuotando ogni mattina. Gli istruttori sono professionali e sempre disponibili."</p>
+                    <div class="testimonial-author">
+                        <strong>Marco Rossi</strong>
+                        <span>Membro da 2 anni</span>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p>"Il miglior centro sportivo della zona! Corsi di yoga eccellenti e personale sempre sorridente. Consiglio vivamente!"</p>
+                    <div class="testimonial-author">
+                        <strong>Laura Bianchi</strong>
+                        <span>Membro da 3 anni</span>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p>"Ottimo rapporto qualità-prezzo. Mio figlio frequenta i corsi di nuoto e i progressi sono stati incredibili!"</p>
+                    <div class="testimonial-author">
+                        <strong>Giuseppe Conti</strong>
+                        <span>Membro da 1 anno</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <span class="logo-text">CPS</span>
+                        <span class="logo-sub">GROUP</span>
+                    </div>
+                    <p>Centro Sportivo Polivalente di San Sperate. La tua palestra, la tua piscina, il tuo centro benessere.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Facebook">📘</a>
+                        <a href="#" aria-label="Instagram">📷</a>
+                        <a href="#" aria-label="YouTube">▶️</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="activities.html">Attività</a></li>
+                        <li><a href="facilities.html">Strutture</a></li>
+                        <li><a href="schedule.html">Orari</a></li>
+                        <li><a href="membership.html">Abbonamenti</a></li>
+                        <li><a href="booking.html">Prenota</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Informazioni</h4>
+                    <ul>
+                        <li><a href="about.html">Chi Siamo</a></li>
+                        <li><a href="trainers.html">Istruttori</a></li>
+                        <li><a href="events.html">Eventi</a></li>
+                        <li><a href="news.html">News</a></li>
+                        <li><a href="contact.html">Contatti</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>📍 Via dello Sport 1, San Sperate (CA)</p>
+                    <p>📞 070 123 4567</p>
+                    <p>✉️ info@cpsgroup.it</p>
+                    <p>🕐 Lun-Ven: 7:00-22:00</p>
+                    <p>🕐 Sab-Dom: 8:00-20:00</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 CPS Group - Centro Sportivo Polivalente San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
+</tool_response>
+
+Now let me read all remaining pages:
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/about.html"}}
+</tool_call>
+<tool_response>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi Siamo - CPS Group</title>
+    <meta name="description" content="Scopri la storia e i valori del Centro Sportivo Polivalente di San Sperate">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700;800&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <span class="logo-text">CPS</span>
+                    <span class="logo-sub">GROUP</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="about.html" class="nav-link active">Chi Siamo</a></li>
+                <li><a href="activities.html" class="nav-link">Attività</a></li>
+                <li><a href="facilities.html" class="nav-link">Strutture</a></li>
+                <li><a href="schedule.html" class="nav-link">Orari</a></li>
+                <li><a href="trainers.html" class="nav-link">Istruttori</a></li>
+                <li><a href="membership.html" class="nav-link">Abbonamenti</a></li>
+                <li><a href="events.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="booking.html" class="nav-link">Prenota</a></li>
+                <li><a href="contact.html" class="nav-link">Contatti</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="container">
+            <h1>Chi Siamo</h1>
+            <p>La nostra storia, i nostri valori, la nostra passione per lo sport</p>
+        </div>
+    </section>
+
+    <!-- About Story -->
+    <section class="about-story">
+        <div class="container">
+            <div class="story-grid">
+                <div class="story-content">
+                    <h2>La Nostra Storia</h2>
+                    <p>Il Centro Sportivo Polivalente di San Sperate nasce nel 2014 con un sogno: creare uno spazio dove lo sport diventi accessibile a tutti, dai bambini agli anziani, dai principianti agli atleti professionisti.</p>
+                    <p>In dieci anni di attività abbiamo accolto migliaia di sportivi, formato centinaia di atleti e contribuito attivamente alla vita sportiva e sociale della comunità di San Sperate e dei comuni limitrofi.</p>
+                    <p>Oggi CPS Group è molto più di un semplice centro sportivo: è un punto di riferimento per il benessere fisico e mentale dell'intera comunità.</p>
+                    <div class="story-stats">
+                        <div class="story-stat">
+                            <span class="stat-num">2014</span>
+                            <span class="stat-desc">Anno di Fondazione</span>
+                        </div>
+                        <div class="story-stat">
+                            <span class="stat-num">500+</span>
+                            <span class="stat-desc">Membri Attivi</span>
+                        </div>
+                        <div class="story-stat">
+                            <span class="stat-num">20+</span>
+                            <span class="stat-desc">Istruttori</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="story-image">
+                    <img src="img/about-story.jpg" alt="La storia del CPS Group" loading="lazy">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Values Section -->
+    <section class="values">
+        <div class="container">
+            <div class="section-header">
+                <h2>I Nostri Valori</h2>
+                <p>I principi che guidano ogni nostra azione</p>
+            </div>
+            <div class="values-grid">
+                <div class="value-card">
+                    <div class="value-icon">🏅</div>
+                    <h3>Eccellenza</h3>
+                    <p>Ci impegniamo a offrire servizi di altissima qualità, strutture all'avanguardia e istruttori altamente qualificati.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">🤝</div>
+                    <h3>Comunità</h3>
+                    <p>Crediamo nel potere dello sport come strumento di aggregazione sociale e costruzione di legami comunitari.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">♿</div>
+                    <h3>Inclusività</h3>
+                    <p>Lo sport è per tutti. Offriamo programmi adattati per persone con disabilità e per ogni fascia d'età.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">🌱</div>
+                    <h3>Sostenibilità</h3>
+                    <p>Gestiamo le nostre strutture con attenzione all'ambiente, utilizzando energie rinnovabili e materiali eco-sostenibili.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">🎯</div>
+                    <h3>Obiettivi</h3>
+                    <p>Aiutiamo ogni membro a definire e raggiungere i propri obiettivi sportivi con piani personalizzati.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">❤️</div>
+                    <h3>Passione</h3>
+                    <p>La passione per lo sport è il motore di tutto ciò che facciamo. La trasmettiamo ogni giorno ai nostri membri.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Team Section -->
+    <section class="team">
+        <div class="container">
+            <div class="section-header">
+                <h2>Il Nostro Team</h2>
+                <p>Professionisti appassionati al tuo servizio</p>
+            </div>
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-image">
+                        <img src="img/team-director.jpg" alt="Direttore Sportivo" loading="lazy">
+                    </div>
+                    <div class="team-info">
+                        <h3>Marco Pinna</h3>
+                        <span class="team-role">Direttore Sportivo</span>
+                        <p>Ex atleta professionista con 15 anni di esperienza nella gestione di centri sportivi.</p>
+                    </div>
+                </div>
+                <div class="team-card">
+                    <div class="team-image">
+                        <img src="img/team-swim.jpg" alt="Responsabile Nuoto" loading="lazy">
+                    </div>
+                    <div class="team-info">
+                        <h3>Alessia Mura</h3>
+                        <span class="team-role">Responsabile Nuoto</span>
+                        <p>Campionessa regionale di nuoto, istruttrice FIN con specializzazione in nuoto per bambini.</p>
+                    </div>
+                </div>
+                <div class="team-card">
+                    <div class="team-image">
+                        <img src="img/team-fitness.jpg" alt="Responsabile Fitness" loading="lazy">
+                    </div>
+                    <div class="team-info">
+                        <h3>Luca Sanna</h3>
+                        <span class="team-role">Responsabile Fitness</span>
+                        <p>Personal trainer certificato CONI con specializzazione in functional training e riabilitazione sportiva.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Certifications -->
+    <section class="certifications">
+        <div class="container">
+            <div class="section-header">
+                <h2>Certificazioni e Riconoscimenti</h2>
+            </div>
+            <div class="cert-grid">
+                <div class="cert-item">
+                    <div class="cert-icon">🏆</div>
+                    <h4>CONI Certificato</h4>
+                    <p>Centro sportivo riconosciuto dal Comitato Olimpico Nazionale Italiano</p>
+                </div>
+                <div class="cert-item">
+                    <div class="cert-icon">⭐</div>
+                    <h4>ISO 9001:2015</h4>
+                    <p>Certificazione di qualità per la gestione dei servizi sportivi</p>
+                </div>
+                <div class="cert-item">
+                    <div class="cert-icon">🌿</div>
+                    <h4>Green Sport</h4>
+                    <p>Riconoscimento per le pratiche sostenibili e il rispetto ambientale</p>
+                </div>
+                <div class="cert-item">
+                    <div class="cert-icon">👨‍👩‍👧‍👦</div>
+                    <h4>Family Friendly</h4>
+                    <p>Certificazione per strutture adatte alle famiglie con bambini</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <span class="logo-text">CPS</span>
+                        <span class="logo-sub">GROUP</span>
+                    </div>
+                    <p>Centro Sportivo Polivalente di San Sperate. La tua palestra, la tua piscina, il tuo centro benessere.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Facebook">📘</a>
+                        <a href="#" aria-label="Instagram">📷</a>
+                        <a href="#" aria-label="YouTube">▶️</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="activities.html">Attività</a></li>
+                        <li><a href="facilities.html">Strutture</a></li>
+                        <li><a href="schedule.html">Orari</a></li>
+                        <li><a href="membership.html">Abbonamenti</a></li>
+                        <li><a href="booking.html">Prenota</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Informazioni</h4>
+                    <ul>
+                        <li><a href="about.html">Chi Siamo</a></li>
+                        <li><a href="trainers.html">Istruttori</a></li>
+                        <li><a href="events.html">Eventi</a></li>
+                        <li><a href="news.html">News</a></li>
+                        <li><a href="contact.html">Contatti</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>📍 Via dello Sport 1, San Sperate (CA)</p>
+                    <p>📞 070 123 4567</p>
+                    <p>✉️ info@cpsgroup.it</p>
+                    <p>🕐 Lun-Ven: 7:00-22:00</p>
+                    <p>🕐 Sab-Dom: 8:00-20:00</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 CPS Group - Centro Sportivo Polivalente San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/activities.html"}}
+</tool_call>
+<tool_response>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attività - CPS Group</title>
+    <meta name="description" content="Scopri tutte le attività sportive del Centro Sportivo Polivalente di San Sperate">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700;800&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <span class="logo-text">CPS</span>
+                    <span class="logo-sub">GROUP</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="about.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="activities.html" class="nav-link active">Attività</a></li>
+                <li><a href="facilities.html" class="nav-link">Strutture</a></li>
+                <li><a href="schedule.html" class="nav-link">Orari</a></li>
+                <li><a href="trainers.html" class="nav-link">Istruttori</a></li>
+                <li><a href="membership.html" class="nav-link">Abbonamenti</a></li>
+                <li><a href="events.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="booking.html" class="nav-link">Prenota</a></li>
+                <li><a href="contact.html" class="nav-link">Contatti</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="container">
+            <h1>Le Nostre Attività</h1>
+            <p>Oltre 15 discipline sportive per tutti i livelli e tutte le età</p>
+        </div>
+    </section>
+
+    <!-- Activities Filter -->
+    <section class="activities-section">
+        <div class="container">
+            <div class="filter-bar">
+                <button class="filter-btn active" data-filter="all">Tutte</button>
+                <button class="filter-btn" data-filter="acqua">Acqua</button>
+                <button class="filter-btn" data-filter="fitness">Fitness</button>
+                <button class="filter-btn" data-filter="sport">Sport</button>
+                <button class="filter-btn" data-filter="benessere">Benessere</button>
+            </div>
+
+            <div class="activities-full-grid">
+                <!-- Acqua -->
+                <div class="activity-full-card" data-category="acqua">
+                    <div class="activity-full-icon">🏊</div>
+                    <div class="activity-full-content">
+                        <h3>Nuoto Libero</h3>
+                        <p>Accesso libero alla piscina olimpionica da 50 metri con corsie dedicate. Disponibile tutti i giorni con orari flessibili.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Tutto il giorno</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Piscina Olimpionica</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="activity-full-card" data-category="acqua">
+                    <div class="activity-full-icon">🤽</div>
+                    <div class="activity-full-content">
+                        <h3>Pallanuoto</h3>
+                        <p>Squadra agonistica e corsi per principianti. Allenamenti tre volte a settimana con istruttori federali.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Mar/Gio/Sab</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Piscina Olimpionica</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="activity-full-card" data-category="acqua">
+                    <div class="activity-full-icon">🏄</div>
+                    <div class="activity-full-content">
+                        <h3>Acquagym</h3>
+                        <p>Ginnastica in acqua per tonificare i muscoli senza stress articolare. Ideale per tutte le età.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Lun/Mer/Ven</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Piscina Olimpionica</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fitness -->
+                <div class="activity-full-card" data-category="fitness">
+                    <div class="activity-full-icon">💪</div>
+                    <div class="activity-full-content">
+                        <h3>Sala Pesi</h3>
+                        <p>Oltre 200 attrezzi di ultima generazione. Personal trainer disponibili per programmi personalizzati.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Tutti i giorni</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Palestra</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="activity-full-card" data-category="fitness">
+                    <div class="activity-full-icon">🚴</div>
+                    <div class="activity-full-content">
+                        <h3>Spinning</h3>
+                        <p>Corsi di ciclismo indoor ad alta intensità. Brucia calorie e migliora la resistenza cardiovascolare.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Lun/Mer/Ven/Sab</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Sala Spinning</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="activity-full-card" data-category="fitness">
+                    <div class="activity-full-icon">🏃</div>
+                    <div class="activity-full-content">
+                        <h3>Zumba</h3>
+                        <p>Fitness dance che combina movimenti latinoamericani con musica coinvolgente. Divertente e brucia calorie!</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Mar/Gio</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Sala Danza</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sport -->
+                <div class="activity-full-card" data-category="sport">
+                    <div class="activity-full-icon">🎾</div>
+                    <div class="activity-full-content">
+                        <h3>Tennis</h3>
+                        <p>6 campi disponibili. Lezioni individuali e di gruppo, tornei mensili e campionati regionali.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Tutti i giorni</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Campi Tennis</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="activity-full-card" data-category="sport">
+                    <div class="activity-full-icon">⚽</div>
+                    <div class="activity-full-content">
+                        <h3>Calcio a 5</h3>
+                        <p>4 campi con manto sintetico. Campionati amatoriali, tornei aziendali e corsi per bambini.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Tutti i giorni</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Campi Calcio</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="activity-full-card" data-category="sport">
+                    <div class="activity-full-icon">🏀</div>
+                    <div class="activity-full-content">
+                        <h3>Basket</h3>
+                        <p>Pallacanestro per tutte le età. Squadre giovanili, campionati amatoriali e corsi base.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Mar/Gio/Sab</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Palazzetto</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="activity-full-card" data-category="sport">
+                    <div class="activity-full-icon">🏐</div>
+                    <div class="activity-full-content">
+                        <h3>Pallavolo</h3>
+                        <p>Squadre competitive e corsi amatoriali. Tornei interni mensili e partecipazione a campionati regionali.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Lun/Mer/Ven</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Palazzetto</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Benessere -->
+                <div class="activity-full-card" data-category="benessere">
+                    <div class="activity-full-icon">🧘</div>
+                    <div class="activity-full-content">
+                        <h3>Yoga</h3>
+                        <p>Vari stili di yoga: Hatha, Vinyasa, Yin. Classi per principianti e avanzati con istruttori certificati.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Tutti i giorni</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Sala Yoga</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="activity-full-card" data-category="benessere">
+                    <div class="activity-full-icon">🤸</div>
+                    <div class="activity-full-content">
+                        <h3>Pilates</h3>
+                        <p>Metodo Pilates per migliorare postura, flessibilità e forza del core. Classi piccole per attenzione personalizzata.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Lun/Mer/Ven</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Sala Pilates</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="activity-full-card" data-category="benessere">
+                    <div class="activity-full-icon">🥊</div>
+                    <div class="activity-full-content">
+                        <h3>Boxe Fitness</h3>
+                        <p>Allenamento ispirato alla boxe per migliorare coordinazione, forza e resistenza. Nessun contatto fisico.</p>
+                        <div class="activity-meta">
+                            <span>⏱️ Mar/Gio/Sab</span>
+                            <span>👥 Tutti i livelli</span>
+                            <span>📍 Sala Arti Marziali</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <h2>Pronto a Iniziare?</h2>
+            <p>Scegli la tua attività preferita e prenota la prima lezione gratuita</p>
+            <a href="booking.html" class="btn btn-primary">Prenota Ora</a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <span class="logo-text">CPS</span>
+                        <span class="logo-sub">GROUP</span>
+                    </div>
+                    <p>Centro Sportivo Polivalente di San Sperate. La tua palestra, la tua piscina, il tuo centro benessere.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Facebook">📘</a>
+                        <a href="#" aria-label="Instagram">📷</a>
+                        <a href="#" aria-label="YouTube">▶️</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="activities.html">Attività</a></li>
+                        <li><a href="facilities.html">Strutture</a></li>
+                        <li><a href="schedule.html">Orari</a></li>
+                        <li><a href="membership.html">Abbonamenti</a></li>
+                        <li><a href="booking.html">Prenota</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Informazioni</h4>
+                    <ul>
+                        <li><a href="about.html">Chi Siamo</a></li>
+                        <li><a href="trainers.html">Istruttori</a></li>
+                        <li><a href="events.html">Eventi</a></li>
+                        <li><a href="news.html">News</a></li>
+                        <li><a href="contact.html">Contatti</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>📍 Via dello Sport 1, San Sperate (CA)</p>
+                    <p>📞 070 123 4567</p>
+                    <p>✉️ info@cpsgroup.it</p>
+                    <p>🕐 Lun-Ven: 7:00-22:00</p>
+                    <p>🕐 Sab-Dom: 8:00-20:00</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 CPS Group - Centro Sportivo Polivalente San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/facilities.html"}}
+</tool_call>
+<tool_response>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strutture - CPS Group</title>
+    <meta name="description" content="Scopri le strutture sportive del Centro Sportivo Polivalente di San Sperate">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700;800&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <span class="logo-text">CPS</span>
+                    <span class="logo-sub">GROUP</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="about.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="activities.html" class="nav-link">Attività</a></li>
+                <li><a href="facilities.html" class="nav-link active">Strutture</a></li>
+                <li><a href="schedule.html" class="nav-link">Orari</a></li>
+                <li><a href="trainers.html" class="nav-link">Istruttori</a></li>
+                <li><a href="membership.html" class="nav-link">Abbonamenti</a></li>
+                <li><a href="events.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="booking.html" class="nav-link">Prenota</a></li>
+                <li><a href="contact.html" class="nav-link">Contatti</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="container">
+            <h1>Le Nostre Strutture</h1>
+            <p>Impianti moderni e all'avanguardia per la tua esperienza sportiva</p>
+        </div>
+    </section>
+
+    <!-- Facilities Grid -->
+    <section class="facilities-section">
+        <div class="container">
+            <div class="facilities-grid">
+                <div class="facility-card">
+                    <div class="facility-image">
+                        <img src="img/pool.jpg" alt="Piscina Olimpionica" loading="lazy">
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-icon">🏊</div>
+                        <h3>Piscina Olimpionica</h3>
+                        <p>Vasca da 50 metri con 8 corsie, temperatura controllata a 28°C. Dotata di trampolini e area bambini.</p>
+                        <ul class="facility-features">
+                            <li>✅ 50 metri, 8 corsie</li>
+                            <li>✅ Temperatura 28°C</li>
+                            <li>✅ Vasca bambini separata</li>
+                            <li>✅ Trampolini</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="facility-card">
+                    <div class="facility-image">
+                        <img src="img/gym.jpg" alt="Palestra" loading="lazy">
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-icon">💪</div>
+                        <h3>Palestra</h3>
+                        <p>Oltre 500 mq di spazio con 200+ attrezzi di ultima generazione, area cardio e zona pesi liberi.</p>
+                        <ul class="facility-features">
+                            <li>✅ 500 mq di spazio</li>
+                            <li>✅ 200+ attrezzi</li>
+                            <li>✅ Area cardio dedicata</li>
+                            <li>✅ Zona pesi liberi</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="facility-card">
+                    <div class="facility-image">
+                        <img src="img/tennis-courts.jpg" alt="Campi da Tennis" loading="lazy">
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-icon">🎾</div>
+                        <h3>Campi da Tennis</h3>
+                        <p>6 campi da tennis: 4 in terra rossa e 2 in superficie dura. Illuminazione per gioco serale.</p>
+                        <ul class="facility-features">
+                            <li>✅ 6 campi totali</li>
+                            <li>✅ Terra rossa e dura</li>
+                            <li>✅ Illuminazione serale</li>
+                            <li>✅ Spogliatoi dedicati</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="facility-card">
+                    <div class="facility-image">
+                        <img src="img/soccer.jpg" alt="Campi da Calcio" loading="lazy">
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-icon">⚽</div>
+                        <h3>Campi da Calcio a 5</h3>
+                        <p>4 campi con manto erboso sintetico di ultima generazione. Ideali per campionati aziendali e tornei.</p>
+                        <ul class="facility-features">
+                            <li>✅ 4 campi sintetici</li>
+                            <li>✅ Illuminazione LED</li>
+                            <li>✅ Tribuna spettatori</li>
+                            <li>✅ Spogliatoi</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="facility-card">
+                    <div class="facility-image">
+                        <img src="img/sports-hall.jpg" alt="Palazzetto" loading="lazy">
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-icon">🏀</div>
+                        <h3>Palazzetto Polivalente</h3>
+                        <p>Grande palazzetto per basket, pallavolo e altri sport di squadra. Capienza 500 spettatori.</p>
+                        <ul class="facility-features">
+                            <li>✅ Parquet professionale</li>
+                            <li>✅ Capienza 500 posti</li>
+                            <li>✅ Impianto audio/video</li>
+                            <li>✅ Spogliatoi multipli</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="facility-card">
+                    <div class="facility-image">
+                        <img src="img/wellness.jpg" alt="Centro Benessere" loading="lazy">
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-icon">🧘</div>
+                        <h3>Centro Benessere</h3>
+                        <p>Sauna, bagno turco, area relax e sale per yoga e pilates. Il tuo angolo di pace dopo l'allenamento.</p>
+                        <ul class="facility-features">
+                            <li>✅ Sauna finlandese</li>
+                            <li>✅ Bagno turco</li>
+                            <li>✅ Area relax</li>
+                            <li>✅ Sale yoga/pilates</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Amenities -->
+    <section class="amenities">
+        <div class="container">
+            <div class="section-header">
+                <h2>Servizi Aggiuntivi</h2>
+                <p>Tutto ciò di cui hai bisogno in un unico posto</p>
+            </div>
+            <div class="amenities-grid">
+                <div class="amenity-item">
+                    <span class="amenity-icon">🅿️</span>
+                    <span>Parcheggio Gratuito</span>
+                </div>
+                <div class="amenity-item">
+                    <span class="amenity-icon">🚿</span>
+                    <span>Spogliatoi e Docce</span>
+                </div>
+                <div class="amenity-item">
+                    <span class="amenity-icon">☕</span>
+                    <span>Bar e Ristoro</span>
+                </div>
+                <div class="amenity-item">
+                    <span class="amenity-icon">🏪</span>
+                    <span>Shop Sportivo</span>
+                </div>
+                <div class="amenity-item">
+                    <span class="amenity-icon">📱</span>
+                    <span>App Mobile</span>
+                </div>
+                <div class="amenity-item">
+                    <span class="amenity-icon">🔒</span>
+                    <span>Armadietti Sicuri</span>
+                </div>
+                <div class="amenity-item">
+                    <span class="amenity-icon">♿</span>
+                    <span>Accesso Disabili</span>
+                </div>
+                <div class="amenity-item">
+                    <span class="amenity-icon">📡</span>
+                    <span>WiFi Gratuito</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <span class="logo-text">CPS</span>
+                        <span class="logo-sub">GROUP</span>
+                    </div>
+                    <p>Centro Sportivo Polivalente di San Sperate. La tua palestra, la tua piscina, il tuo centro benessere.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Facebook">📘</a>
+                        <a href="#" aria-label="Instagram">📷</a>
+                        <a href="#" aria-label="YouTube">▶️</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="activities.html">Attività</a></li>
+                        <li><a href="facilities.html">Strutture</a></li>
+                        <li><a href="schedule.html">Orari</a></li>
+                        <li><a href="membership.html">Abbonamenti</a></li>
+                        <li><a href="booking.html">Prenota</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Informazioni</h4>
+                    <ul>
+                        <li><a href="about.html">Chi Siamo</a></li>
+                        <li><a href="trainers.html">Istruttori</a></li>
+                        <li><a href="events.html">Eventi</a></li>
+                        <li><a href="news.html">News</a></li>
+                        <li><a href="contact.html">Contatti</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>📍 Via dello Sport 1, San Sperate (CA)</p>
+                    <p>

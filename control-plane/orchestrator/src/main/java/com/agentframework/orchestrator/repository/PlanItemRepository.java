@@ -105,4 +105,17 @@ public interface PlanItemRepository extends JpaRepository<PlanItem, UUID> {
          + "AND i.dispatchedAt <= :cutoff "
          + "GROUP BY i.workerType")
     List<Object[]> countStaleDispatchedByWorkerType(@Param("cutoff") Instant cutoff);
+
+    /** Counts currently DISPATCHED items grouped by WorkerType (for inventory tracking). */
+    @Query("SELECT i.workerType, COUNT(i) FROM PlanItem i "
+         + "WHERE i.status = com.agentframework.orchestrator.domain.ItemStatus.DISPATCHED "
+         + "GROUP BY i.workerType")
+    List<Object[]> countDispatchedByWorkerType();
+
+    /** Counts DONE items completed after cutoff, grouped by WorkerType (for target inventory). */
+    @Query("SELECT i.workerType, COUNT(i) FROM PlanItem i "
+         + "WHERE i.status = com.agentframework.orchestrator.domain.ItemStatus.DONE "
+         + "AND i.completedAt >= :cutoff "
+         + "GROUP BY i.workerType")
+    List<Object[]> countCompletedAfterByWorkerType(@Param("cutoff") Instant cutoff);
 }

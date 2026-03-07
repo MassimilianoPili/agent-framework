@@ -1,0 +1,1089 @@
+I'll analyze the HTML pages to find all referenced images and create appropriate SVG placeholders. Let me start by exploring the directory structure.
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4</path>
+  <content>
+    <file name="CNAME" />
+    <file name="README.md" />
+    <file name="chi-siamo.html" />
+    <file name="contatti.html" />
+    <file name="corsi.html" />
+    <file name="css" />
+    <file name="eventi.html" />
+    <file name="fonts" />
+    <file name="img" />
+    <file name="index.html" />
+    <file name="js" />
+    <file name="news.html" />
+    <file name="palestra.html" />
+    <file name="piscina.html" />
+    <file name="prenotazioni.html" />
+    <file name="servizi.html" />
+    <file name="strutture.html" />
+  </content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img</path>
+  <content>
+    <file name="campo-calcio" />
+    <file name="palestra" />
+    <file name="piscina" />
+    <file name="strutture" />
+  </content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/campo-calcio"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/campo-calcio</path>
+  <content>
+  </content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/palestra"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/palestra</path>
+  <content>
+  </content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/piscina"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/piscina</path>
+  <content>
+  </content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/strutture"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/img/strutture</path>
+  <content>
+  </content>
+</tool_response>
+
+All img subdirectories are empty. Now let me read all 11 HTML pages to find every `<img>` src reference.
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/index.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/index.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPS - Centro Sportivo Polivalente San Sperate</title>
+    <meta name="description" content="Centro Sportivo Polivalente di San Sperate - Piscina olimpionica, palestra attrezzata, campi da calcio e tennis. Il tuo centro sportivo a San Sperate.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/index.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link active">Home</a></li>
+                <li><a href="strutture.html" class="nav-link">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-bg">
+            <img src="img/hero-bg.jpg" alt="Centro Sportivo San Sperate" class="hero-img" loading="lazy">
+        </div>
+        <div class="hero-content">
+            <h1>Centro Sportivo Polivalente</h1>
+            <p class="hero-subtitle">San Sperate</p>
+            <p class="hero-description">Il tuo centro sportivo completo a San Sperate. Piscina olimpionica, palestra attrezzata, campi da calcio e tanto altro.</p>
+            <div class="hero-buttons">
+                <a href="strutture.html" class="btn btn-primary">Scopri le Strutture</a>
+                <a href="prenotazioni.html" class="btn btn-secondary">Prenota Ora</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats">
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-number">500+</span>
+                    <span class="stat-label">Iscritti</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">20+</span>
+                    <span class="stat-label">Corsi Disponibili</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">15</span>
+                    <span class="stat-label">Anni di Esperienza</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">10</span>
+                    <span class="stat-label">Strutture Sportive</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Featured Facilities -->
+    <section class="facilities" id="strutture">
+        <div class="container">
+            <h2 class="section-title">Le Nostre Strutture</h2>
+            <p class="section-subtitle">Impianti moderni e attrezzati per ogni disciplina sportiva</p>
+            <div class="facilities-grid">
+                <div class="facility-card">
+                    <div class="facility-img-wrapper">
+                        <img src="img/piscina/piscina-olimpionica.jpg" alt="Piscina Olimpionica" class="facility-img" loading="lazy">
+                    </div>
+                    <div class="facility-info">
+                        <h3>Piscina Olimpionica</h3>
+                        <p>50 metri di pura performance. Vasca olimpionica con 8 corsie, temperatura controllata e illuminazione professionale.</p>
+                        <a href="piscina.html" class="btn btn-outline">Scopri di più</a>
+                    </div>
+                </div>
+                <div class="facility-card">
+                    <div class="facility-img-wrapper">
+                        <img src="img/palestra/palestra-principale.jpg" alt="Palestra Principale" class="facility-img" loading="lazy">
+                    </div>
+                    <div class="facility-info">
+                        <h3>Palestra Attrezzata</h3>
+                        <p>Oltre 500mq di spazio fitness con attrezzature di ultima generazione per allenamenti personalizzati.</p>
+                        <a href="palestra.html" class="btn btn-outline">Scopri di più</a>
+                    </div>
+                </div>
+                <div class="facility-card">
+                    <div class="facility-img-wrapper">
+                        <img src="img/campo-calcio/campo-principale.jpg" alt="Campo da Calcio" class="facility-img" loading="lazy">
+                    </div>
+                    <div class="facility-info">
+                        <h3>Campo da Calcio</h3>
+                        <p>Campo regolamentare in erba sintetica di ultima generazione, omologato per competizioni ufficiali.</p>
+                        <a href="strutture.html" class="btn btn-outline">Scopri di più</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- News Preview -->
+    <section class="news-preview">
+        <div class="container">
+            <h2 class="section-title">Ultime Notizie</h2>
+            <div class="news-grid">
+                <article class="news-card">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-1.jpg" alt="Apertura nuova area fitness" class="news-img" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">15 Gennaio 2025</span>
+                        <h3>Apertura nuova area fitness</h3>
+                        <p>Inauguriamo la nuova area fitness con attrezzature all'avanguardia...</p>
+                        <a href="news.html" class="read-more">Leggi di più →</a>
+                    </div>
+                </article>
+                <article class="news-card">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-2.jpg" alt="Campionato regionale nuoto" class="news-img" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">10 Gennaio 2025</span>
+                        <h3>Campionato regionale nuoto</h3>
+                        <p>I nostri atleti brillano al campionato regionale di nuoto...</p>
+                        <a href="news.html" class="read-more">Leggi di più →</a>
+                    </div>
+                </article>
+                <article class="news-card">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-3.jpg" alt="Nuovi corsi primaverili" class="news-img" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">5 Gennaio 2025</span>
+                        <h3>Nuovi corsi primaverili</h3>
+                        <p>Scopri i nuovi corsi disponibili per la stagione primaverile...</p>
+                        <a href="news.html" class="read-more">Leggi di più →</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <h2>Pronto a iniziare?</h2>
+            <p>Unisciti alla nostra comunità sportiva e scopri tutti i vantaggi del CPS San Sperate</p>
+            <a href="prenotazioni.html" class="btn btn-primary btn-large">Prenota una Visita</a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il benessere.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="strutture.html">Strutture</a></li>
+                        <li><a href="corsi.html">Corsi</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="prenotazioni.html">Prenotazioni</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>Via dello Sport, 1<br>09010 San Sperate (CA)</p>
+                    <p>Tel: <a href="tel:+390701234567">070 123 4567</a></p>
+                    <p>Email: <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.min.js"></script>
+</body>
+</html>
+</content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/strutture.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/strutture.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strutture - CPS San Sperate</title>
+    <meta name="description" content="Scopri tutte le strutture sportive del CPS San Sperate: piscina olimpionica, palestra, campi da calcio, tennis e molto altro.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/strutture.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link active">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/strutture/strutture-hero.jpg" alt="Le nostre strutture" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>Le Nostre Strutture</h1>
+            <p>Impianti moderni e attrezzati per ogni disciplina sportiva</p>
+        </div>
+    </section>
+
+    <!-- Strutture Grid -->
+    <section class="strutture-section">
+        <div class="container">
+            <div class="strutture-grid">
+
+                <!-- Piscina -->
+                <div class="struttura-item" id="piscina">
+                    <div class="struttura-gallery">
+                        <img src="img/piscina/piscina-olimpionica.jpg" alt="Piscina Olimpionica" class="struttura-main-img" loading="lazy">
+                        <div class="struttura-thumbs">
+                            <img src="img/piscina/piscina-dettaglio-1.jpg" alt="Piscina - dettaglio corsie" loading="lazy">
+                            <img src="img/piscina/piscina-dettaglio-2.jpg" alt="Piscina - area bordo vasca" loading="lazy">
+                            <img src="img/piscina/piscina-dettaglio-3.jpg" alt="Piscina - spogliatoi" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="struttura-info">
+                        <h2>Piscina Olimpionica</h2>
+                        <p class="struttura-desc">La nostra piscina olimpionica è il fiore all'occhiello del CPS San Sperate. Con 50 metri di lunghezza e 8 corsie, è omologata per competizioni nazionali e internazionali.</p>
+                        <ul class="struttura-features">
+                            <li>Vasca 50m × 25m, 8 corsie</li>
+                            <li>Temperatura acqua 27-28°C</li>
+                            <li>Vasca didattica 25m</li>
+                            <li>Tribuna da 500 posti</li>
+                            <li>Spogliatoi moderni</li>
+                            <li>Cronometraggio elettronico</li>
+                        </ul>
+                        <a href="piscina.html" class="btn btn-primary">Dettagli Piscina</a>
+                    </div>
+                </div>
+
+                <!-- Palestra -->
+                <div class="struttura-item" id="palestra">
+                    <div class="struttura-gallery">
+                        <img src="img/palestra/palestra-principale.jpg" alt="Palestra Principale" class="struttura-main-img" loading="lazy">
+                        <div class="struttura-thumbs">
+                            <img src="img/palestra/palestra-pesi.jpg" alt="Palestra - area pesi" loading="lazy">
+                            <img src="img/palestra/palestra-cardio.jpg" alt="Palestra - area cardio" loading="lazy">
+                            <img src="img/palestra/palestra-corsi.jpg" alt="Palestra - sala corsi" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="struttura-info">
+                        <h2>Palestra Attrezzata</h2>
+                        <p class="struttura-desc">La nostra palestra di oltre 500mq offre attrezzature di ultima generazione per ogni tipo di allenamento, dal fitness alla preparazione atletica professionale.</p>
+                        <ul class="struttura-features">
+                            <li>500mq di spazio fitness</li>
+                            <li>Area pesi liberi</li>
+                            <li>Area cardio con 30 macchine</li>
+                            <li>Sala corsi 200mq</li>
+                            <li>Personal trainer disponibili</li>
+                            <li>Spogliatoi con sauna</li>
+                        </ul>
+                        <a href="palestra.html" class="btn btn-primary">Dettagli Palestra</a>
+                    </div>
+                </div>
+
+                <!-- Campo Calcio -->
+                <div class="struttura-item" id="calcio">
+                    <div class="struttura-gallery">
+                        <img src="img/campo-calcio/campo-principale.jpg" alt="Campo da Calcio Principale" class="struttura-main-img" loading="lazy">
+                        <div class="struttura-thumbs">
+                            <img src="img/campo-calcio/campo-dettaglio-1.jpg" alt="Campo calcio - dettaglio manto erboso" loading="lazy">
+                            <img src="img/campo-calcio/campo-dettaglio-2.jpg" alt="Campo calcio - tribune" loading="lazy">
+                            <img src="img/campo-calcio/campo-a5.jpg" alt="Campo calcio a 5" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="struttura-info">
+                        <h2>Campi da Calcio</h2>
+                        <p class="struttura-desc">Due campi da calcio per soddisfare ogni esigenza: un campo regolamentare in erba sintetica di ultima generazione e un campo a 5 per partite veloci e divertenti.</p>
+                        <ul class="struttura-features">
+                            <li>Campo 11 in erba sintetica</li>
+                            <li>Campo a 5 indoor</li>
+                            <li>Illuminazione notturna</li>
+                            <li>Tribune coperte</li>
+                            <li>Spogliatoi dedicati</li>
+                            <li>Omologato FIGC</li>
+                        </ul>
+                        <a href="strutture.html#calcio" class="btn btn-primary">Prenota Campo</a>
+                    </div>
+                </div>
+
+                <!-- Tennis -->
+                <div class="struttura-item" id="tennis">
+                    <div class="struttura-gallery">
+                        <img src="img/strutture/tennis-court.jpg" alt="Campo da Tennis" class="struttura-main-img" loading="lazy">
+                        <div class="struttura-thumbs">
+                            <img src="img/strutture/tennis-dettaglio-1.jpg" alt="Tennis - dettaglio campo" loading="lazy">
+                            <img src="img/strutture/tennis-dettaglio-2.jpg" alt="Tennis - rete e linee" loading="lazy">
+                            <img src="img/strutture/tennis-notturno.jpg" alt="Tennis - illuminazione notturna" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="struttura-info">
+                        <h2>Campi da Tennis</h2>
+                        <p class="struttura-desc">Tre campi da tennis in terra rossa con illuminazione notturna, perfetti per giocatori di tutti i livelli. Disponibili per prenotazione singola o abbonamento.</p>
+                        <ul class="struttura-features">
+                            <li>3 campi in terra rossa</li>
+                            <li>Illuminazione notturna</li>
+                            <li>Noleggio attrezzatura</li>
+                            <li>Istruttori certificati</li>
+                            <li>Tornei mensili</li>
+                        </ul>
+                        <a href="prenotazioni.html" class="btn btn-primary">Prenota Campo</a>
+                    </div>
+                </div>
+
+                <!-- Sala Polivalente -->
+                <div class="struttura-item" id="sala-polivalente">
+                    <div class="struttura-gallery">
+                        <img src="img/strutture/sala-polivalente.jpg" alt="Sala Polivalente" class="struttura-main-img" loading="lazy">
+                        <div class="struttura-thumbs">
+                            <img src="img/strutture/sala-basket.jpg" alt="Sala - campo basket" loading="lazy">
+                            <img src="img/strutture/sala-volley.jpg" alt="Sala - campo volley" loading="lazy">
+                            <img src="img/strutture/sala-eventi.jpg" alt="Sala - allestimento eventi" loading="lazy">
+                        </div>
+                    </div>
+                    <div class="struttura-info">
+                        <h2>Sala Polivalente</h2>
+                        <p class="struttura-desc">Un grande spazio versatile di 800mq che può ospitare basket, pallavolo, badminton, arti marziali e molto altro. Ideale anche per eventi sportivi e non.</p>
+                        <ul class="struttura-features">
+                            <li>800mq di spazio</li>
+                            <li>Parquet professionale</li>
+                            <li>Tribuna da 300 posti</li>
+                            <li>Impianto audio/video</li>
+                            <li>Configurabile per eventi</li>
+                        </ul>
+                        <a href="prenotazioni.html" class="btn btn-primary">Prenota Sala</a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il benessere.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="strutture.html">Strutture</a></li>
+                        <li><a href="corsi.html">Corsi</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="prenotazioni.html">Prenotazioni</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>Via dello Sport, 1<br>09010 San Sperate (CA)</p>
+                    <p>Tel: <a href="tel:+390701234567">070 123 4567</a></p>
+                    <p>Email: <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.min.js"></script>
+</body>
+</html>
+</content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/piscina.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/piscina.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Piscina - CPS San Sperate</title>
+    <meta name="description" content="Piscina olimpionica del CPS San Sperate: vasca 50m con 8 corsie, corsi di nuoto per tutte le età, nuoto libero e competizioni.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/piscina.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link active">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/piscina/piscina-hero.jpg" alt="Piscina Olimpionica CPS" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>Piscina Olimpionica</h1>
+            <p>50 metri di pura performance</p>
+        </div>
+    </section>
+
+    <!-- Piscina Content -->
+    <section class="facility-detail">
+        <div class="container">
+            <div class="facility-detail-grid">
+                <div class="facility-detail-gallery">
+                    <img src="img/piscina/piscina-olimpionica.jpg" alt="Vasca olimpionica 50m" class="facility-main-img" loading="lazy">
+                    <div class="gallery-thumbs">
+                        <img src="img/piscina/piscina-dettaglio-1.jpg" alt="Corsie della piscina" loading="lazy">
+                        <img src="img/piscina/piscina-dettaglio-2.jpg" alt="Bordo vasca" loading="lazy">
+                        <img src="img/piscina/piscina-dettaglio-3.jpg" alt="Spogliatoi piscina" loading="lazy">
+                        <img src="img/piscina/piscina-vasca-didattica.jpg" alt="Vasca didattica" loading="lazy">
+                    </div>
+                </div>
+                <div class="facility-detail-info">
+                    <h2>La Nostra Piscina</h2>
+                    <p>La piscina olimpionica del CPS San Sperate è un impianto di eccellenza, progettato per soddisfare le esigenze di nuotatori di tutti i livelli, dai principianti agli atleti professionisti.</p>
+                    <div class="specs-grid">
+                        <div class="spec-item">
+                            <span class="spec-label">Lunghezza</span>
+                            <span class="spec-value">50 metri</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Larghezza</span>
+                            <span class="spec-value">25 metri</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Corsie</span>
+                            <span class="spec-value">8</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Temperatura</span>
+                            <span class="spec-value">27-28°C</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Corsi Nuoto -->
+            <div class="corsi-nuoto">
+                <h2>Corsi di Nuoto</h2>
+                <div class="corsi-grid">
+                    <div class="corso-card">
+                        <img src="img/piscina/corso-bambini.jpg" alt="Corso nuoto bambini" loading="lazy">
+                        <h3>Nuoto Bambini</h3>
+                        <p>Per bambini dai 3 ai 12 anni. Approccio ludico e progressivo.</p>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/piscina/corso-adulti.jpg" alt="Corso nuoto adulti" loading="lazy">
+                        <h3>Nuoto Adulti</h3>
+                        <p>Per principianti e nuotatori che vogliono migliorare la tecnica.</p>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/piscina/corso-agonistico.jpg" alt="Nuoto agonistico" loading="lazy">
+                        <h3>Nuoto Agonistico</h3>
+                        <p>Preparazione per competizioni regionali e nazionali.</p>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/piscina/acquagym.jpg" alt="Acquagym" loading="lazy">
+                        <h3>Acquagym</h3>
+                        <p>Ginnastica in acqua per tonificare e rilassarsi.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il benessere.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="strutture.html">Strutture</a></li>
+                        <li><a href="corsi.html">Corsi</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="prenotazioni.html">Prenotazioni</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>Via dello Sport, 1<br>09010 San Sperate (CA)</p>
+                    <p>Tel: <a href="tel:+390701234567">070 123 4567</a></p>
+                    <p>Email: <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.min.js"></script>
+</body>
+</html>
+</content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/palestra.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/palestra.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Palestra - CPS San Sperate</title>
+    <meta name="description" content="Palestra attrezzata del CPS San Sperate: 500mq di spazio fitness, area pesi, cardio, sala corsi e personal trainer.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/palestra.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link active">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/palestra/palestra-hero.jpg" alt="Palestra CPS San Sperate" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>Palestra Attrezzata</h1>
+            <p>500mq di spazio fitness all'avanguardia</p>
+        </div>
+    </section>
+
+    <!-- Palestra Content -->
+    <section class="facility-detail">
+        <div class="container">
+            <div class="facility-detail-grid">
+                <div class="facility-detail-gallery">
+                    <img src="img/palestra/palestra-principale.jpg" alt="Palestra principale" class="facility-main-img" loading="lazy">
+                    <div class="gallery-thumbs">
+                        <img src="img/palestra/palestra-pesi.jpg" alt="Area pesi" loading="lazy">
+                        <img src="img/palestra/palestra-cardio.jpg" alt="Area cardio" loading="lazy">
+                        <img src="img/palestra/palestra-corsi.jpg" alt="Sala corsi" loading="lazy">
+                        <img src="img/palestra/palestra-spogliatoi.jpg" alt="Spogliatoi palestra" loading="lazy">
+                    </div>
+                </div>
+                <div class="facility-detail-info">
+                    <h2>La Nostra Palestra</h2>
+                    <p>La palestra del CPS San Sperate è un ambiente moderno e accogliente, dotato delle migliori attrezzature per ogni tipo di allenamento.</p>
+                    <div class="specs-grid">
+                        <div class="spec-item">
+                            <span class="spec-label">Superficie</span>
+                            <span class="spec-value">500 mq</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Macchine Cardio</span>
+                            <span class="spec-value">30</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Sala Corsi</span>
+                            <span class="spec-value">200 mq</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Personal Trainer</span>
+                            <span class="spec-value">5</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Corsi Palestra -->
+            <div class="corsi-palestra">
+                <h2>Corsi in Palestra</h2>
+                <div class="corsi-grid">
+                    <div class="corso-card">
+                        <img src="img/palestra/corso-yoga.jpg" alt="Corso yoga" loading="lazy">
+                        <h3>Yoga</h3>
+                        <p>Equilibrio tra corpo e mente. Tutti i livelli.</p>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/palestra/corso-pilates.jpg" alt="Corso pilates" loading="lazy">
+                        <h3>Pilates</h3>
+                        <p>Rinforzo del core e miglioramento della postura.</p>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/palestra/corso-spinning.jpg" alt="Corso spinning" loading="lazy">
+                        <h3>Spinning</h3>
+                        <p>Allenamento cardio intenso su bici stazionaria.</p>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/palestra/corso-zumba.jpg" alt="Corso zumba" loading="lazy">
+                        <h3>Zumba</h3>
+                        <p>Danza e fitness in un'unica esperienza divertente.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il benessere.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="strutture.html">Strutture</a></li>
+                        <li><a href="corsi.html">Corsi</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="prenotazioni.html">Prenotazioni</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>Via dello Sport, 1<br>09010 San Sperate (CA)</p>
+                    <p>Tel: <a href="tel:+390701234567">070 123 4567</a></p>
+                    <p>Email: <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.min.js"></script>
+</body>
+</html>
+</content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/corsi.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/corsi.html</path>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/eventi.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/eventi.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eventi - CPS San Sperate</title>
+    <meta name="description" content="Scopri gli eventi sportivi del CPS San Sperate: tornei, gare, manifestazioni e molto altro.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/eventi.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link active">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/eventi/eventi-hero.jpg" alt="Eventi CPS San Sperate" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>Eventi</h1>
+            <p>Tornei, gare e manifestazioni sportive</p>
+        </div>
+    </section>
+
+    <!-- Events Grid -->
+    <section class="eventi-section">
+        <div class="container">
+            <div class="eventi-grid">
+
+                <article class="evento-card featured">
+                    <div class="evento-img-wrapper">
+                        <img src="img/eventi/torneo-nuoto.jpg" alt="Torneo Regionale di Nuoto" loading="lazy">
+                    </div>
+                    <div class="evento-content">
+                        <span class="evento-badge">In Evidenza</span>
+                        <span class="evento-date">15-16 Febbraio 2025</span>
+                        <h2>Torneo Regionale di Nuoto</h2>
+                        <p>Il grande appuntamento con il nuoto agonistico regionale. Atleti da tutta la Sardegna si sfidano nelle acque della nostra piscina olimpionica.</p>
+                        <a href="#" class="btn btn-primary">Scopri di più</a>
+                    </div>
+                </article>
+
+                <article class="evento-card">
+                    <div class="evento-img-wrapper">
+                        <img src="img/eventi/torneo-calcio.jpg" alt="Torneo Calcio a 5" loading="lazy">
+                    </div>
+                    <div class="evento-content">
+                        <span class="evento-date">22 Febbraio 2025</span>
+                        <h2>Torneo Calcio a 5</h2>
+                        <p>Torneo amatoriale di calcio a 5. Iscrizioni aperte per squadre di 5-7 giocatori.</p>
+                        <a href="#" class="btn btn-outline">Iscriviti</a>
+                    </div>
+                </article>
+
+                <article class="evento-card">
+                    <div class="evento-img-wrapper">
+                        <img src="img/eventi/open-day.jpg" alt="Open Day CPS" loading="lazy">
+                    </div>
+                    <div class="evento-content">
+                        <span class="evento-date">1 Marzo 2025</span>
+                        <h2>Open Day CPS</h2>
+                        <p>Porte aperte al CPS San Sperate. Prova gratuitamente tutte le strutture e i corsi.</p>
+                        <a href="#" class="btn btn-outline">Registrati</a>
+                    </div>
+                </article>
+
+                <article class="evento-card">
+                    <div class="evento-img-wrapper">
+                        <img src="img/eventi/corso-yoga.jpg" alt="Workshop Yoga" loading="lazy">
+                    </div>
+                    <div class="evento-content">
+                        <span class="evento-date">8 Marzo 2025</span>
+                        <h2>Workshop Yoga</h2>
+                        <p>Giornata dedicata allo yoga con istruttori certificati. Adatto a tutti i livelli.</p>
+                        <a href="#" class="btn btn-outline">Iscriviti</a>
+                    </div>
+                </article>
+
+                <article class="evento-card">
+                    <div class="evento-img-wrapper">
+                        <img src="img/eventi/torneo-tennis.jpg" alt="Torneo Tennis" loading="lazy">
+                    </div>
+                    <div class="evento-content">
+                        <span class="evento-date">15 Marzo 2025</span>
+                        <h2>Torneo Tennis Primaverile</h2>
+                        <p>Torneo di tennis singolo e doppio. Categorie: principianti, intermedi, avanzati.</p>
+                        <a href="#" class="btn btn-outline">Iscriviti</a>
+                    </div>
+                </article>
+
+                <article class="evento-card">
+                    <div class="evento-img-wrapper">
+                        <img src="img/eventi/gara-nuoto-bambini.jpg" alt="Gara Nuoto Bambini" loading="lazy">
+                    </div>
+                    <div class="evento-content">
+                        <span class="evento-date">22 Marzo 2025</span>
+                        <h2>Gara Nuoto Bambini</h2>
+                        <p>Prima gara di nuoto per i piccoli atleti del CPS. Dai 6 ai 12 anni.</p>
+                        <a href="#" class="btn btn-outline">Iscriviti</a>
+                    </div>
+                </article>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il benessere.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="strutture.html">Strutture</a></li>
+                        <li><a href="corsi.html">Corsi</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="prenotazioni.html">Prenotazioni</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>Via dello Sport, 1<br>09010 San Sperate (CA)</p>
+                    <p>Tel: <a href="tel:+390701234567">070 123 4567</a></p>
+                    <p>Email: <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.min.js"></script>
+</body>
+</html>
+</content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/news.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/news.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News - CPS San Sperate</title>
+    <meta name="description" content="Ultime notizie dal CPS San Sperate: aggiornamenti, comunicati e novità dal centro sportivo.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/news.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link active">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/news/news-hero.jpg" alt="News CPS San Sperate" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>News</h1>
+            <p>Aggiornamenti e novità dal CPS San Sperate</p>
+        </div>
+    </section>
+
+    <!-- News Grid -->
+    <section class="news-section">
+        <div class="container">
+            <div class="news-grid-full">
+
+                <article class="news-card-full">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-1.jpg" alt="Apertura nuova area fitness" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">15 Gennaio 2025</span>
+                        <h2>Apertura nuova area fitness</h2>
+                        <p>Siamo lieti di annunciare l'apertura della nuova area fitness del CPS San Sperate. Oltre 200mq di spazio dedicato al fitness funzionale con attrezzature all'avanguardia...</p>
+                        <a href="#" class="btn btn-outline">Leggi tutto</a>
+                    </div>
+                

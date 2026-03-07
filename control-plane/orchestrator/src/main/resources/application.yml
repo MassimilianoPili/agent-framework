@@ -344,6 +344,30 @@ pheromone:
   alpha: 1.0                    # exponent in transition probability
   evaporation-interval-ms: 3600000  # every hour
 
+# Portfolio Theory (Markowitz Mean-Variance) — risk-adjusted budget allocation
+portfolio:
+  enabled: true
+  risk-free-rate: 0.3       # R_f per Sharpe ratio
+  max-weight: 0.6           # w_i <= 0.6 (max concentrazione per worker type)
+  grid-steps: 20            # risoluzione griglia simplesso
+
+# Market Making Dispatch (Bid-Ask Spread + Inventory Risk)
+dispatch:
+  inventory:
+    enabled: false                   # disabilitato per default
+    target-multiplier: 2.0           # target = avg(dispatched/hr) × multiplier
+    decay-threshold-hours: 2.0       # DISPATCHED stale → contano come 0.5
+
+# Causal Inference (Pearl's Do-Calculus) — root cause analysis for failed tasks
+causal:
+  enabled: true
+
+# Wasserstein Drift Detection — distribution alignment monitoring
+drift:
+  enabled: true
+  check-interval-ms: 3600000     # every hour
+  threshold: 0.15                # W_1 above this triggers drift alert
+
 logging:
   level:
     com.agentframework: INFO

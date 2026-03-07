@@ -1,0 +1,565 @@
+
+
+I'll start by examining the project structure and existing HTML files to understand what needs to be modified.
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "find /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/ -maxdepth 1 -type f -name '*.html' | sort"}}
+</tool_call>
+<tool_result>
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/about.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/calcetto.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/contatti.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/eventi.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/gallery.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/index.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/nuoto.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/orari.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/palestra.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/tennis.html
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/wellness.html
+</tool_result>
+
+Good, all 11 pages confirmed. Let me check the existing state of `lang` attributes and `<head>` sections:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "for f in /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/*.html; do echo \"=== $(basename $f) ===\"; head -5 \"$f\"; echo; done"}}
+</tool_call>
+<tool_result>
+=== about.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== calcetto.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== contatti.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== eventi.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== gallery.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== index.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== nuoto.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== orari.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== palestra.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== tennis.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+=== wellness.html ===
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</tool_result>
+
+All 11 pages already have `lang="it"`. Now let me check if any canonical links already exist:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "for f in /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/*.html; do echo \"=== $(basename $f) ===\"; grep -n 'canonical' \"$f\" || echo '(none)'; done"}}
+</tool_call>
+<tool_result>
+=== about.html ===
+(none)
+=== calcetto.html ===
+(none)
+=== contatti.html ===
+(none)
+=== eventi.html ===
+(none)
+=== gallery.html ===
+(none)
+=== index.html ===
+(none)
+=== nuoto.html ===
+(none)
+=== orari.html ===
+(none)
+=== palestra.html ===
+(none)
+=== tennis.html ===
+(none)
+=== wellness.html ===
+(none)
+</tool_result>
+
+No canonical links exist yet. Let me check the `<head>` structure to find the best insertion point:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "sed -n '1,/<\\/head>/p' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/index.html"}}
+</tool_call>
+<tool_result>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPS San Sperate - Centro Polisportivo</title>
+    <meta name="description" content="Centro Polisportivo San Sperate - Il tuo centro sportivo di riferimento per nuoto, tennis, calcetto, palestra e wellness a San Sperate, Sardegna.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+</head>
+</tool_result>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "sed -n '1,/<\\/head>/p' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/about.html"}}
+</tool_call>
+<tool_result>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi Siamo - CPS San Sperate</title>
+    <meta name="description" content="Scopri la storia e la missione del Centro Polisportivo San Sperate. Dal 1985 al servizio dello sport e del benessere della comunità.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+</head>
+</tool_result>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "for f in /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/*.html; do echo \"=== $(basename $f) ===\"; sed -n '1,/<\\/head>/p' \"$f\" | grep -E '<(title|meta|link)'; echo; done"}}
+</tool_call>
+<tool_result>
+=== about.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi Siamo - CPS San Sperate</title>
+    <meta name="description" content="Scopri la storia e la missione del Centro Polisportivo San Sperate. Dal 1985 al servizio dello sport e del benessere della comunità.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== calcetto.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calcetto - CPS San Sperate</title>
+    <meta name="description" content="Campi da calcetto a 5 del Centro Polisportivo San Sperate. Prenota il tuo campo, partecipa ai tornei e divertiti con gli amici.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== contatti.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contatti - CPS San Sperate</title>
+    <meta name="description" content="Contatta il Centro Polisportivo San Sperate. Trova indirizzo, telefono, email e orari di apertura. Siamo a San Sperate, Sardegna.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== eventi.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eventi - CPS San Sperate</title>
+    <meta name="description" content="Eventi e tornei al Centro Polisportivo San Sperate. Scopri le prossime competizioni, corsi speciali e attività per tutta la famiglia.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== gallery.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galleria - CPS San Sperate</title>
+    <meta name="description" content="Galleria fotografica del Centro Polisportivo San Sperate. Scopri le nostre strutture, piscine, campi da tennis, palestra e aree wellness.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== index.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPS San Sperate - Centro Polisportivo</title>
+    <meta name="description" content="Centro Polisportivo San Sperate - Il tuo centro sportivo di riferimento per nuoto, tennis, calcetto, palestra e wellness a San Sperate, Sardegna.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== nuoto.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuoto - CPS San Sperate</title>
+    <meta name="description" content="Corsi di nuoto e piscina al Centro Polisportivo San Sperate. Lezioni per bambini, adulti e nuoto libero nella nostra piscina olimpionica.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== orari.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orari e Prezzi - CPS San Sperate</title>
+    <meta name="description" content="Orari di apertura e listino prezzi del Centro Polisportivo San Sperate. Consulta gli orari di piscina, palestra, tennis e calcetto.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== palestra.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Palestra - CPS San Sperate</title>
+    <meta name="description" content="Palestra attrezzata al Centro Polisportivo San Sperate. Sala pesi, corsi di fitness, personal training e programmi personalizzati.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== tennis.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tennis - CPS San Sperate</title>
+    <meta name="description" content="Campi da tennis al Centro Polisportivo San Sperate. Lezioni individuali, corsi di gruppo e tornei per tutti i livelli.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+
+=== wellness.html ===
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wellness & Spa - CPS San Sperate</title>
+    <meta name="description" content="Area wellness e spa al Centro Polisportivo San Sperate. Sauna, bagno turco, idromassaggio e trattamenti benessere per il tuo relax.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+</tool_result>
+
+Now let me check if sitemap.xml or robots.txt already exist:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "ls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/robots.txt 2>&1"}}
+</tool_call>
+<tool_result>
+ls: cannot access '/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml': No such file or directory
+ls: cannot access '/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/robots.txt': No such file or directory
+</tool_result>
+
+Good. Now I have a complete picture. Let me implement all changes:
+
+1. ✅ `lang="it"` already present on all 11 pages
+2. Need to add `<link rel="canonical">` to all 11 pages
+3. Need to create `sitemap.xml`
+4. Need to create `robots.txt`
+
+Let me add canonical links to each page. I'll insert them right after the favicon link (before `</head>`):
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "cd /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/ && for f in *.html; do echo \"$f\"; done"}}
+</tool_call>
+<tool_result>
+about.html
+calcetto.html
+contatti.html
+eventi.html
+gallery.html
+index.html
+nuoto.html
+orari.html
+palestra.html
+tennis.html
+wellness.html
+</tool_result>
+
+Now let me add canonical links to each page. I'll use `sed` to insert the canonical link after the favicon line:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "cd /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/\n\nBASE_URL=\"https://massimilianopili.github.io/cps4\"\n\nfor f in *.html; do\n    CANONICAL_URL=\"${BASE_URL}/${f}\"\n    # Insert canonical link after the favicon line\n    sed -i \"s|<link rel=\\\"icon\\\" type=\\\"image/svg+xml\\\" href=\\\"img/icons/favicon.svg\\\">|<link rel=\\\"icon\\\" type=\\\"image/svg+xml\\\" href=\\\"img/icons/favicon.svg\\\">\\n    <link rel=\\\"canonical\\\" href=\\\"${CANONICAL_URL}\\\">|\" \"$f\"\n    echo \"Added canonical to $f: $CANONICAL_URL\"\ndone"}}
+</tool_call>
+<tool_result>
+Added canonical to about.html: https://massimilianopili.github.io/cps4/about.html
+Added canonical to calcetto.html: https://massimilianopili.github.io/cps4/calcetto.html
+Added canonical to contatti.html: https://massimilianopili.github.io/cps4/contatti.html
+Added canonical to eventi.html: https://massimilianopili.github.io/cps4/eventi.html
+Added canonical to gallery.html: https://massimilianopili.github.io/cps4/gallery.html
+Added canonical to index.html: https://massimilianopili.github.io/cps4/index.html
+Added canonical to nuoto.html: https://massimilianopili.github.io/cps4/nuoto.html
+Added canonical to orari.html: https://massimilianopili.github.io/cps4/orari.html
+Added canonical to palestra.html: https://massimilianopili.github.io/cps4/palestra.html
+Added canonical to tennis.html: https://massimilianopili.github.io/cps4/tennis.html
+Added canonical to wellness.html: https://massimilianopili.github.io/cps4/wellness.html
+</tool_result>
+
+Let me verify the canonical links were inserted correctly:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "for f in /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/*.html; do echo \"=== $(basename $f) ===\"; grep -n 'canonical' \"$f\"; done"}}
+</tool_call>
+<tool_result>
+=== about.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/about.html">
+=== calcetto.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/calcetto.html">
+=== contatti.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/contatti.html">
+=== eventi.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/eventi.html">
+=== gallery.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/gallery.html">
+=== index.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/index.html">
+=== nuoto.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/nuoto.html">
+=== orari.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/orari.html">
+=== palestra.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/palestra.html">
+=== tennis.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/tennis.html">
+=== wellness.html ===
+10:    <link rel="canonical" href="https://massimilianopili.github.io/cps4/wellness.html">
+</tool_result>
+
+Let me verify the full head section of one page to make sure the structure is clean:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "sed -n '1,/<\\/head>/p' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/index.html"}}
+</tool_call>
+<tool_result>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPS San Sperate - Centro Polisportivo</title>
+    <meta name="description" content="Centro Polisportivo San Sperate - Il tuo centro sportivo di riferimento per nuoto, tennis, calcetto, palestra e wellness a San Sperate, Sardegna.">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/index.html">
+</head>
+</tool_result>
+
+Now let me create the `sitemap.xml`:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "date +%Y-%m-%d"}}
+</tool_call>
+<tool_result>
+2025-06-20
+</tool_result>
+
+<tool_call>
+{"name": "Write", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml", "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/index.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/about.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/nuoto.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/tennis.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/calcetto.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/palestra.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/wellness.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/orari.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/eventi.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/gallery.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n    <url>\n        <loc>https://massimilianopili.github.io/cps4/contatti.html</loc>\n        <lastmod>2025-06-20</lastmod>\n        <changefreq>monthly</changefreq>\n    </url>\n</urlset>"}}
+</tool_call>
+<tool_result>
+File successfully written to /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml
+</tool_result>
+
+Now create `robots.txt`:
+
+<tool_call>
+{"name": "Write", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/robots.txt", "content": "User-agent: *\nAllow: /\nSitemap: https://massimilianopili.github.io/cps4/sitemap.xml"}}
+</tool_call>
+<tool_result>
+File successfully written to /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/robots.txt
+</tool_result>
+
+Now let me run comprehensive validation checks:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "echo \"=== VALIDATION ===\"\necho\necho \"--- 1. Check lang='it' on all 11 pages ---\"\nfor f in /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/*.html; do\n    if grep -q '<html lang=\"it\">' \"$f\"; then\n        echo \"✅ $(basename $f): lang='it' present\"\n    else\n        echo \"❌ $(basename $f): lang='it' MISSING\"\n    fi\ndone\n\necho\necho \"--- 2. Check canonical links on all 11 pages ---\"\nfor f in /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/*.html; do\n    BASENAME=$(basename $f)\n    EXPECTED=\"https://massimilianopili.github.io/cps4/${BASENAME}\"\n    if grep -q \"<link rel=\\\"canonical\\\" href=\\\"${EXPECTED}\\\">\" \"$f\"; then\n        echo \"✅ ${BASENAME}: canonical correct\"\n    else\n        echo \"❌ ${BASENAME}: canonical MISSING or WRONG\"\n    fi\ndone\n\necho\necho \"--- 3. Validate sitemap.xml ---\"\nif [ -f /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml ]; then\n    echo \"✅ sitemap.xml exists\"\n    PAGE_COUNT=$(grep -c '<loc>' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml)\n    echo \"   Pages listed: $PAGE_COUNT (expected: 11)\"\n    if [ \"$PAGE_COUNT\" -eq 11 ]; then\n        echo \"   ✅ Correct page count\"\n    else\n        echo \"   ❌ Wrong page count\"\n    fi\n    # Check all pages are listed\n    for f in /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/*.html; do\n        BASENAME=$(basename $f)\n        if grep -q \"${BASENAME}\" /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml; then\n            echo \"   ✅ ${BASENAME} in sitemap\"\n        else\n            echo \"   ❌ ${BASENAME} NOT in sitemap\"\n        fi\n    done\n    # Check for lastmod and changefreq\n    LASTMOD_COUNT=$(grep -c '<lastmod>' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml)\n    CHANGEFREQ_COUNT=$(grep -c '<changefreq>monthly</changefreq>' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml)\n    echo \"   lastmod entries: $LASTMOD_COUNT (expected: 11)\"\n    echo \"   changefreq entries: $CHANGEFREQ_COUNT (expected: 11)\"\nelse\n    echo \"❌ sitemap.xml MISSING\"\nfi\n\necho\necho \"--- 4. Validate robots.txt ---\"\nif [ -f /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/robots.txt ]; then\n    echo \"✅ robots.txt exists\"\n    cat /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/robots.txt\n    echo\n    if grep -q 'User-agent: \\*' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/robots.txt; then\n        echo \"   ✅ User-agent: * present\"\n    else\n        echo \"   ❌ User-agent: * MISSING\"\n    fi\n    if grep -q 'Allow: /' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/robots.txt; then\n        echo \"   ✅ Allow: / present\"\n    else\n        echo \"   ❌ Allow: / MISSING\"\n    fi\n    if grep -q 'Sitemap: https://massimilianopili.github.io/cps4/sitemap.xml' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/robots.txt; then\n        echo \"   ✅ Sitemap URL correct\"\n    else\n        echo \"   ❌ Sitemap URL MISSING or WRONG\"\n    fi\nelse\n    echo \"❌ robots.txt MISSING\"\nfi\n\necho\necho \"--- 5. XML well-formedness check ---\"\nif command -v xmllint &> /dev/null; then\n    xmllint --noout /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml 2>&1 && echo \"✅ sitemap.xml is valid XML\" || echo \"❌ sitemap.xml is NOT valid XML\"\nelse\n    # Fallback: check basic XML structure\n    if head -1 /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml | grep -q '<?xml'; then\n        echo \"✅ sitemap.xml has XML declaration\"\n    fi\n    if grep -q '</urlset>' /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/sitemap.xml; then\n        echo \"✅ sitemap.xml has closing </urlset> tag\"\n    fi\nfi"}}
+</tool_call>
+<tool_result>
+=== VALIDATION ===
+
+--- 1. Check lang='it' on all 11 pages ---
+✅ about.html: lang='it' present
+✅ calcetto.html: lang='it' present
+✅ contatti.html: lang='it' present
+✅ eventi.html: lang='it' present
+✅ gallery.html: lang='it' present
+✅ index.html: lang='it' present
+✅ nuoto.html: lang='it' present
+✅ orari.html: lang='it' present
+✅ palestra.html: lang='it' present
+✅ tennis.html: lang='it' present
+✅ wellness.html: lang='it' present
+
+--- 2. Check canonical links on all 11 pages ---
+✅ about.html: canonical correct
+✅ calcetto.html: canonical correct
+✅ contatti.html: canonical correct
+✅ eventi.html: canonical correct
+✅ gallery.html: canonical correct
+✅ index.html: canonical correct
+✅ nuoto.html: canonical correct
+✅ orari.html: canonical correct
+✅ palestra.html: canonical correct
+✅ tennis.html: canonical correct
+✅ wellness.html: canonical correct
+
+--- 3. Validate sitemap.xml ---
+✅ sitemap.xml exists
+   Pages listed: 11 (expected: 11)
+   ✅ Correct page count
+   ✅ about.html in sitemap
+   ✅ calcetto.html in sitemap
+   ✅ contatti.html in sitemap
+   ✅ eventi.html in sitemap
+   ✅ gallery.html in sitemap
+   ✅ index.html in sitemap
+   ✅ nuoto.html in sitemap
+   ✅ orari.html in sitemap
+   ✅ palestra.html in sitemap
+   ✅ tennis.html in sitemap
+   ✅ wellness.html in sitemap
+   lastmod entries: 11 (expected: 11)
+   changefreq entries: 11 (expected: 11)
+
+--- 4. Validate robots.txt ---
+✅ robots.txt exists
+User-agent: *
+Allow: /
+Sitemap: https://massimilianopili.github.io/cps4/sitemap.xml
+   ✅ User-agent: * present
+   ✅ Allow: / present
+   ✅ Sitemap URL correct
+
+--- 5. XML well-formedness check ---
+✅ sitemap.xml is valid XML
+</tool_result>
+
+All validations pass. Now let me check for any duplicate canonical tags (to be safe):
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "for f in /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/*.html; do\n    COUNT=$(grep -c 'canonical' \"$f\")\n    if [ \"$COUNT\" -ne 1 ]; then\n        echo \"⚠️  $(basename $f): $COUNT canonical tags (expected 1)\"\n    fi\ndone\necho \"Duplicate check complete.\""}}
+</tool_call>
+<tool_result>
+Duplicate check complete.
+</tool_result>
+
+No duplicates. Now let me commit:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "cd /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/ && git status"}}
+</tool_call>
+<tool_result>
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+
+	modified:   about.html
+	modified:   calcetto.html
+	modified:   contatti.html
+	modified:   eventi.html
+	modified:   gallery.html
+	modified:   index.html
+	modified:   nuoto.html
+	modified:   orari.html
+	modified:   palestra.html
+	modified:   tennis.html
+	modified:   wellness.html
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+
+	robots.txt
+	sitemap.xml
+
+no changes added to commit (use "git add" and "git commit")
+</tool_result>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "cd /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/ && git diff about.html"}}
+</tool_call>
+<tool_result>
+diff --git a/cps4/about.html b/cps4/about.html
+index 0e3e3c7..b3e2e3b 100644
+--- a/cps4/about.html
++++ b/cps4/about.html
+@@ -7,6 +7,7 @@
+     <meta name="description" content="Scopri la storia e la missione del Centro Polisportivo San Sperate. Dal 1985 al servizio dello sport e del benessere della comunità.">
+     <link rel="stylesheet" href="css/style.min.css">
+     <link rel="icon" type="image/svg+xml" href="img/icons/favicon.svg">
++    <link rel="canonical" href="https://massimilianopili.github.io/cps4/about.html">
+ </head>
+ <body>
+     <!-- Header -->
+</tool_result>
+
+Clean diff. Let me stage and commit:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "cd /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/ && git add about.html calcetto.html contatti.html eventi.html gallery.html index.html nuoto.html orari.html palestra.html tennis.html wellness.html sitemap.xml robots.txt"}}
+</tool_call>
+<tool_result>
+
+</tool_result>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "cd /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/ && git commit -m 'feat(seo): add canonical URLs, sitemap.xml, and robots.txt [FE-002]\n\n- Verified lang=\"it\" on all 11 HTML pages (already present)\n- Added <link rel=\"canonical\"> with correct absolute URL to all 11 pages\n- Created sitemap.xml listing all 11 pages with lastmod and changefreq\n- Created robots.txt with User-agent: *, Allow: /, and Sitemap directive'"}}
+</tool_call>
+<tool_result>
+[main 1e3e3e1] feat(seo): add canonical URLs, sitemap.xml, and robots.txt [FE-002]
+ 13 files changed, 60 insertions(+)
+ create mode 100644 cps4/robots.txt
+ create mode 100644 cps4/sitemap.xml
+</tool_result>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "cd /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/ && git log --oneline -1"}}
+</tool_call>
+<tool_result>
+1e3e3e1 feat(seo): add canonical URLs, sitemap.xml, and robots.txt [FE-002]
+</tool_result>
+
+```json
+{
+  "files_created": [
+    "cps4/sitemap.xml",
+    "cps4/robots.txt"
+  ],
+  "files_modified": [
+    "cps4/index.html",
+    "cps4/about.html",
+    "cps4/nuoto.html",
+    "cps4/tennis.html",
+    "cps4/calcetto.html",
+    "cps4/palestra.html",
+    "cps4/wellness.html",
+    "cps4/orari.html",
+    "cps4/eventi.html",
+    "cps4/gallery.html",
+    "cps4/contatti.html"
+  ],
+  "git_commit": "1e3e3e1",
+  "summary": "SEO enhancements for all 11 pages: (1) Verified lang='it' attribute already present on all pages. (2) Added <link rel='canonical'> with correct absolute URLs (https://massimilianopili.github.io/cps4/{page}.html) to the <head> of all 11 pages. (3) Created sitemap.xml with valid XML listing all 11 pages, each with <loc>, <lastmod>2025-06-20</lastmod>, and <changefreq>monthly</changefreq>. (4) Created robots.txt with 'User-agent: *', 'Allow: /', and 'Sitemap: https://massimilianopili.github.io/cps4/sitemap.xml'. All validated: XML well-formedness confirmed via xmllint, all canonical URLs verified correct, no duplicate tags.",
+  "test_results": "Comprehensive validation performed: (1) All 11 pages confirmed to have lang='it' ✅; (2) All 11 pages confirmed to have correct canonical URL ✅; (3) sitemap.xml validated as well-formed XML via xmllint ✅, contains exactly 11 <loc> entries ✅, 11 <lastmod> entries ✅, 11 <changefreq>monthly</changefreq> entries ✅; (4) robots.txt contains User-agent: * ✅, Allow: / ✅, correct Sitemap URL ✅; (5) No duplicate canonical tags found on any page ✅."
+}
+```

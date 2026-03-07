@@ -2,6 +2,7 @@ package com.agentframework.orchestrator.budget;
 
 import com.agentframework.gp.model.GpPrediction;
 import com.agentframework.orchestrator.api.dto.PlanRequest.Budget;
+import com.agentframework.orchestrator.budget.PortfolioOptimizer.PortfolioResult;
 import com.agentframework.orchestrator.domain.PlanTokenUsage;
 import com.agentframework.orchestrator.repository.PlanTokenUsageRepository;
 import org.slf4j.Logger;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -139,6 +142,31 @@ public class TokenBudgetService {
             usageRepository.incrementTokensUsed(planId, workerType, tokensUsed);
         }
         log.debug("Token usage recorded: plan={} workerType={} delta={}", planId, workerType, tokensUsed);
+    }
+
+    /**
+     * Adjusts per-workerType budget limits using portfolio weights.
+     *
+     * <p>{@code effectiveLimit_i = base_limit_i × (weight_i / uniform_weight)} where
+     * {@code uniform = 1/N}. Shifts budget toward worker types with better risk-adjusted return.</p>
+     *
+     * @param budget     the original budget (null-safe — returns as-is if null)
+     * @param portfolio  portfolio optimization result with per-type weights
+     * @return adjusted budget with reallocated per-workerType limits
+     */
+    public Budget adjustWithPortfolio(Budget budget, PortfolioResult portfolio) {
+        if (budget == null || budget.perWorkerType() == null || portfolio.weights().isEmpty()) {
+            return budget;
+        }
+        int n = portfolio.weights().size();
+        double uniform = 1.0 / n;
+        Map<String, Long> adjusted = new LinkedHashMap<>();
+        for (var entry : budget.perWorkerType().entrySet()) {
+            double weight = portfolio.weights().getOrDefault(entry.getKey(), uniform);
+            long newLimit = Math.round(entry.getValue() * (weight / uniform));
+            adjusted.put(entry.getKey(), Math.max(newLimit, 1)); // minimum 1 token
+        }
+        return new Budget(budget.onExceeded(), adjusted);
     }
 
     /** Returns current token usage for a (plan, workerType) pair, 0 if no row yet. */

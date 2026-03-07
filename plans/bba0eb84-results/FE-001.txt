@@ -1,0 +1,1288 @@
+
+
+I'll start by examining the current state of the cps4/ directory and the source cps3/ files to understand what needs to be done.
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "ls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/"}}
+</tool_call>
+<tool_response>
+total 16
+drwxr-xr-x 5 massimiliano massimiliano 4096 Jun 18 09:37 .
+drwxr-xr-x 9 massimiliano massimiliano 4096 Jun 18 09:37 ..
+drwxr-xr-x 2 massimiliano massimiliano 4096 Jun 18 09:37 css
+drwxr-xr-x 4 massimiliano massimiliano 4096 Jun 18 09:37 fonts
+drwxr-xr-x 2 massimiliano massimiliano 4096 Jun 18 09:37 img
+</tool_response>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "ls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/css/ && ls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/ && find /data/massimiliano/Vari/MassimilianoPili.github.io/cps4/ -type f | sort"}}
+</tool_call>
+<tool_response>
+total 8
+drwxr-xr-x 2 massimiliano massimiliano 4096 Jun 18 09:37 .
+drwxr-xr-x 5 massimiliano massimiliano 4096 Jun 18 09:37 ..
+total 16
+drwxr-xr-x 4 massimiliano massimiliano 4096 Jun 18 09:37 .
+drwxr-xr-x 5 massimiliano massimiliano 4096 Jun 18 09:37 ..
+drwxr-xr-x 2 massimiliano massimiliano 4096 Jun 18 09:37 montserrat
+drwxr-xr-x 2 massimiliano massimiliano 4096 Jun 18 09:37 open-sans
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-300.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-300italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-400.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-400italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-500.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-500italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-600.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-600italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-700.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-700italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-800.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/montserrat/montserrat-800italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-300.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-300italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-400.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-400italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-500.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-500italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-600.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-600italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-700.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-700italic.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-800.woff2
+/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/fonts/open-sans/open-sans-800italic.woff2
+</tool_response>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "# Check what's in cps3 - the source\nls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/\nls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/css/\nls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/js/\nls -la /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/img/"}}
+</tool_call>
+<tool_response>
+total 396
+drwxr-xr-x 6 massimiliano massimiliano  4096 Jun 18 09:37 .
+drwxr-xr-x 9 massimiliano massimiliano  4096 Jun 18 09:37 ..
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 09:37 css
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 09:37 fonts
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 09:37 img
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 09:37 js
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 basket.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 calcio.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 chi-siamo.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 contatti.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 eventi.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 fitness.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 index.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 news.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 nuoto.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 pallavolo.html
+-rw-r--r-- 1 massimiliano massimiliano 28826 Jun 18 09:37 tennis.html
+total 92
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 09:37 .
+drwxr-xr-x 6 massimiliano massimiliano  4096 Jun 18 09:37 ..
+-rw-r--r-- 1 massimiliano massimiliano 82944 Jun 18 09:37 style.css
+total 40
+drwxr-xr-x 2 massimiliano massimiliano  4096 Jun 18 09:37 .
+drwxr-xr-x 6 massimiliano massimiliano  4096 Jun 18 09:37 ..
+-rw-r--r-- 1 massimiliano massimiliano 31744 Jun 18 09:37 script.js
+total 8
+drwxr-xr-x 2 massimiliano massimiliano 4096 Jun 18 09:37 .
+drwxr-xr-x 6 massimiliano massimiliano 4096 Jun 18 09:37 ..
+</tool_response>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "wc -c /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/css/style.css /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/js/script.js"}}
+</tool_call>
+<tool_response>
+ 82944 /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/css/style.css
+ 31744 /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/js/script.js
+</tool_response>
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "# Read the full HTML of index.html to understand the structure\ncat /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/index.html"}}
+</tool_call>
+<tool_response>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPS - Centro Sportivo Polivalente di San Sperate</title>
+    <meta name="description" content="Centro Sportivo Polivalente di San Sperate - Il tuo centro sportivo di riferimento">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Skip to content link for accessibility -->
+    <a href="#main-content" class="skip-link">Vai al contenuto principale</a>
+
+    <!-- Header -->
+    <header class="header" id="header">
+        <div class="container">
+            <nav class="nav" aria-label="Navigazione principale">
+                <a href="index.html" class="nav-logo" aria-label="CPS - Torna alla homepage">
+                    <span class="logo-icon">🏟️</span>
+                    <span class="logo-text">CPS<span class="logo-subtitle">San Sperate</span></span>
+                </a>
+                <button class="nav-toggle" aria-label="Apri menu di navigazione" aria-expanded="false" aria-controls="nav-menu">
+                    <span class="hamburger"></span>
+                </button>
+                <ul class="nav-menu" id="nav-menu" role="menubar">
+                    <li role="none"><a href="index.html" class="nav-link active" role="menuitem">Home</a></li>
+                    <li role="none" class="has-dropdown">
+                        <a href="#" class="nav-link" role="menuitem" aria-haspopup="true" aria-expanded="false">Sport ▾</a>
+                        <ul class="dropdown" role="menu" aria-label="Sottomenu Sport">
+                            <li role="none"><a href="calcio.html" class="dropdown-link" role="menuitem">⚽ Calcio</a></li>
+                            <li role="none"><a href="basket.html" class="dropdown-link" role="menuitem">🏀 Basket</a></li>
+                            <li role="none"><a href="tennis.html" class="dropdown-link" role="menuitem">🎾 Tennis</a></li>
+                            <li role="none"><a href="nuoto.html" class="dropdown-link" role="menuitem">🏊 Nuoto</a></li>
+                            <li role="none"><a href="pallavolo.html" class="dropdown-link" role="menuitem">🏐 Pallavolo</a></li>
+                            <li role="none"><a href="fitness.html" class="dropdown-link" role="menuitem">💪 Fitness</a></li>
+                        </ul>
+                    </li>
+                    <li role="none"><a href="chi-siamo.html" class="nav-link" role="menuitem">Chi Siamo</a></li>
+                    <li role="none"><a href="eventi.html" class="nav-link" role="menuitem">Eventi</a></li>
+                    <li role="none"><a href="news.html" class="nav-link" role="menuitem">News</a></li>
+                    <li role="none"><a href="contatti.html" class="nav-link" role="menuitem">Contatti</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="main-content">
+        <!-- Hero Section -->
+        <section class="hero" aria-label="Benvenuto al CPS">
+            <div class="hero-bg">
+                <div class="hero-overlay"></div>
+            </div>
+            <div class="container hero-content">
+                <div class="hero-badge">🏆 Centro d'Eccellenza Sportiva</div>
+                <h1 class="hero-title">Centro Sportivo<br><span class="text-gradient">Polivalente</span></h1>
+                <p class="hero-subtitle">Il cuore sportivo di San Sperate. Strutture moderne, istruttori qualificati e passione per ogni disciplina.</p>
+                <div class="hero-actions">
+                    <a href="contatti.html" class="btn btn-primary btn-lg">
+                        <span>Inizia Ora</span>
+                        <span class="btn-icon" aria-hidden="true">→</span>
+                    </a>
+                    <a href="chi-siamo.html" class="btn btn-outline btn-lg">Scopri di più</a>
+                </div>
+                <div class="hero-stats" aria-label="Statistiche del centro">
+                    <div class="stat">
+                        <span class="stat-number" data-count="6">0</span>
+                        <span class="stat-label">Discipline</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" data-count="500">0</span>
+                        <span class="stat-label">Atleti</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" data-count="25">0</span>
+                        <span class="stat-label">Istruttori</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" data-count="15">0</span>
+                        <span class="stat-label">Anni di attività</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sports Section -->
+        <section class="section sports-section" aria-labelledby="sports-title">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-badge">🎯 Le Nostre Discipline</span>
+                    <h2 class="section-title" id="sports-title">Scegli il Tuo Sport</h2>
+                    <p class="section-subtitle">Sei discipline per ogni età e livello. Trova quella perfetta per te.</p>
+                </div>
+                <div class="sports-grid">
+                    <a href="calcio.html" class="sport-card" aria-label="Scopri il Calcio">
+                        <div class="sport-card-image">
+                            <img src="img/calcio/hero.jpg" alt="Campo da calcio del CPS San Sperate" width="400" height="300">
+                            <div class="sport-card-overlay">
+                                <span class="sport-card-icon">⚽</span>
+                            </div>
+                        </div>
+                        <div class="sport-card-content">
+                            <h3 class="sport-card-title">Calcio</h3>
+                            <p class="sport-card-desc">Campi regolamentari, scuola calcio e tornei per tutte le età.</p>
+                            <span class="sport-card-link">Scopri →</span>
+                        </div>
+                    </a>
+                    <a href="basket.html" class="sport-card" aria-label="Scopri il Basket">
+                        <div class="sport-card-image">
+                            <img src="img/basket/hero.jpg" alt="Campo da basket del CPS San Sperate" width="400" height="300">
+                            <div class="sport-card-overlay">
+                                <span class="sport-card-icon">🏀</span>
+                            </div>
+                        </div>
+                        <div class="sport-card-content">
+                            <h3 class="sport-card-title">Basket</h3>
+                            <p class="sport-card-desc">Palestra coperta, campionati e minibasket per i più giovani.</p>
+                            <span class="sport-card-link">Scopri →</span>
+                        </div>
+                    </a>
+                    <a href="tennis.html" class="sport-card" aria-label="Scopri il Tennis">
+                        <div class="sport-card-image">
+                            <img src="img/tennis/hero.jpg" alt="Campi da tennis del CPS San Sperate" width="400" height="300">
+                            <div class="sport-card-overlay">
+                                <span class="sport-card-icon">🎾</span>
+                            </div>
+                        </div>
+                        <div class="sport-card-content">
+                            <h3 class="sport-card-title">Tennis</h3>
+                            <p class="sport-card-desc">Campi in terra battuta e sintetico, lezioni individuali e di gruppo.</p>
+                            <span class="sport-card-link">Scopri →</span>
+                        </div>
+                    </a>
+                    <a href="nuoto.html" class="sport-card" aria-label="Scopri il Nuoto">
+                        <div class="sport-card-image">
+                            <img src="img/nuoto/hero.jpg" alt="Piscina del CPS San Sperate" width="400" height="300">
+                            <div class="sport-card-overlay">
+                                <span class="sport-card-icon">🏊</span>
+                            </div>
+                        </div>
+                        <div class="sport-card-content">
+                            <h3 class="sport-card-title">Nuoto</h3>
+                            <p class="sport-card-desc">Piscina olimpionica, corsi per principianti e nuoto libero.</p>
+                            <span class="sport-card-link">Scopri →</span>
+                        </div>
+                    </a>
+                    <a href="pallavolo.html" class="sport-card" aria-label="Scopri la Pallavolo">
+                        <div class="sport-card-image">
+                            <img src="img/pallavolo/hero.jpg" alt="Campo da pallavolo del CPS San Sperate" width="400" height="300">
+                            <div class="sport-card-overlay">
+                                <span class="sport-card-icon">🏐</span>
+                            </div>
+                        </div>
+                        <div class="sport-card-content">
+                            <h3 class="sport-card-title">Pallavolo</h3>
+                            <p class="sport-card-desc">Palestra attrezzata, campionati giovanili e amatoriali.</p>
+                            <span class="sport-card-link">Scopri →</span>
+                        </div>
+                    </a>
+                    <a href="fitness.html" class="sport-card" aria-label="Scopri il Fitness">
+                        <div class="sport-card-image">
+                            <img src="img/fitness/hero.jpg" alt="Sala fitness del CPS San Sperate" width="400" height="300">
+                            <div class="sport-card-overlay">
+                                <span class="sport-card-icon">💪</span>
+                            </div>
+                        </div>
+                        <div class="sport-card-content">
+                            <h3 class="sport-card-title">Fitness</h3>
+                            <p class="sport-card-desc">Sala pesi moderna, corsi di gruppo e personal training.</p>
+                            <span class="sport-card-link">Scopri →</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="section features-section" aria-labelledby="features-title">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-badge">✨ Perché Sceglierci</span>
+                    <h2 class="section-title" id="features-title">I Nostri Punti di Forza</h2>
+                </div>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">🏗️</div>
+                        <h3 class="feature-title">Strutture Moderne</h3>
+                        <p class="feature-desc">Impianti di ultima generazione, costantemente manutenuti e aggiornati per garantire la migliore esperienza sportiva.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">👨‍🏫</div>
+                        <h3 class="feature-title">Istruttori Qualificati</h3>
+                        <p class="feature-desc">Il nostro team di professionisti certificati ti guiderà nel raggiungimento dei tuoi obiettivi sportivi.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">👨‍👩‍👧‍👦</div>
+                        <h3 class="feature-title">Per Tutta la Famiglia</h3>
+                        <p class="feature-desc">Programmi dedicati per bambini, ragazzi, adulti e senior. Lo sport è per tutti al CPS.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">💰</div>
+                        <h3 class="feature-title">Prezzi Accessibili</h3>
+                        <p class="feature-desc">Tariffe competitive e convenzioni speciali per famiglie, studenti e gruppi.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- News Preview Section -->
+        <section class="section news-section" aria-labelledby="news-title">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-badge">📰 Ultime Notizie</span>
+                    <h2 class="section-title" id="news-title">News & Aggiornamenti</h2>
+                </div>
+                <div class="news-grid">
+                    <article class="news-card">
+                        <div class="news-card-image">
+                            <img src="img/news/news1.jpg" alt="Apertura iscrizioni nuova stagione sportiva CPS San Sperate" width="400" height="250">
+                            <span class="news-card-date">
+                                <time datetime="2025-01-15">15 Gen 2025</time>
+                            </span>
+                        </div>
+                        <div class="news-card-content">
+                            <span class="news-card-category">Comunicati</span>
+                            <h3 class="news-card-title">Apertura Iscrizioni Nuova Stagione</h3>
+                            <p class="news-card-excerpt">Sono aperte le iscrizioni per la stagione sportiva 2025/2026. Scopri tutte le novità e le promozioni early bird.</p>
+                            <a href="news.html" class="news-card-link">Leggi tutto →</a>
+                        </div>
+                    </article>
+                    <article class="news-card">
+                        <div class="news-card-image">
+                            <img src="img/news/news2.jpg" alt="Torneo di calcio giovanile al CPS San Sperate" width="400" height="250">
+                            <span class="news-card-date">
+                                <time datetime="2025-01-10">10 Gen 2025</time>
+                            </span>
+                        </div>
+                        <div class="news-card-content">
+                            <span class="news-card-category">Eventi</span>
+                            <h3 class="news-card-title">Torneo Giovanile di Calcio</h3>
+                            <p class="news-card-excerpt">Grande successo per il torneo giovanile che ha visto la partecipazione di 16 squadre da tutta la Sardegna.</p>
+                            <a href="news.html" class="news-card-link">Leggi tutto →</a>
+                        </div>
+                    </article>
+                    <article class="news-card">
+                        <div class="news-card-image">
+                            <img src="img/news/news3.jpg" alt="Nuovi corsi di fitness al CPS San Sperate" width="400" height="250">
+                            <span class="news-card-date">
+                                <time datetime="2025-01-05">5 Gen 2025</time>
+                            </span>
+                        </div>
+                        <div class="news-card-content">
+                            <span class="news-card-category">Corsi</span>
+                            <h3 class="news-card-title">Nuovi Corsi di Fitness</h3>
+                            <p class="news-card-excerpt">In arrivo nuovi corsi di yoga, pilates e functional training. Prenota la tua lezione di prova gratuita.</p>
+                            <a href="news.html" class="news-card-link">Leggi tutto →</a>
+                        </div>
+                    </article>
+                </div>
+                <div class="section-footer">
+                    <a href="news.html" class="btn btn-outline">Tutte le News →</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="section cta-section" aria-labelledby="cta-title">
+            <div class="container">
+                <div class="cta-content">
+                    <h2 class="cta-title" id="cta-title">Pronto a Iniziare?</h2>
+                    <p class="cta-text">Unisciti alla nostra comunità sportiva. La prima lezione di prova è gratuita!</p>
+                    <div class="cta-actions">
+                        <a href="contatti.html" class="btn btn-primary btn-lg">
+                            <span>Contattaci</span>
+                            <span class="btn-icon" aria-hidden="true">→</span>
+                        </a>
+                        <a href="tel:+390709876543" class="btn btn-outline btn-lg">📞 070 987 6543</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="footer-logo" aria-label="CPS - Torna alla homepage">
+                        <span class="logo-icon">🏟️</span>
+                        <span class="logo-text">CPS<span class="logo-subtitle">San Sperate</span></span>
+                    </a>
+                    <p class="footer-desc">Il Centro Sportivo Polivalente di San Sperate è il punto di riferimento per lo sport e il benessere nella comunità.</p>
+                </div>
+                <div class="footer-links">
+                    <h3 class="footer-title">Sport</h3>
+                    <ul>
+                        <li><a href="calcio.html">Calcio</a></li>
+                        <li><a href="basket.html">Basket</a></li>
+                        <li><a href="tennis.html">Tennis</a></li>
+                        <li><a href="nuoto.html">Nuoto</a></li>
+                        <li><a href="pallavolo.html">Pallavolo</a></li>
+                        <li><a href="fitness.html">Fitness</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h3 class="footer-title">Info</h3>
+                    <ul>
+                        <li><a href="chi-siamo.html">Chi Siamo</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="news.html">News</a></li>
+                        <li><a href="contatti.html">Contatti</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h3 class="footer-title">Contatti</h3>
+                    <address>
+                        <p>📍 Via dello Sport, 1</p>
+                        <p>09026 San Sperate (SU)</p>
+                        <p>📞 <a href="tel:+390709876543">070 987 6543</a></p>
+                        <p>✉️ <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                    </address>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS - Centro Sportivo Polivalente di San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
+</tool_response>
+
+Now let me check the other HTML pages to see if they differ:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "# Check if all HTML files are identical (they're all 28826 bytes)\nmd5sum /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/*.html"}}
+</tool_call>
+<tool_response>
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/basket.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/calcio.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/chi-siamo.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/contatti.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/eventi.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/fitness.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/index.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/news.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/nuoto.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/pallavolo.html
+e2b2e1e3e3e3e3e3e3e3e3e3e3e3e3e3  /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/tennis.html
+</tool_response>
+
+All 11 HTML files are identical. Now let me examine the CSS and JS files:
+
+<tool_call>
+{"name": "Bash", "arguments": {"command": "wc -l /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/css/style.css /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/js/script.js"}}
+</tool_call>
+<tool_response>
+ 2560 /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/css/style.css
+  896 /data/massimiliano/Vari/MassimilianoPili.github.io/cps3/js/script.js
+ 3456 total
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps3/css/style.css"}}
+</tool_call>
+<tool_response>
+/* ============================================================
+   CPS - Centro Sportivo Polivalente di San Sperate
+   Main Stylesheet
+   ============================================================ */
+
+/* ============================================================
+   1. CSS CUSTOM PROPERTIES (DESIGN TOKENS)
+   ============================================================ */
+:root {
+  /* Colors */
+  --color-primary: #1a3a5c;
+  --color-primary-light: #2d5a8e;
+  --color-primary-dark: #0d1f33;
+  --color-secondary: #e8a020;
+  --color-secondary-light: #f0b840;
+  --color-secondary-dark: #c07010;
+  --color-accent: #2ecc71;
+  --color-accent-dark: #27ae60;
+  --color-text: #1a1a2e;
+  --color-text-light: #4a4a6a;
+  --color-text-muted: #8a8aaa;
+  --color-bg: #f8f9fa;
+  --color-bg-alt: #ffffff;
+  --color-bg-dark: #0d1f33;
+  --color-border: #e0e0f0;
+  --color-shadow: rgba(26, 58, 92, 0.15);
+
+  /* Typography */
+  --font-primary: 'Montserrat', sans-serif;
+  --font-secondary: 'Open Sans', sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-md: 1.125rem;
+  --font-size-lg: 1.25rem;
+  --font-face-xl: 1.5rem;
+  --font-size-2xl: 1.875rem;
+  --font-size-3xl: 2.25rem;
+  --font-size-4xl: 3rem;
+  --font-size-5xl: 4rem;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --font-size-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* Layout */
+  --container-max: 1200px;
+  --container-padding: 1.5rem;
+  --border-radius-sm: 0.375rem;
+  --border-radius: 0.75rem;
+  --border-radius-lg: 1rem;
+  --border-radius-xl: 1.5rem;
+  --border-radius-full: 50%;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 300ms ease;
+  --transition-slow: 500ms ease;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(26, 58, 92, 0.08);
+  --shadow-md: 0 4px 12px rgba(26, 58, 92, 0.12);
+  --shadow-lg: 0 8px 30px rgba(26, 58, 92, 0.18);
+  --shadow-xl: 0 20px 60px rgba(26, 58, 92, 0.25);
+
+  /* Z-index */
+  --z-dropdown: 100;
+  --z-header: 1000;
+  --z-overlay: 2000;
+  --z-modal: 3000;
+}
+
+/* ============================================================
+   2. RESET & BASE STYLES
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-primary-light);
+}
+
+a:focus-visible {
+  outline: 3px solid var(--color-secondary);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+ul, ol {
+  list-style: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-primary-dark);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button:focus-visible {
+  outline: 3px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   3. UTILITY CLASSES
+   ============================================================ */
+.container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 var(--container-padding);
+}
+
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-primary);
+  color: white;
+  padding: var(--space-3) var(--space-6);
+  border-radius: 0 0 var(--border-radius) var(--border-radius);
+  z-index: var(--z-modal);
+  font-weight: 600;
+  transition: top var(--transition-fast);
+}
+
+.skip-link:focus {
+  top: 0;
+  color: white;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-secondary), var(--color-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.section {
+  padding: var(--space-24) 0;
+}
+
+.section-header {
+  text-align: center;
+  margin-bottom: var(--space-16);
+}
+
+.section-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, rgba(26, 58, 92, 0.08), rgba(232, 160, 32, 0.08));
+  color: var(--color-primary);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--border-radius-xl);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+  letter-spacing: 0.5px;
+}
+
+.section-title {
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--space-4);
+}
+
+.section-subtitle {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-light);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.section-footer {
+  text-align: center;
+  margin-top: var(--space-12);
+}
+
+/* ============================================================
+   4. BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--border-radius);
+  font-family: var(--font-primary);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.3px;
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+  color: white;
+  box-shadow: 0 4px 15px rgba(26, 58, 92, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(26, 58, 92, 0.4);
+  color: white;
+}
+
+.btn-outline {
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+  background: transparent;
+}
+
+.btn-outline:hover {
+  background: var(--color-primary);
+  color: white;
+  transform: translateY(-2px);
+}
+
+.btn-lg {
+  padding: var(--space-4) var(--space-8);
+  font-size: var(--font-size-base);
+}
+
+.btn-icon {
+  transition: transform var(--transition-fast);
+}
+
+.btn:hover .btn-icon {
+  transform: translateX(4px);
+}
+
+/* ============================================================
+   5. HEADER & NAVIGATION
+   ============================================================ */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-header);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid transparent;
+  transition: all var(--transition-base);
+}
+
+.header.scrolled {
+  background: rgba(255, 255, 255, 0.98);
+  border-bottom-color: var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 80px;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-primary);
+  font-weight: 800;
+  font-size: var(--font-size-lg);
+  color: var(--color-primary-dark);
+}
+
+.nav-logo:hover {
+  color: var(--color-primary);
+}
+
+.logo-icon {
+  font-size: 2rem;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.logo-subtitle {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.nav-link {
+  display: block;
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-primary);
+  font-weight: 500;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  border-radius: var(--border-radius);
+  transition: all var(--transition-fast);
+}
+
+.nav-link:hover,
+.nav-link.active {
+  color: var(--color-primary);
+  background: rgba(26, 58, 92, 0.06);
+}
+
+.nav-link.active {
+  font-weight: 600;
+}
+
+/* Dropdown */
+.has-dropdown {
+  position: relative;
+}
+
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: white;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-3);
+  min-width: 220px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--color-border);
+}
+
+.has-dropdown:hover .dropdown,
+.has-dropdown:focus-within .dropdown {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.dropdown-link {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+}
+
+.dropdown-link:hover {
+  background: rgba(26, 58, 92, 0.06);
+  color: var(--color-primary);
+}
+
+/* Mobile Navigation Toggle */
+.nav-toggle {
+  display: none;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius);
+}
+
+.hamburger {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--color-text);
+  position: relative;
+  transition: all var(--transition-fast);
+}
+
+.hamburger::before,
+.hamburger::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 2px;
+  background: var(--color-text);
+  transition: all var(--transition-fast);
+}
+
+.hamburger::before {
+  top: -7px;
+}
+
+.hamburger::after {
+  bottom: -7px;
+}
+
+/* ============================================================
+   6. HERO SECTION
+   ============================================================ */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding-top: 80px;
+  overflow: hidden;
+}
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 50%, var(--color-primary-light) 100%);
+}
+
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(232, 160, 32, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(46, 204, 113, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: var(--space-16) 0;
+}
+
+.hero-badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  color: white;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--border-radius-xl);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin-bottom: var(--space-8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: fadeInDown 0.8s ease;
+}
+
+.hero-title {
+  font-size: var(--font-size-5xl);
+  font-weight: 800;
+  color: white;
+  margin-bottom: var(--space-6);
+  letter-spacing: -1px;
+  animation: fadeInUp 0.8s ease 0.2s both;
+}
+
+.hero-subtitle {
+  font-size: var(--font-size-lg);
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 600px;
+  margin: 0 auto var(--space-10);
+  line-height: 1.7;
+  animation: fadeInUp 0.8s ease 0.4s both;
+}
+
+.hero-actions {
+  display: flex;
+  gap: var(--space-4);
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-16);
+  animation: fadeInUp 0.8s ease 0.6s both;
+}
+
+.hero .btn-primary {
+  background: linear-gradient(135deg, var(--color-secondary), var(--color-secondary-light));
+  color: var(--color-primary-dark);
+}
+
+.hero .btn-outline {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: white;
+}
+
+.hero .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: white;
+  color: white;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-8);
+  max-width: 700px;
+  margin: 0 auto;
+  animation: fadeInUp 0.8s ease 0.8s both;
+}
+
+.stat {
+  text-align: center;
+}
+
+.stat-number {
+  display: block;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-3xl);
+  font-weight: 800;
+  color: white;
+}
+
+.stat-label {
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+/* ============================================================
+   7. SPORTS GRID
+   ============================================================ */
+.sports-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-8);
+}
+
+.sport-card {
+  display: block;
+  background: white;
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  border: 1px solid var(--color-border);
+}
+
+.sport-card:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-xl);
+  border-color: transparent;
+}
+
+.sport-card-image {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+}
+
+.sport-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-slow);
+}
+
+.sport-card:hover .sport-card-image img {
+  transform: scale(1.1);
+}
+
+.sport-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(13, 31, 51, 0.6), transparent);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: var(--space-4);
+}
+
+.sport-card-icon {
+  font-size: 2.5rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.sport-card-content {
+  padding: var(--space-6);
+}
+
+.sport-card-title {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-2);
+  color: var(--color-primary-dark);
+}
+
+.sport-card-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
+  margin-bottom: var(--space-4);
+  line-height: 1.6;
+}
+
+.sport-card-link {
+  font-family: var(--font-primary);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+  transition: color var(--transition-fast);
+}
+
+.sport-card:hover .sport-card-link {
+  color: var(--color-secondary);
+}
+
+/* ============================================================
+   8. FEATURES GRID
+   ============================================================ */
+.features-section {
+  background: linear-gradient(180deg, var(--color-bg) 0%, white 100%);
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-8);
+}
+
+.feature-card {
+  text-align: center;
+  padding: var(--space-10);
+  background: white;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-base);
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.feature-icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-5);
+}
+
+.feature-title {
+  font-size: var(--font-size-md);
+  margin-bottom: var(--space-3);
+  color: var(--color-primary-dark);
+}
+
+.feature-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
+  line-height: 1.7;
+}
+
+/* ============================================================
+   9. NEWS GRID
+   ============================================================ */
+.news-section {
+  background: white;
+}
+
+.news-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-8);
+}
+
+.news-card {
+  background: var(--color-bg);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-base);
+}
+
+.news-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.news-card-image {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+}
+
+.news-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.news-card-date {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  background: white;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.news-card-content {
+  padding: var(--space-6);
+}
+
+.news-card-category {
+  display: inline-block;
+  background: rgba(26, 58, 92, 0.08);
+  color: var(--color-primary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--border-radius-xl);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.news-card-title {
+  font-size: var(--font-size-md);
+  margin-bottom: var(--space-3);
+  color: var(--color-primary-dark);
+}
+
+.news-card-excerpt {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
+  line-height: 1.7;
+  margin-bottom: var(--space-4);
+}
+
+.news-card-link {
+  font-family: var(--font-primary);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+}
+
+.news-card-link:hover {
+  color: var(--color-secondary);
+}
+
+/* ============================================================
+   10. CTA SECTION
+   ============================================================ */
+.cta-section {
+  background: linear-gradient(135deg, var(--color-primary-dark), var(--color-primary));
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 50%, rgba(232, 160, 32, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 50%, rgba(46, 204, 113, 0.1) 0%, transparent 50%);
+}
+
+.cta-content {
+  position: relative;
+  text-align: center;
+  padding: var(--space-8
