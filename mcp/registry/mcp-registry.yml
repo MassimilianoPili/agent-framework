@@ -113,3 +113,44 @@ servers:
       Part of mcp-devops-tools. Provides MavenTestTool, NpmTestTool,
       CoverageReportTool. Test execution is sandboxed; the tool
       cannot modify source files, only read test results.
+
+  bash:
+    description: >
+      Shell command execution — run arbitrary shell commands with timeout,
+      security filtering (blocked patterns), output truncation, and
+      environment variable whitelisting.
+    transport: sse
+    package: io.github.massimilianopili:mcp-bash-tool
+    autoConfiguration: io.github.massimilianopili.mcp.bash.BashToolAutoConfiguration
+    enabled: true
+    connections:
+      sse:
+        url: http://mcp-server:8080
+      stdio:
+        command: java
+        args: [-jar, /opt/mcp/mcp-server.jar, --spring.profiles.active=bash]
+    notes: >
+      Standalone artifact providing bash_execute. Commands are filtered
+      against configurable blocked patterns (rm -rf /, shutdown, fork bombs,
+      etc.). Working directory is sandboxed to the repository root.
+      Output is truncated to protect LLM context window.
+
+  python:
+    description: >
+      Python script execution — run inline scripts or script files with
+      timeout, optional virtualenv support, and pip package installation.
+    transport: sse
+    package: io.github.massimilianopili:mcp-python-tool
+    autoConfiguration: io.github.massimilianopili.mcp.python.PythonToolAutoConfiguration
+    enabled: true
+    connections:
+      sse:
+        url: http://mcp-server:8080
+      stdio:
+        command: java
+        args: [-jar, /opt/mcp/mcp-server.jar, --spring.profiles.active=python]
+    notes: >
+      Standalone artifact providing python_execute. Supports inline
+      script code (-c) or file execution, virtualenv resolution,
+      and pip install (disabled by default). Working directory is
+      sandboxed to the repository root.

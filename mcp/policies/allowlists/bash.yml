@@ -1,0 +1,14 @@
+# Allowlist for MCP server: bash
+# Lists the permitted bash operations per worker type.
+
+server: bash
+
+operations:
+
+  - name: bash_execute
+    description: Execute a shell command with timeout and security filtering
+    allowedWorkers: [be-worker, fe-worker, ai-task-worker, dba-worker, mobile-worker]
+    constraints:
+      - enforceOwnership: true  # Worker can only execute in paths it owns
+      - maxTimeoutSeconds: 300
+      - blockedPatterns: true   # Default blocked command patterns enforced

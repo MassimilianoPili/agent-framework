@@ -26,10 +26,21 @@ public final class ToolNames {
     public static final String FS_SEARCH = "fs_search";
     public static final String FS_GREP   = "fs_grep";
 
+    // ── MCP bash tool (mcp-bash-tool) ───────────────────────────────────────
+
+    public static final String BASH_EXECUTE = "bash_execute";
+
+    // ── MCP python tool (mcp-python-tool) ────────────────────────────────
+
+    public static final String PYTHON_EXECUTE = "python_execute";
+
     // ── Categories ─────────────────────────────────────────────────────────
 
-    /** Tools that modify files — checked by {@code PathOwnershipEnforcer}. */
-    public static final List<String> WRITE_TOOLS = List.of(FS_WRITE);
+    /** Tools that can execute commands or modify system state. */
+    public static final List<String> EXEC_TOOLS = List.of(BASH_EXECUTE, PYTHON_EXECUTE);
+
+    /** Tools that modify files or system state — checked by {@code PathOwnershipEnforcer}. */
+    public static final List<String> WRITE_TOOLS = List.of(FS_WRITE, BASH_EXECUTE, PYTHON_EXECUTE);
 
     /** Tools that read file content. */
     public static final List<String> READ_TOOLS = List.of(FS_READ, FS_GREP);
