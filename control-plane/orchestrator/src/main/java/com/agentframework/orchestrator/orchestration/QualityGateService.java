@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -43,6 +44,9 @@ public class QualityGateService {
     private final EloRatingService eloRatingService;
     private final PreferencePairGenerator preferencePairGenerator;
     private final RalphLoopService ralphLoopService;
+
+    @Value("${ralph-loop.min-score-threshold:80}")
+    private int minScoreThreshold;
 
     public QualityGateService(ChatClient chatClient,
                               PromptLoader promptLoader,
@@ -95,7 +99,7 @@ public class QualityGateService {
             String userPrompt = promptLoader.renderQualityGatePrompt(
                 plan.getId().toString(),
                 allResultsJson,
-                "80"
+                String.valueOf(minScoreThreshold)
             );
 
             String response = chatClient.prompt()
@@ -106,13 +110,14 @@ public class QualityGateService {
 
             QualityGateResult parsed = parseResponse(response);
 
-            QualityGateReport report = new QualityGateReport(
-                UUID.randomUUID(),
-                plan,
-                parsed.passed(),
-                parsed.summary(),
-                parsed.findings()
-            );
+            // Upsert: on ralph-loop iterations, a report already exists for this plan.
+            QualityGateReport report = reportRepository.findByPlanId(plan.getId())
+                .map(existing -> {
+                    existing.update(parsed.passed(), parsed.summary(), parsed.findings());
+                    return existing;
+                })
+                .orElseGet(() -> new QualityGateReport(
+                    UUID.randomUUID(), plan, parsed.passed(), parsed.summary(), parsed.findings()));
 
             reportRepository.save(report);
             log.info("Quality gate report saved for plan {} — passed: {}", plan.getId(), report.isPassed());
@@ -145,13 +150,16 @@ public class QualityGateService {
             log.error("Failed to generate quality gate report for plan {}: {}",
                       plan.getId(), e.getMessage(), e);
 
-            QualityGateReport failReport = new QualityGateReport(
-                UUID.randomUUID(),
-                plan,
-                false,
-                "Quality gate generation failed: " + e.getMessage(),
-                List.of("ERROR: " + e.getMessage())
-            );
+            QualityGateReport failReport = reportRepository.findByPlanId(plan.getId())
+                .map(existing -> {
+                    existing.update(false, "Quality gate generation failed: " + e.getMessage(),
+                                    List.of("ERROR: " + e.getMessage()));
+                    return existing;
+                })
+                .orElseGet(() -> new QualityGateReport(
+                    UUID.randomUUID(), plan, false,
+                    "Quality gate generation failed: " + e.getMessage(),
+                    List.of("ERROR: " + e.getMessage())));
             reportRepository.save(failReport);
         }
     }

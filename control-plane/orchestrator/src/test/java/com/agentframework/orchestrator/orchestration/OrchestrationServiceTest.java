@@ -3,6 +3,7 @@ package com.agentframework.orchestrator.orchestration;
 import com.agentframework.common.policy.HookPolicy;
 import com.agentframework.common.policy.RiskLevel;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
+import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.budget.TokenBudgetService.BudgetDecision;
 import com.agentframework.orchestrator.config.EnrichmentProperties;
@@ -55,6 +56,7 @@ class OrchestrationServiceTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private HookManagerService hookManagerService;
     @Mock private TokenBudgetService tokenBudgetService;
+    @Mock private CostEstimationService costEstimationService;
     @Mock private PlanEventStore eventStore;
     @Mock private CouncilService councilService;
     @Mock private CouncilProperties councilProperties;
@@ -69,7 +71,7 @@ class OrchestrationServiceTest {
                 planRepository, planItemRepository, attemptRepository,
                 plannerService, taskProducer, profileRegistry,
                 eventPublisher, objectMapper, hookManagerService,
-                tokenBudgetService, eventStore, councilService,
+                tokenBudgetService, costEstimationService, eventStore, councilService,
                 councilProperties, rewardComputationService,
                 Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(),

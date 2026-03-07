@@ -274,6 +274,31 @@ public class PlanItem {
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ── Cost tracking fields (#26L1) ────────────────────────────────────────
+
+    /** Input tokens consumed by this task. Null if the worker did not report token usage. */
+    @Column(name = "input_tokens")
+    private Long inputTokens;
+
+    /** Output tokens consumed by this task. Null if the worker did not report token usage. */
+    @Column(name = "output_tokens")
+    private Long outputTokens;
+
+    /** Estimated cost in USD based on model pricing. Null if tokens are unknown. */
+    @Column(name = "estimated_cost_usd")
+    private java.math.BigDecimal estimatedCostUsd;
+
+    public Long getInputTokens() { return inputTokens; }
+    public void setInputTokens(Long inputTokens) { this.inputTokens = inputTokens; }
+
+    public Long getOutputTokens() { return outputTokens; }
+    public void setOutputTokens(Long outputTokens) { this.outputTokens = outputTokens; }
+
+    public java.math.BigDecimal getEstimatedCostUsd() { return estimatedCostUsd; }
+    public void setEstimatedCostUsd(java.math.BigDecimal estimatedCostUsd) { this.estimatedCostUsd = estimatedCostUsd; }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     public Long getVersion() { return version; }
 
     /** Dynamically adds a dependency (used by the missing_context feedback loop). */

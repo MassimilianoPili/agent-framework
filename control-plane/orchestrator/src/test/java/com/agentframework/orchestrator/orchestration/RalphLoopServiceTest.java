@@ -191,6 +191,26 @@ class RalphLoopServiceTest {
         assertThat(exhausted.getStatus()).isEqualTo(ItemStatus.DONE);
     }
 
+    // ── 8b. DBA and MOBILE are domain workers ────────────────────────────────
+
+    @Test
+    void evaluateAndRetry_gateFailed_requeuesDbaAndMobile() {
+        Plan plan = createPlan(PlanStatus.COMPLETED);
+        PlanItem dbaItem = createItem(plan, "DBA-001", WorkerType.DBA);
+        dbaItem.forceStatus(ItemStatus.DONE);
+        PlanItem mobileItem = createItem(plan, "MOB-001", WorkerType.MOBILE);
+        mobileItem.forceStatus(ItemStatus.DONE);
+
+        when(planRepository.findById(PLAN_ID)).thenReturn(Optional.of(plan));
+        when(planItemRepository.findByPlanId(PLAN_ID)).thenReturn(List.of(dbaItem, mobileItem));
+
+        List<UUID> result = service.evaluateAndRetry(PLAN_ID, false, List.of("schema issue"));
+
+        assertThat(result).containsExactlyInAnyOrder(dbaItem.getId(), mobileItem.getId());
+        assertThat(dbaItem.getStatus()).isEqualTo(ItemStatus.WAITING);
+        assertThat(mobileItem.getStatus()).isEqualTo(ItemStatus.WAITING);
+    }
+
     // ── 8. Empty findings → no re-queue ───────────────────────────────────────
 
     @Test

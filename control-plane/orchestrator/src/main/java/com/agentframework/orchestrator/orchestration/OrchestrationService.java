@@ -1,6 +1,7 @@
 package com.agentframework.orchestrator.orchestration;
 
 import com.agentframework.orchestrator.api.dto.PlanRequest;
+import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.domain.*;
 import com.agentframework.orchestrator.eventsourcing.PlanEventStore;
@@ -85,6 +86,7 @@ public class OrchestrationService {
     private final WorkerCapabilitySpec capabilitySpec;
     private final HookManagerService hookManagerService;
     private final TokenBudgetService tokenBudgetService;
+    private final CostEstimationService costEstimationService;
     private final PlanEventStore eventStore;
     private final CouncilService councilService;
     private final CouncilProperties councilProperties;
@@ -107,6 +109,7 @@ public class OrchestrationService {
                                 ObjectMapper objectMapper,
                                 HookManagerService hookManagerService,
                                 TokenBudgetService tokenBudgetService,
+                                CostEstimationService costEstimationService,
                                 PlanEventStore eventStore,
                                 CouncilService councilService,
                                 CouncilProperties councilProperties,
@@ -128,6 +131,7 @@ public class OrchestrationService {
         this.objectMapper = objectMapper;
         this.hookManagerService = hookManagerService;
         this.tokenBudgetService = tokenBudgetService;
+        this.costEstimationService = costEstimationService;
         this.eventStore = eventStore;
         this.councilService = councilService;
         this.councilProperties = councilProperties;
@@ -298,6 +302,17 @@ public class OrchestrationService {
             }
         }
         item.setCompletedAt(Instant.now());
+
+        // Save per-task token breakdown on the PlanItem (#26L1)
+        if (result.provenance() != null && result.provenance().tokenUsage() != null) {
+            var tu = result.provenance().tokenUsage();
+            item.setInputTokens(tu.inputTokens());
+            item.setOutputTokens(tu.outputTokens());
+            item.setEstimatedCostUsd(costEstimationService.estimate(
+                    tu.inputTokens(), tu.outputTokens(),
+                    result.provenance().model()));
+        }
+
         planItemRepository.save(item);
 
         // Record actual token consumption for budget tracking (fire-and-forget, own transaction).
@@ -313,6 +328,9 @@ public class OrchestrationService {
         if (actualTokens > 0) {
             String workerTypeKey = result.workerType() != null ? result.workerType() : item.getWorkerType().name();
             tokenBudgetService.recordUsage(result.planId(), workerTypeKey, actualTokens);
+            log.info("Task {} completed: {}in/{}out tokens, ~${} (plan={}, worker={})",
+                     result.taskKey(), item.getInputTokens(), item.getOutputTokens(),
+                     item.getEstimatedCostUsd(), result.planId(), item.getWorkerProfile());
         }
 
         eventPublisher.publishEvent(new PlanItemCompletedEvent(
