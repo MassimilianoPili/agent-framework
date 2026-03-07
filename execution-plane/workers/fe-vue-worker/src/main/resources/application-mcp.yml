@@ -7,12 +7,14 @@
 # #   MCP_GIT_URL  (default: http://mcp-server:8080)
 # #   MCP_REPO_FS_URL  (default: http://mcp-server:8080)
 # #   MCP_OPENAPI_URL  (default: http://mcp-server:8080)
+# #   MCP_BASH_URL  (default: http://mcp-server:8080)
 # 
 
 spring:
   autoconfigure:
     exclude:
       - io.github.massimilianopili.mcp.filesystem.FileSystemToolsAutoConfiguration
+      - io.github.massimilianopili.mcp.bash.BashToolAutoConfiguration
   ai:
     mcp:
       client:
@@ -29,3 +31,5 @@ spring:
               url: ${MCP_REPO_FS_URL:http://mcp-server:8080}
             openapi:
               url: ${MCP_OPENAPI_URL:http://mcp-server:8080}
+            bash:
+              url: ${MCP_BASH_URL:http://mcp-server:8080}

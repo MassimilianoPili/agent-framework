@@ -48,6 +48,10 @@
             <groupId>io.github.massimilianopili</groupId>
             <artifactId>mcp-mongo-tools</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.github.massimilianopili</groupId>
+            <artifactId>mcp-bash-tool</artifactId>
+        </dependency>
 
         <!-- MCP Client (activated via SPRING_PROFILES_ACTIVE=mcp) -->
         <dependency>

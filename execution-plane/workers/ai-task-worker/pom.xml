@@ -44,6 +44,14 @@
             <groupId>io.github.massimilianopili</groupId>
             <artifactId>mcp-filesystem-tools</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.github.massimilianopili</groupId>
+            <artifactId>mcp-bash-tool</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.massimilianopili</groupId>
+            <artifactId>mcp-python-tool</artifactId>
+        </dependency>
 
         <!-- MCP Client (activated via SPRING_PROFILES_ACTIVE=mcp) -->
         <dependency>

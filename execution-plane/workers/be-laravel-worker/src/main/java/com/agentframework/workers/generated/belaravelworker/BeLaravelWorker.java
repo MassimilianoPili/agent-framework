@@ -36,7 +36,8 @@ public class BeLaravelWorker extends AbstractWorker {
         "fs_read",
         "fs_write",
         "fs_search",
-        "fs_grep"
+        "fs_grep",
+        "bash_execute"
     );
 
     private static final List<String> SKILL_PATHS = List.of(

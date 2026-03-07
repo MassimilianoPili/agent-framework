@@ -327,7 +327,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | **B16** | **HOOK_MANAGER schema con nomi Claude Code** | **0.5g** | **Alto** | #27 |
 | **B17 ✅** | **Context overflow da `fs_read` senza limiti** | **1.5g** | **Critico** | — |
 | **23 ✅** | **Enrichment Pipeline Activation** | **2g** | **Molto alto** (sblocca S1-S3) | — |
-| **25** | **mcp-bash-tool + mcp-python-tool** | **1.5g** | **Alto** | — |
+| **25 ✅** | **mcp-bash-tool + mcp-python-tool** | **1.5g** | **Alto** | — |
 | **24** | **Tool configurabili (Livello 1: toolHints)** | **1g** | **Alto** | B13, #25 |
 | 19 | Retry manuale TO_DISPATCH | 1g | Alto | S8 |
 | 20 | Modello LLM per task | 2g | Alto | — |

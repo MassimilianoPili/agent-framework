@@ -42,7 +42,8 @@ public class DbaGraphdbWorker extends AbstractWorker {
         "graph_schema",
         "graph_stats",
         "graph_list_backends",
-        "db_query"
+        "db_query",
+        "bash_execute"
     );
 
     private static final List<String> SKILL_PATHS = List.of(
