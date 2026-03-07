@@ -5,6 +5,7 @@ import com.agentframework.common.policy.RiskLevel;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.budget.TokenBudgetService.BudgetDecision;
+import com.agentframework.orchestrator.config.EnrichmentProperties;
 import com.agentframework.orchestrator.council.CouncilProperties;
 import com.agentframework.orchestrator.council.CouncilReport;
 import com.agentframework.orchestrator.council.CouncilService;
@@ -71,7 +72,9 @@ class OrchestrationServiceTest {
                 tokenBudgetService, eventStore, councilService,
                 councilProperties, rewardComputationService,
                 Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(),
+                new EnrichmentInjectorService(new EnrichmentProperties(false, false, false, false)),
+                new EnrichmentProperties(false, false, false, false));
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);

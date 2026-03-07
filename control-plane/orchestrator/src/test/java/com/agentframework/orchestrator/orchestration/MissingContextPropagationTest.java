@@ -1,6 +1,7 @@
 package com.agentframework.orchestrator.orchestration;
 
 import com.agentframework.orchestrator.budget.TokenBudgetService;
+import com.agentframework.orchestrator.config.EnrichmentProperties;
 import com.agentframework.orchestrator.council.CouncilProperties;
 import com.agentframework.orchestrator.council.CouncilService;
 import com.agentframework.orchestrator.domain.*;
@@ -50,6 +51,8 @@ class MissingContextPropagationTest {
     @Mock private CouncilService councilService;
     @Mock private CouncilProperties councilProperties;
     @Mock private RewardComputationService rewardComputationService;
+    @Mock private EnrichmentInjectorService enrichmentInjectorService;
+    @Mock private EnrichmentProperties enrichmentProperties;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private OrchestrationService service;
@@ -63,7 +66,8 @@ class MissingContextPropagationTest {
                 tokenBudgetService, eventStore, councilService,
                 councilProperties, rewardComputationService,
                 Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(),
+                enrichmentInjectorService, enrichmentProperties);
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);

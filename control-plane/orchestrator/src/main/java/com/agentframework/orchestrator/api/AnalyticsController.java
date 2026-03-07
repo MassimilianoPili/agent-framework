@@ -3,6 +3,8 @@ package com.agentframework.orchestrator.api;
 import com.agentframework.orchestrator.analytics.*;
 import com.agentframework.orchestrator.analytics.CalibrationAudit.CalibrationReport;
 import com.agentframework.orchestrator.analytics.ProspectTheory.ProspectEvaluation;
+import com.agentframework.orchestrator.analytics.ShapleyValue.ShapleyReport;
+import com.agentframework.orchestrator.analytics.VCGMechanismService.VCGPricingReport;
 import com.agentframework.orchestrator.budget.KellyCriterion.KellyRecommendation;
 import com.agentframework.orchestrator.budget.KellyCriterionService;
 import com.agentframework.orchestrator.domain.WorkerType;
@@ -18,14 +20,16 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * REST API for system-level analytics.
  *
  * <p>Provides population analysis (replicator dynamics), drift detection
  * (Wasserstein distance), prospect theory evaluation, hedge weights,
- * Kelly criterion fractions, optimal stopping thresholds, and
- * calibration audit endpoints for the worker profile ecosystem.</p>
+ * Kelly criterion fractions, optimal stopping thresholds,
+ * calibration audit, VCG mechanism pricing, and Shapley value attribution
+ * endpoints for the worker profile ecosystem.</p>
  */
 @RestController
 @RequestMapping("/api/v1/analytics")
@@ -38,6 +42,8 @@ public class AnalyticsController {
     private final Optional<KellyCriterionService> kellyCriterionService;
     private final Optional<OptimalStoppingService> optimalStoppingService;
     private final Optional<CalibrationAuditService> calibrationAuditService;
+    private final Optional<VCGMechanismService> vcgMechanismService;
+    private final Optional<ShapleyValueService> shapleyValueService;
 
     public AnalyticsController(ReplicatorDynamicsService replicatorDynamicsService,
                                 Optional<WorkerDriftMonitor> driftMonitor,
@@ -45,7 +51,9 @@ public class AnalyticsController {
                                 Optional<HedgeAlgorithmService> hedgeAlgorithmService,
                                 Optional<KellyCriterionService> kellyCriterionService,
                                 Optional<OptimalStoppingService> optimalStoppingService,
-                                Optional<CalibrationAuditService> calibrationAuditService) {
+                                Optional<CalibrationAuditService> calibrationAuditService,
+                                Optional<VCGMechanismService> vcgMechanismService,
+                                Optional<ShapleyValueService> shapleyValueService) {
         this.replicatorDynamicsService = replicatorDynamicsService;
         this.driftMonitor = driftMonitor;
         this.prospectTheoryService = prospectTheoryService;
@@ -53,6 +61,8 @@ public class AnalyticsController {
         this.kellyCriterionService = kellyCriterionService;
         this.optimalStoppingService = optimalStoppingService;
         this.calibrationAuditService = calibrationAuditService;
+        this.vcgMechanismService = vcgMechanismService;
+        this.shapleyValueService = shapleyValueService;
     }
 
     /**
@@ -168,6 +178,42 @@ public class AnalyticsController {
             return ResponseEntity.ok(report);
         }
         CalibrationReport report = calibrationAuditService.get().getLatestReport();
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/vcg-pricing?workerType=BE
+     *
+     * <p>Computes VCG mechanism pricing for worker profiles of the specified type.
+     * Returns the VCG auction result (winner, second-price payment, information rent)
+     * along with all profile bids derived from historical performance.</p>
+     */
+    @GetMapping("/vcg-pricing")
+    public ResponseEntity<VCGPricingReport> getVcgPricing(
+            @RequestParam String workerType) {
+        if (vcgMechanismService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(vcgMechanismService.get().computePricing(workerType));
+    }
+
+    /**
+     * GET /api/v1/analytics/shapley-attribution?planId=&lt;uuid&gt;
+     *
+     * <p>Computes Shapley value credit attribution for all workers that contributed
+     * to the specified plan. Returns Shapley values, Banzhaf indices, and the
+     * grand coalition value.</p>
+     */
+    @GetMapping("/shapley-attribution")
+    public ResponseEntity<ShapleyReport> getShapleyAttribution(
+            @RequestParam UUID planId) {
+        if (shapleyValueService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        ShapleyReport report = shapleyValueService.get().computeForPlan(planId);
         if (report == null) {
             return ResponseEntity.noContent().build();
         }

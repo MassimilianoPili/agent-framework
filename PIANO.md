@@ -326,7 +326,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | **B15** | **Project path dinamico in ownsPaths** | **0.5g** | **Alto** | — |
 | **B16** | **HOOK_MANAGER schema con nomi Claude Code** | **0.5g** | **Alto** | #27 |
 | **B17 ✅** | **Context overflow da `fs_read` senza limiti** | **1.5g** | **Critico** | — |
-| **23** | **Enrichment Pipeline Activation** | **2g** | **Molto alto** (sblocca S1-S3) | — |
+| **23 ✅** | **Enrichment Pipeline Activation** | **2g** | **Molto alto** (sblocca S1-S3) | — |
 | **25** | **mcp-bash-tool + mcp-python-tool** | **1.5g** | **Alto** | — |
 | **24** | **Tool configurabili (Livello 1: toolHints)** | **1g** | **Alto** | B13, #25 |
 | 19 | Retry manuale TO_DISPATCH | 1g | Alto | S8 |
@@ -356,7 +356,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 20 | Modello LLM per task (solo campo `modelId` reserved null) |
 | 21 | Redis topic splitting per workerType |
 | 22 | Orchestrator singleton (leader election) |
-| 23 | Enrichment Pipeline Activation |
+| 23 ✅ | Enrichment Pipeline Activation |
 | 24 | Tool configurabili (toolHints + TOOL_MANAGER) |
 | 25 | mcp-bash-tool + mcp-python-tool |
 | 26 | Cost tracking per task + auto-split |

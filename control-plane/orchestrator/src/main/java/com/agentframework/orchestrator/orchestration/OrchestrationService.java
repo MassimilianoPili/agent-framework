@@ -16,6 +16,7 @@ import com.agentframework.orchestrator.messaging.dto.AgentTask;
 import com.agentframework.orchestrator.council.CouncilProperties;
 import com.agentframework.orchestrator.council.CouncilReport;
 import com.agentframework.orchestrator.council.CouncilService;
+import com.agentframework.orchestrator.config.EnrichmentProperties;
 import com.agentframework.orchestrator.planner.PlannerService;
 import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
@@ -93,6 +94,8 @@ public class OrchestrationService {
     private final SerendipityService serendipityService;
     private final BayesianSuccessPredictorService bayesianPredictor;
     private final MarketMakingDispatcher marketMakingDispatcher;
+    private final EnrichmentInjectorService enrichmentInjectorService;
+    private final EnrichmentProperties enrichmentProperties;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -112,7 +115,9 @@ public class OrchestrationService {
                                 Optional<TaskOutcomeService> gpTaskOutcomeService,
                                 Optional<SerendipityService> serendipityService,
                                 Optional<BayesianSuccessPredictorService> bayesianPredictor,
-                                Optional<MarketMakingDispatcher> marketMakingDispatcher) {
+                                Optional<MarketMakingDispatcher> marketMakingDispatcher,
+                                EnrichmentInjectorService enrichmentInjectorService,
+                                EnrichmentProperties enrichmentProperties) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -132,6 +137,8 @@ public class OrchestrationService {
         this.serendipityService = serendipityService.orElse(null);
         this.bayesianPredictor = bayesianPredictor.orElse(null);
         this.marketMakingDispatcher = marketMakingDispatcher.orElse(null);
+        this.enrichmentInjectorService = enrichmentInjectorService;
+        this.enrichmentProperties = enrichmentProperties;
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -174,6 +181,13 @@ public class OrchestrationService {
         }
 
         plan = plannerService.decompose(plan);
+
+        // Auto-inject enrichment tasks (CM, RM, SM) as dependencies of domain workers.
+        // Idempotent: skips types the planner already generated.
+        if (enrichmentProperties.autoInject()) {
+            enrichmentInjectorService.inject(plan);
+        }
+
         plan.transitionTo(PlanStatus.RUNNING);
         plan = planRepository.save(plan);
 
