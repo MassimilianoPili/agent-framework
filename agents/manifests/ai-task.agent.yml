@@ -40,18 +40,19 @@ spec:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
     allowlist:
-      - Read
-      - Write
-      - Edit
-      - Bash
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
     mcpServers:
       - repo-fs
       - test
 
   ownership:
     ownsPaths:
-      - eval/
-    readOnlyPaths: []
+      - cps4/
+    readOnlyPaths:
+      - cps3/
 
   concurrency:
     maxConcurrentCalls: 5

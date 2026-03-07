@@ -1,0 +1,70 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: fe-angular-worker
+  displayName: "Frontend Angular Worker"
+  description: >
+    Handles Angular/TypeScript frontend tasks — standalone components, signals,
+    reactive forms, routing with lazy loading, services, and testing with Vitest or Jasmine.
+
+spec:
+  workerType: FE
+  workerProfile: fe-angular
+  topic: agent-tasks
+  subscription: fe-angular-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/fe/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the frontend task using Angular and TypeScript.
+
+      Follow these principles:
+      - Angular 19+: standalone components (no NgModules), signals for reactivity
+      - TypeScript strict mode, no any types
+      - Dependency injection via inject() function
+      - Reactive forms with signal-based validation
+      - Lazy loading routes with loadComponent/loadChildren
+      - OnPush change detection strategy by default
+      - Angular CLI conventions: ng generate component/service/pipe
+      - Testing: Vitest or Jasmine/Karma, TestBed for component tests
+      - Accessibility: proper ARIA, keyboard navigation, angular/cdk a11y
+
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

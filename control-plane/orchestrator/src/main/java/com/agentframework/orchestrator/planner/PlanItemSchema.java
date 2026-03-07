@@ -25,7 +25,8 @@ public record PlanItemSchema(
     String workerType,
 
     @JsonPropertyDescription("Worker profile selecting the concrete technology stack. "
-        + "Examples: be-java, be-go, be-rust, be-node, fe-react. "
+        + "Examples: be-java, be-go, be-rust, be-node, be-quarkus, be-laravel, be-cpp, "
+        + "fe-react, fe-vanillajs, fe-angular, fe-svelte. "
         + "Null for non-implementation tasks (AI_TASK, CONTRACT, REVIEW)")
     String workerProfile,
 

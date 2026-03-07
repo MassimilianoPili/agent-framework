@@ -40,7 +40,7 @@ public class PolicyProperties {
     private List<String> ownsPaths = new ArrayList<>();
 
     /** Tool names considered "write" operations for ownership checks. */
-    private List<String> writeToolNames = List.of("Write", "Edit");
+    private List<String> writeToolNames = List.of("Write", "Edit", "fs_write");
 
     private AuditConfig audit = new AuditConfig();
 

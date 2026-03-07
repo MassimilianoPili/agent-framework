@@ -40,11 +40,17 @@ For `BE` and `FE` tasks, you MUST specify a `workerProfile` that selects the con
 | `be-go` | `BE` | Go |
 | `be-rust` | `BE` | Rust |
 | `be-node` | `BE` | Node.js / TypeScript |
+| `be-quarkus` | `BE` | Java / Quarkus |
+| `be-laravel` | `BE` | PHP / Laravel |
+| `be-cpp` | `BE` | C++ / CMake |
 | `fe-react` | `FE` | React / TypeScript |
+| `fe-vanillajs` | `FE` | Vanilla HTML5, CSS, JavaScript (no frameworks) |
+| `fe-angular` | `FE` | Angular / TypeScript |
+| `fe-svelte` | `FE` | Svelte / SvelteKit |
 
 **Rules for workerProfile**:
-- For `BE` tasks: analyze the spec to determine the backend technology. If the spec mentions Java/Spring → `be-java`, Go → `be-go`, Rust → `be-rust`, Node/Express/NestJS → `be-node`. If unspecified, default to `be-java`.
-- For `FE` tasks: analyze the spec to determine the frontend technology. Default to `fe-react`.
+- For `BE` tasks: analyze the spec to determine the backend technology. If the spec mentions Java/Spring → `be-java`, Quarkus → `be-quarkus`, Go → `be-go`, Rust → `be-rust`, Node/Express/NestJS → `be-node`, PHP/Laravel → `be-laravel`, C++ → `be-cpp`. If unspecified, default to `be-java`.
+- For `FE` tasks: analyze the spec to determine the frontend technology. If the spec mentions vanilla HTML/CSS/JS (no framework) → `fe-vanillajs`, Angular → `fe-angular`, Svelte/SvelteKit → `fe-svelte`. Default to `fe-react`.
 - For `CONTRACT`, `AI_TASK`, `REVIEW` tasks: set `workerProfile` to `null` (these are technology-agnostic).
 - For `MANAGER` tasks: set `workerProfile` to the advisor profile (e.g. `be-manager`, `security-manager`).
 - For `SPECIALIST` tasks: set `workerProfile` to the specialist profile (e.g. `database-specialist`, `auth-specialist`).
@@ -86,79 +92,6 @@ You MUST follow these rules strictly:
 - `MG-001` (MANAGER) -- Domain advisor, depends on CT, before BE/FE
 - `SP-001` (SPECIALIST) -- Cross-cutting expert, depends on CT, before BE/FE
 
-## Output Format
+## Output
 
-Respond with **only** a JSON object that conforms to the Plan schema. Do not include any text before or after the JSON.
-
-```json
-{
-  "id": "<generate a UUID v4>",
-  "status": "PENDING",
-  "summary": "One-line summary of what this plan accomplishes",
-  "items": [
-    {
-      "taskKey": "CT-001",
-      "title": "Define OpenAPI contract for <feature>",
-      "description": "Detailed description including:\n- What schemas/endpoints to define\n- Acceptance criteria\n- Any constraints from the spec",
-      "workerType": "CONTRACT",
-      "workerProfile": null,
-      "dependsOn": [],
-      "ordinal": 0
-    },
-    {
-      "taskKey": "BE-001",
-      "title": "Implement <feature> backend service",
-      "description": "Detailed description...",
-      "workerType": "BE",
-      "workerProfile": "be-java",
-      "dependsOn": ["CT-001"],
-      "ordinal": 1
-    },
-    {
-      "taskKey": "FE-001",
-      "title": "Implement <feature> frontend components",
-      "description": "Detailed description...",
-      "workerType": "FE",
-      "workerProfile": "fe-react",
-      "dependsOn": ["CT-001"],
-      "ordinal": 1
-    },
-    {
-      "taskKey": "RV-001",
-      "title": "Code review and contract validation",
-      "description": "Review all implementation...",
-      "workerType": "REVIEW",
-      "workerProfile": null,
-      "dependsOn": ["BE-001", "FE-001"],
-      "ordinal": 2
-    }
-  ],
-  "createdAt": "<current ISO 8601 timestamp>"
-}
-```
-
-## Schema Reference
-
-The output must conform to `Plan.schema.json`:
-- `id`: UUID v4 string
-- `status`: Must be `"PENDING"` for newly created plans
-- `summary`: Non-empty string
-- `items`: Array of 1-15 PlanItem objects
-- `createdAt`: ISO 8601 datetime string
-
-Each PlanItem must conform to `PlanItem.schema.json`:
-- `taskKey`: Matches `^(BE|FE|AI|CT|RV|CL|MG|SP)-[0-9]{3}$`
-- `title`: 1-500 characters
-- `description`: Detailed text with acceptance criteria
-- `workerType`: One of `BE`, `FE`, `AI_TASK`, `CONTRACT`, `REVIEW`, `COUNCIL_MANAGER`, `MANAGER`, `SPECIALIST`
-- `workerProfile`: Stack profile string (e.g. `be-java`, `fe-react`, `be-manager`, `database-specialist`) or `null` for non-implementation tasks
-- `dependsOn`: Array of valid taskKeys that exist in the same plan
-- `ordinal`: Non-negative integer, respecting topological order
-
-## Constraints
-
-- The output must be valid JSON parseable by any standard JSON parser.
-- Every `dependsOn` reference must point to a `taskKey` that exists in the plan.
-- The dependency graph must be acyclic.
-- At least one `CONTRACT` task must exist if any `BE` or `FE` task exists.
-- Exactly one `REVIEW` task must be the terminal node (no other task depends on it, and it depends on all leaf implementation tasks).
+Respond with ONLY a JSON object conforming to the schema appended below this prompt. NEVER output code, CSS, HTML, or implementation artifacts. Your role is to decompose, not to implement.

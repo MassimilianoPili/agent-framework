@@ -27,9 +27,11 @@ spring:
     model:
       chat: anthropic     # Ollama is used only for embeddings (RAG), not as a chat model
     anthropic:
+      base-url: ${SPRING_AI_ANTHROPIC_BASE_URL:https://api.anthropic.com}
       api-key: ${ANTHROPIC_API_KEY:}
       chat:
         options:
+          model: claude-opus-4-6
           timeout: 120s
           max-tokens: 4096
 
@@ -78,6 +80,36 @@ worker-profiles:
       topic: agent-tasks
       subscription: fe-react-worker-sub
       displayName: "Frontend React"
+    fe-vanillajs:
+      workerType: FE
+      topic: agent-tasks
+      subscription: fe-vanillajs-worker-sub
+      displayName: "Frontend Vanilla JS"
+    fe-angular:
+      workerType: FE
+      topic: agent-tasks
+      subscription: fe-angular-worker-sub
+      displayName: "Frontend Angular"
+    fe-svelte:
+      workerType: FE
+      topic: agent-tasks
+      subscription: fe-svelte-worker-sub
+      displayName: "Frontend Svelte"
+    be-laravel:
+      workerType: BE
+      topic: agent-tasks
+      subscription: be-laravel-worker-sub
+      displayName: "Backend Laravel (PHP)"
+    be-quarkus:
+      workerType: BE
+      topic: agent-tasks
+      subscription: be-quarkus-worker-sub
+      displayName: "Backend Quarkus (Java)"
+    be-cpp:
+      workerType: BE
+      topic: agent-tasks
+      subscription: be-cpp-worker-sub
+      displayName: "Backend C++"
     task-manager:
       workerType: TASK_MANAGER
       topic: agent-tasks

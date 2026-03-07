@@ -56,11 +56,23 @@ public class WorkerTaskConsumer {
 
     /**
      * Handles an incoming message containing an AgentTask.
-     * Deserializes the message, delegates to the worker, and completes/rejects.
+     * Deserializes the message, filters by workerType/workerProfile, delegates to the worker.
+     *
+     * <p>Filtering is necessary because Redis Streams delivers all messages to every consumer
+     * group on the same stream. Unlike Azure Service Bus (which supports server-side subscription
+     * filters), Redis requires application-level filtering.</p>
      */
     private void handleMessage(String body, MessageAcknowledgment ack) {
         try {
             AgentTask task = objectMapper.readValue(body, AgentTask.class);
+
+            if (!shouldProcess(task)) {
+                log.debug("Skipping task {} (type={}, profile={}) — not for this worker (type={}, profile={})",
+                          task.taskKey(), task.workerType(), task.workerProfile(),
+                          worker.workerType(), worker.workerProfile());
+                ack.complete();
+                return;
+            }
 
             log.info("Received task {} for worker {} (plan={})",
                      task.taskKey(), worker.workerType(), task.planId());
@@ -72,5 +84,32 @@ public class WorkerTaskConsumer {
             log.error("Failed to handle AgentTask message: {}", e.getMessage(), e);
             ack.reject(e.getMessage());
         }
+    }
+
+    /**
+     * Determines whether this worker should process the given task.
+     *
+     * <p>Rules:</p>
+     * <ol>
+     *   <li>workerType must match (e.g., FE task → FE worker, AI_TASK → AI_TASK worker)</li>
+     *   <li>If both task and worker have a profile, they must match (e.g., fe-vanillajs → fe-vanillajs)</li>
+     * </ol>
+     */
+    private boolean shouldProcess(AgentTask task) {
+        // Type must match
+        if (!worker.workerType().equals(task.workerType())) {
+            return false;
+        }
+
+        // If both sides specify a profile, they must agree
+        String taskProfile = task.workerProfile();
+        String myProfile = worker.workerProfile();
+        if (taskProfile != null && !taskProfile.isBlank()
+                && myProfile != null && !myProfile.isBlank()
+                && !taskProfile.equals(myProfile)) {
+            return false;
+        }
+
+        return true;
     }
 }

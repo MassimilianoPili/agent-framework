@@ -113,8 +113,9 @@ public class PathOwnershipEnforcer {
      */
     public Optional<String> checkReadOwnership(String toolName, String toolInput,
                                                List<String> relevantFiles) {
-        // Only restrict the Read tool; only when an explicit allowlist is set
-        if (!"Read".equals(toolName) || relevantFiles == null || relevantFiles.isEmpty()) {
+        // Only restrict read tools; only when an explicit allowlist is set
+        if ((!"Read".equals(toolName) && !"fs_read".equals(toolName))
+                || relevantFiles == null || relevantFiles.isEmpty()) {
             return Optional.empty();
         }
 

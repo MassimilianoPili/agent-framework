@@ -1,0 +1,71 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: be-laravel-worker
+  displayName: "Backend Laravel Worker (PHP)"
+  description: >
+    Handles PHP/Laravel backend tasks — controllers, Eloquent models, migrations,
+    Blade templates, Form Requests validation, middleware, and PHPUnit tests.
+
+spec:
+  workerType: BE
+  workerProfile: be-laravel
+  topic: agent-tasks
+  subscription: be-laravel-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/be/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the backend task using PHP and Laravel.
+
+      Follow these principles:
+      - PHP 8.3+: typed properties, enums, match expressions, readonly classes
+      - Laravel 11: slim application structure, no service providers for simple bindings
+      - Eloquent ORM: models with relationships, scopes, casts, accessors/mutators
+      - Migrations: timestamped, reversible, with proper indexes and foreign keys
+      - Controllers: single-responsibility, Form Request validation, API Resources
+      - Middleware: authentication, authorization, rate limiting
+      - Artisan commands for CLI tasks
+      - Testing: PHPUnit with RefreshDatabase, factories, assertions
+      - Security: mass assignment protection, CSRF, SQL injection prevention
+
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - backend/
+      - templates/be/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

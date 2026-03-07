@@ -4,6 +4,7 @@ import com.agentframework.common.policy.HookPolicy;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Fully assembled context for one agent execution.
@@ -19,6 +20,8 @@ import java.util.Map;
  * to override the static {@code PolicyProperties} configuration for this specific task.</p>
  */
 public record AgentContext(
+    UUID planId,
+    UUID itemId,
     String taskKey,
     String title,
     String description,

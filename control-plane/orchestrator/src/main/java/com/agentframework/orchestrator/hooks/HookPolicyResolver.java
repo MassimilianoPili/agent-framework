@@ -28,18 +28,21 @@ public class HookPolicyResolver {
 
     private static final Logger log = LoggerFactory.getLogger(HookPolicyResolver.class);
 
-    /** Default tool allowlist per worker type. Manager types are read-only by default. */
+    /**
+     * Default tool allowlist per worker type, using MCP tool bean names.
+     * Manager types are read-only by default.
+     */
     private static final Map<WorkerType, List<String>> DEFAULT_TOOL_ALLOWLISTS = Map.of(
-        WorkerType.BE,              List.of("Read", "Write", "Edit", "Glob", "Grep", "Bash"),
-        WorkerType.FE,              List.of("Read", "Write", "Edit", "Glob", "Grep", "Bash"),
-        WorkerType.AI_TASK,         List.of("Read", "Write", "Edit", "Glob", "Grep", "Bash"),
-        WorkerType.CONTRACT,        List.of("Read", "Write", "Edit", "Glob", "Grep", "Bash"),
-        WorkerType.REVIEW,          List.of("Read", "Glob", "Grep"),
-        WorkerType.CONTEXT_MANAGER, List.of("Read", "Glob", "Grep"),
-        WorkerType.SCHEMA_MANAGER,  List.of("Read", "Glob", "Grep"),
-        WorkerType.HOOK_MANAGER,    List.of("Read", "Glob", "Grep"),
-        WorkerType.AUDIT_MANAGER,   List.of("Read", "Write"),
-        WorkerType.EVENT_MANAGER,   List.of("Read")
+        WorkerType.BE,              List.of("fs_list", "fs_read", "fs_write", "fs_search", "fs_grep"),
+        WorkerType.FE,              List.of("fs_list", "fs_read", "fs_write", "fs_search", "fs_grep"),
+        WorkerType.AI_TASK,         List.of("fs_list", "fs_read", "fs_write", "fs_search", "fs_grep"),
+        WorkerType.CONTRACT,        List.of("fs_list", "fs_read", "fs_write", "fs_search", "fs_grep"),
+        WorkerType.REVIEW,          List.of("fs_list", "fs_read", "fs_search", "fs_grep"),
+        WorkerType.CONTEXT_MANAGER, List.of("fs_list", "fs_read", "fs_search", "fs_grep"),
+        WorkerType.SCHEMA_MANAGER,  List.of("fs_list", "fs_read", "fs_search", "fs_grep"),
+        WorkerType.HOOK_MANAGER,    List.of("fs_list", "fs_read", "fs_search", "fs_grep"),
+        WorkerType.AUDIT_MANAGER,   List.of("fs_list", "fs_read", "fs_write", "fs_grep"),
+        WorkerType.EVENT_MANAGER,   List.of("fs_list", "fs_read")
     );
 
     private final WorkerProfileRegistry profileRegistry;

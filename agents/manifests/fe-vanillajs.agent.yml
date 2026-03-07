@@ -1,0 +1,70 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: fe-vanillajs-worker
+  displayName: "Frontend Vanilla JS Worker"
+  description: >
+    Handles vanilla HTML5, CSS, and JavaScript frontend tasks — semantic markup,
+    responsive design, accessibility, performance optimization, and progressive enhancement.
+    No frameworks or build tools unless explicitly requested.
+
+spec:
+  workerType: FE
+  workerProfile: fe-vanillajs
+  topic: agent-tasks
+  subscription: fe-vanillajs-worker-sub
+
+  model:
+    name: claude-opus-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/fe/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the frontend task using vanilla HTML5, CSS, and JavaScript.
+      Do NOT use any framework (React, Angular, Vue, Svelte) or build tool
+      (Webpack, Vite, Rollup) unless the task explicitly requires it.
+
+      Follow these principles:
+      - Semantic HTML5: use <header>, <nav>, <main>, <section>, <article>, <footer>
+      - CSS custom properties (--var) for theming, no preprocessors needed
+      - Progressive enhancement: core content works without JS
+      - Responsive design: mobile-first, CSS Grid/Flexbox, no media query frameworks
+      - Accessibility: WCAG 2.1 AA, proper ARIA, keyboard navigation, contrast
+      - Performance: lazy loading, font-display: swap, minimal DOM manipulation
+
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - cps4/
+    readOnlyPaths:
+      - cps3/
+
+  concurrency:
+    maxConcurrentCalls: 3

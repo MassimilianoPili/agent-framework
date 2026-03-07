@@ -27,7 +27,7 @@
         <flyway.version>10.20.1</flyway.version>
         <reactive-tools.version>0.2.0</reactive-tools.version>
         <mcp-devops-tools.version>0.0.2</mcp-devops-tools.version>
-        <mcp-filesystem-tools.version>0.0.1</mcp-filesystem-tools.version>
+        <mcp-filesystem-tools.version>0.1.0</mcp-filesystem-tools.version>
         <mcp-sql-tools.version>0.0.1</mcp-sql-tools.version>
         <mcp-tracker-tools.version>0.0.1</mcp-tracker-tools.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -62,6 +62,13 @@
         <module>execution-plane/workers/compensator-manager-worker</module>
         <module>execution-plane/workers/advisory-worker</module>
         <module>execution-plane/workers/rag-manager-worker</module>
+        <!-- New workers (2026-03-01) -->
+        <module>execution-plane/workers/fe-vanillajs-worker</module>
+        <module>execution-plane/workers/fe-angular-worker</module>
+        <module>execution-plane/workers/fe-svelte-worker</module>
+        <module>execution-plane/workers/be-laravel-worker</module>
+        <module>execution-plane/workers/be-quarkus-worker</module>
+        <module>execution-plane/workers/be-cpp-worker</module>
     </modules>
 
     <dependencyManagement>
