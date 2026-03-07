@@ -270,6 +270,16 @@ council:
   task-session-enabled: true    # Handle COUNCIL_MANAGER tasks in-process
   submodular-selection-enabled: false  # Use CELF greedy (SubmodularSelector) instead of LLM for member selection
 
+# Enrichment Pipeline — auto-injection of CONTEXT_MANAGER, RAG_MANAGER, SCHEMA_MANAGER
+# tasks as dependencies of domain workers after planner decomposition.
+# Level 1 (planner prompt) generates them if the LLM decides to; Level 2 (auto-inject)
+# ensures they are always present regardless of planner output.
+enrichment:
+  auto-inject: true
+  include-context-manager: true   # CM-001: codebase exploration (always recommended)
+  include-rag: true               # RM-001: semantic search on vectorDB + graphDB
+  include-schema: false           # SM-001: API interface extraction (opt-in)
+
 # Ralph-Loop — quality gate feedback loop.
 # When the quality gate fails, implicated items are re-queued with feedback.
 ralph-loop:

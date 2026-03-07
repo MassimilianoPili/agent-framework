@@ -12,8 +12,8 @@
     },
     "taskKey": {
       "type": "string",
-      "pattern": "^(BE|FE|AI|CT|RV)-[0-9]{3}$",
-      "description": "Unique key within plan. Format: BE-001, FE-001, AI-001, CT-001, RV-001"
+      "pattern": "^(BE|FE|AI|CT|RV|CM|RM|SM|TM|HM|CL|MG|SP|DB|MB)-[0-9]{3}$",
+      "description": "Unique key within plan. Format: PREFIX-NNN where PREFIX is a worker type code (BE, FE, AI, CT, RV, CM, RM, SM, TM, HM, CL, MG, SP, DB, MB)"
     },
     "title": {
       "type": "string",
@@ -27,14 +27,14 @@
     },
     "workerType": {
       "type": "string",
-      "enum": ["BE", "FE", "AI_TASK", "CONTRACT", "REVIEW"],
+      "enum": ["BE", "FE", "AI_TASK", "CONTRACT", "REVIEW", "CONTEXT_MANAGER", "RAG_MANAGER", "SCHEMA_MANAGER", "TASK_MANAGER", "HOOK_MANAGER", "COUNCIL_MANAGER", "MANAGER", "SPECIALIST", "DBA", "MOBILE"],
       "description": "Which worker type should execute this task"
     },
     "dependsOn": {
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^(BE|FE|AI|CT|RV)-[0-9]{3}$"
+        "pattern": "^(BE|FE|AI|CT|RV|CM|RM|SM|TM|HM|CL|MG|SP|DB|MB)-[0-9]{3}$"
       },
       "default": [],
       "description": "Task keys this task depends on; empty if no dependencies"
