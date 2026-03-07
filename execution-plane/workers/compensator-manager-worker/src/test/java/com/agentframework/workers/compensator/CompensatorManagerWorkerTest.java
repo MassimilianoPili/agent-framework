@@ -181,6 +181,7 @@ class CompensatorManagerWorkerTest {
                 }
                 """;
         return new AgentContext(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 "COMP-BE-001", "Compensate: Build user API", compensationDescription,
                 null, "You are a compensator agent.",
                 Map.of(), null, null, null, null

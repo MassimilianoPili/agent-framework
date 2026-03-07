@@ -1,0 +1,8 @@
+# Redis Streams profile — messaging on DB 3, cache on DB 4
+messaging:
+  provider: redis
+  redis:
+    host: ${REDIS_HOST:redis}
+    port: ${REDIS_PORT:6379}
+    database: 3
+    cache-database: 4

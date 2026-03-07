@@ -1,0 +1,70 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: fe-svelte-worker
+  displayName: "Frontend Svelte Worker"
+  description: >
+    Handles Svelte/SvelteKit frontend tasks — components with runes ($state, $derived),
+    reactive stores, server-side rendering, form actions, and Vitest tests.
+
+spec:
+  workerType: FE
+  workerProfile: fe-svelte
+  topic: agent-tasks
+  subscription: fe-svelte-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/fe/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the frontend task using Svelte 5 and SvelteKit.
+
+      Follow these principles:
+      - Svelte 5 runes: $state, $derived, $effect for reactivity (no legacy stores API)
+      - SvelteKit conventions: +page.svelte, +layout.svelte, +server.ts
+      - Server-side rendering (SSR) by default, client-side hydration
+      - Form actions for mutations, load functions for data fetching
+      - TypeScript for all logic files (.ts, +page.server.ts)
+      - CSS scoped to components by default, CSS custom properties for theming
+      - Accessibility: use:action for a11y, proper ARIA, keyboard navigation
+      - Testing: Vitest for unit tests, Playwright for e2e
+      - Performance: code splitting via dynamic imports, preloading
+
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

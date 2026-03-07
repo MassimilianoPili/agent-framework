@@ -84,6 +84,15 @@ public abstract class AbstractWorker {
     public abstract String workerType();
 
     /**
+     * Worker profile identifier (e.g., "fe-vanillajs", "be-java").
+     * Used by WorkerTaskConsumer to filter incoming messages on shared topics.
+     * Returns null for untyped workers (AI_TASK, REVIEW, CONTRACT).
+     */
+    public String workerProfile() {
+        return null;
+    }
+
+    /**
      * Classpath path of the Markdown skill file for this agent.
      * Example: "skills/be-worker.agent.md"
      */

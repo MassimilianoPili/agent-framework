@@ -80,6 +80,8 @@ public class AgentContextBuilder {
         }
 
         return new AgentContext(
+            task.planId(),
+            task.itemId(),
             task.taskKey(),
             task.title(),
             task.description(),

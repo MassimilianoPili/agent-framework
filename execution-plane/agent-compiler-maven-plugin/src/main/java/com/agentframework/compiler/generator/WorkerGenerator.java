@@ -164,7 +164,11 @@ public class WorkerGenerator {
         ctx.put("toolDependencies", toolDependencies);
 
         // Policy / ownership — flows into application.yml for runtime enforcement
-        ctx.put("workerProfile", spec.getWorkerProfile() != null ? spec.getWorkerProfile() : "");
+        // workerProfile: null → omitted from context (Mustache {{#workerProfile}} won't render),
+        // non-null → generates workerProfile() override in Worker.java for message filtering
+        if (spec.getWorkerProfile() != null && !spec.getWorkerProfile().isBlank()) {
+            ctx.put("workerProfile", spec.getWorkerProfile());
+        }
 
         var ownership = spec.getOwnership();
         List<String> ownsPaths = ownership != null && ownership.getOwnsPaths() != null

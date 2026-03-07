@@ -38,8 +38,8 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 
 ```mermaid
 sequenceDiagram
-    actor User
-    actor Human as Human Reviewer
+    participant User
+    participant Human as Human Reviewer
     participant API as REST API
     participant Planner as Planner<br/>(Claude)
     participant DB as PostgreSQL

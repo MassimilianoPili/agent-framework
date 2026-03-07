@@ -1,0 +1,75 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: be-quarkus-worker
+  displayName: "Backend Quarkus Worker (Java)"
+  description: >
+    Handles Java/Quarkus backend tasks — RESTEasy Reactive endpoints, CDI beans,
+    Panache ORM entities/repositories, Flyway migrations, and JUnit 5 tests with QuarkusTest.
+
+spec:
+  workerType: BE
+  workerProfile: be-quarkus
+  topic: agent-tasks
+  subscription: be-quarkus-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/be/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the backend task using Java and Quarkus.
+
+      Follow these principles:
+      - Java 21: records, sealed classes, pattern matching, virtual threads
+      - Quarkus 3.x: build-time optimization, dev services, live reload
+      - CDI: @ApplicationScoped, @RequestScoped, constructor injection
+      - RESTEasy Reactive: @Path, @GET/@POST, Uni/Multi for reactive endpoints
+      - Hibernate ORM with Panache: PanacheEntity or PanacheRepository pattern
+      - SmallRye Config: @ConfigProperty, application.properties profiles
+      - Flyway migrations: versioned SQL scripts
+      - Testing: JUnit 5 + @QuarkusTest, @QuarkusIntegrationTest for native
+      - Native compilation ready: avoid reflection where possible, register for GraalVM
+      - Security: quarkus-oidc, @RolesAllowed, @Authenticated
+
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-sql-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
+
+  ownership:
+    ownsPaths:
+      - backend/
+      - templates/be/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

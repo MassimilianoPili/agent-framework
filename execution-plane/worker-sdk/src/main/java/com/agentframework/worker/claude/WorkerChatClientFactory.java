@@ -99,7 +99,7 @@ public class WorkerChatClientFactory {
 
             includedTools += callbacks.length;
             if (callbacks.length > 0) {
-                builder.defaultTools((Object[]) callbacks);
+                builder.defaultToolCallbacks(callbacks);
             }
         }
 

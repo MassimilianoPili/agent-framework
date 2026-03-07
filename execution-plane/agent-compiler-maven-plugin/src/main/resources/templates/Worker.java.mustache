@@ -63,6 +63,13 @@ public class {{className}} extends AbstractWorker {
         return "{{workerType}}";
     }
 
+    {{#workerProfile}}
+    @Override
+    public String workerProfile() {
+        return "{{workerProfile}}";
+    }
+
+    {{/workerProfile}}
     @Override
     protected String systemPromptFile() {
         return "{{systemPromptFile}}";

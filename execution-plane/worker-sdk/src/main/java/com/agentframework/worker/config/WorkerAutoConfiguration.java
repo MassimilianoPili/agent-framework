@@ -56,4 +56,9 @@ public class WorkerAutoConfiguration {
             WorkerProperties props) {
         return new WorkerTaskConsumer(listenerContainer, worker, objectMapper, props);
     }
+
+    @Bean
+    static CompactingToolCallingManagerPostProcessor compactingToolCallingManagerPostProcessor() {
+        return new CompactingToolCallingManagerPostProcessor();
+    }
 }

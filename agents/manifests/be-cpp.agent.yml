@@ -1,0 +1,73 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: be-cpp-worker
+  displayName: "Backend C++ Worker"
+  description: >
+    Handles C++ backend tasks — modern C++20/23, CMake build system, RAII patterns,
+    smart pointers, header/source separation, and testing with Google Test or Catch2.
+
+spec:
+  workerType: BE
+  workerProfile: be-cpp
+  topic: agent-tasks
+  subscription: be-cpp-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/be/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the backend task using modern C++.
+
+      Follow these principles:
+      - C++20/23: concepts, ranges, std::format, modules (where supported)
+      - RAII: resource management via constructors/destructors, no manual new/delete
+      - Smart pointers: std::unique_ptr for ownership, std::shared_ptr only when needed
+      - Header/source separation: .hpp for declarations, .cpp for definitions
+      - CMake: modern CMake 3.20+, target-based properties, FetchContent for dependencies
+      - Standard library: prefer std:: algorithms, containers, and utilities
+      - Error handling: std::expected (C++23), exceptions for truly exceptional cases
+      - Const correctness: const by default, constexpr where possible
+      - Move semantics: move constructors/assignment for resource-owning types
+      - Testing: Google Test (gtest) or Catch2, CTest integration
+      - Thread safety: std::mutex, std::atomic, std::jthread for concurrency
+
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - Read
+      - Write
+      - Edit
+      - Bash
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - backend/
+      - templates/be/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

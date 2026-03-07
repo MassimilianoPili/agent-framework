@@ -15,6 +15,6 @@ public interface DispatchAttemptRepository extends JpaRepository<DispatchAttempt
     @Query("SELECT MAX(a.attemptNumber) FROM DispatchAttempt a WHERE a.item.id = :itemId")
     Optional<Integer> findMaxAttemptNumber(UUID itemId);
 
-    @Query("SELECT a FROM DispatchAttempt a WHERE a.item.id = :itemId AND a.completedAt IS NULL")
+    @Query("SELECT a FROM DispatchAttempt a WHERE a.item.id = :itemId AND a.completedAt IS NULL ORDER BY a.attemptNumber DESC LIMIT 1")
     Optional<DispatchAttempt> findOpenAttempt(UUID itemId);
 }
