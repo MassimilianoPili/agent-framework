@@ -1,0 +1,14 @@
+# Allowlist for MCP server: python
+# Lists the permitted python operations per worker type.
+
+server: python
+
+operations:
+
+  - name: python_execute
+    description: Execute a Python script (inline or file) with timeout
+    allowedWorkers: [be-python-worker, ai-task-worker]
+    constraints:
+      - enforceOwnership: true  # Worker can only execute in paths it owns
+      - maxTimeoutSeconds: 300
+      - pipInstallAllowed: false  # Pip install disabled by default in policy

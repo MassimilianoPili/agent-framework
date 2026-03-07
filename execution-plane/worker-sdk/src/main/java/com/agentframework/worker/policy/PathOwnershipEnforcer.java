@@ -30,7 +30,7 @@ public class PathOwnershipEnforcer {
 
     /** Common JSON field names for file paths across MCP tool implementations. */
     private static final List<String> PATH_FIELDS = List.of(
-            "filePath", "path", "relativePath", "file_path", "file"
+            "filePath", "path", "relativePath", "file_path", "file", "workingDir"
     );
 
     private final PolicyProperties properties;

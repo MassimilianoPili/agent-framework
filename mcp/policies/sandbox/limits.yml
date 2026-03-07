@@ -22,3 +22,13 @@ overrides:
   azure:
     timeoutSeconds: 120        # Azure API calls should be quick
     maxToolCallsPerTask: 20    # Limit Azure operations more strictly
+
+  bash:
+    timeoutSeconds: 300        # Shell commands may need more time (builds, tests)
+    maxOutputBytes: 1048576    # 1 MB — build output can be verbose
+    maxToolCallsPerTask: 30    # Limit shell executions per task
+
+  python:
+    timeoutSeconds: 300        # Python scripts may need more time (data processing)
+    maxOutputBytes: 1048576    # 1 MB — script output can be verbose
+    maxToolCallsPerTask: 20    # Limit Python executions per task
