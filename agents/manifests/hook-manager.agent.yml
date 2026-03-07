@@ -31,7 +31,7 @@ spec:
       {
         "policies": {
           "<taskKey>": {
-            "allowedTools": ["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
+            "allowedTools": ["fs_list", "fs_read", "fs_write", "fs_search", "fs_grep", "bash_execute"],
             "ownedPaths": ["backend/src/main/"],
             "allowedMcpServers": ["git", "repo-fs"]
           }

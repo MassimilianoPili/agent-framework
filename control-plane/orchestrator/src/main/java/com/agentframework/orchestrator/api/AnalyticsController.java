@@ -2,9 +2,13 @@ package com.agentframework.orchestrator.api;
 
 import com.agentframework.orchestrator.analytics.*;
 import com.agentframework.orchestrator.analytics.CalibrationAudit.CalibrationReport;
+import com.agentframework.orchestrator.analytics.FisherInformationService.FisherUncertaintyReport;
+import com.agentframework.orchestrator.analytics.GoodhartDetectorService.GoodhartAuditReport;
+import com.agentframework.orchestrator.analytics.ModelPredictiveControlService.MpcScheduleReport;
 import com.agentframework.orchestrator.analytics.ProspectTheory.ProspectEvaluation;
 import com.agentframework.orchestrator.analytics.ShapleyValue.ShapleyReport;
 import com.agentframework.orchestrator.analytics.VCGMechanismService.VCGPricingReport;
+import com.agentframework.orchestrator.analytics.ValueOfInformationService.VoiExplorationReport;
 import com.agentframework.orchestrator.budget.KellyCriterion.KellyRecommendation;
 import com.agentframework.orchestrator.budget.KellyCriterionService;
 import com.agentframework.orchestrator.domain.WorkerType;
@@ -28,8 +32,9 @@ import java.util.UUID;
  * <p>Provides population analysis (replicator dynamics), drift detection
  * (Wasserstein distance), prospect theory evaluation, hedge weights,
  * Kelly criterion fractions, optimal stopping thresholds,
- * calibration audit, VCG mechanism pricing, and Shapley value attribution
- * endpoints for the worker profile ecosystem.</p>
+ * calibration audit, VCG mechanism pricing, Shapley value attribution,
+ * MPC scheduling, Fisher uncertainty analysis, Value of Information exploration,
+ * and Goodhart metric health endpoints for the worker profile ecosystem.</p>
  */
 @RestController
 @RequestMapping("/api/v1/analytics")
@@ -44,6 +49,10 @@ public class AnalyticsController {
     private final Optional<CalibrationAuditService> calibrationAuditService;
     private final Optional<VCGMechanismService> vcgMechanismService;
     private final Optional<ShapleyValueService> shapleyValueService;
+    private final Optional<ModelPredictiveControlService> mpcService;
+    private final Optional<FisherInformationService> fisherService;
+    private final Optional<ValueOfInformationService> voiService;
+    private final Optional<GoodhartDetectorService> goodhartService;
 
     public AnalyticsController(ReplicatorDynamicsService replicatorDynamicsService,
                                 Optional<WorkerDriftMonitor> driftMonitor,
@@ -53,7 +62,11 @@ public class AnalyticsController {
                                 Optional<OptimalStoppingService> optimalStoppingService,
                                 Optional<CalibrationAuditService> calibrationAuditService,
                                 Optional<VCGMechanismService> vcgMechanismService,
-                                Optional<ShapleyValueService> shapleyValueService) {
+                                Optional<ShapleyValueService> shapleyValueService,
+                                Optional<ModelPredictiveControlService> mpcService,
+                                Optional<FisherInformationService> fisherService,
+                                Optional<ValueOfInformationService> voiService,
+                                Optional<GoodhartDetectorService> goodhartService) {
         this.replicatorDynamicsService = replicatorDynamicsService;
         this.driftMonitor = driftMonitor;
         this.prospectTheoryService = prospectTheoryService;
@@ -63,6 +76,10 @@ public class AnalyticsController {
         this.calibrationAuditService = calibrationAuditService;
         this.vcgMechanismService = vcgMechanismService;
         this.shapleyValueService = shapleyValueService;
+        this.mpcService = mpcService;
+        this.fisherService = fisherService;
+        this.voiService = voiService;
+        this.goodhartService = goodhartService;
     }
 
     /**
@@ -214,6 +231,86 @@ public class AnalyticsController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         }
         ShapleyReport report = shapleyValueService.get().computeForPlan(planId);
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/mpc-schedule?workerType=BE
+     *
+     * <p>Computes optimal task scheduling using Model Predictive Control
+     * over a finite prediction horizon. Returns the recommended first action
+     * and the full lookahead trajectory.</p>
+     */
+    @GetMapping("/mpc-schedule")
+    public ResponseEntity<MpcScheduleReport> getMpcSchedule(
+            @RequestParam String workerType) {
+        if (mpcService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        MpcScheduleReport report = mpcService.get().computeSchedule(workerType);
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/fisher-uncertainty?workerType=BE
+     *
+     * <p>Analyzes uncertainty for worker profiles using Fisher Information metrics.
+     * Decomposes uncertainty into reducible (more data helps) and irreducible
+     * (noise floor) components.</p>
+     */
+    @GetMapping("/fisher-uncertainty")
+    public ResponseEntity<FisherUncertaintyReport> getFisherUncertainty(
+            @RequestParam String workerType) {
+        if (fisherService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        FisherUncertaintyReport report = fisherService.get().analyzeUncertainty(workerType);
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/voi-exploration?workerType=BE
+     *
+     * <p>Evaluates exploration opportunities for worker profiles using
+     * Value of Information analysis. Returns EVSI, net VoI, and a ranking
+     * of profiles by exploration value.</p>
+     */
+    @GetMapping("/voi-exploration")
+    public ResponseEntity<VoiExplorationReport> getVoiExploration(
+            @RequestParam String workerType) {
+        if (voiService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        VoiExplorationReport report = voiService.get().evaluateExploration(workerType);
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/goodhart-audit?workerType=BE
+     *
+     * <p>Audits metric health for worker profiles using Goodhart's Law detection.
+     * Checks for regressional, extremal, and causal Goodhart mechanisms and
+     * returns per-profile health scores with remediation recommendations.</p>
+     */
+    @GetMapping("/goodhart-audit")
+    public ResponseEntity<GoodhartAuditReport> getGoodhartAudit(
+            @RequestParam String workerType) {
+        if (goodhartService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        GoodhartAuditReport report = goodhartService.get().auditMetrics(workerType);
         if (report == null) {
             return ResponseEntity.noContent().build();
         }

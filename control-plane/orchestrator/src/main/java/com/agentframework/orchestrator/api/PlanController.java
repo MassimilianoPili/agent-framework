@@ -83,7 +83,7 @@ public class PlanController {
         log.info("Received plan request: {}...",
                  request.spec().substring(0, Math.min(80, request.spec().length())));
 
-        Plan plan = orchestrationService.createAndStart(request.spec(), request.budget());
+        Plan plan = orchestrationService.createAndStart(request.spec(), request.budget(), request.projectPath());
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(PlanResponse.from(plan));
     }
 

@@ -321,10 +321,10 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | 18 | ADR-005 (GP Motivazioni) ✅ | 0.5g | Medio | — |
 | **S8** | **Fix bug critici + resilienza (B1-B7, B9, B14-B16) ✅** | **4g** | **Critico** | #27 (per S8-L) |
 | **#27** | **Centralizzazione nomi tool (ToolNames registry) ✅** | **0.5g** | **Alto** | — (prerequisito) |
-| **B13** | **Fix nomi tool nei 22 manifest** | **0.5g** | **Alto** | #27 |
-| **B14** | **Fix Mustache template write-tool-names** | **0.5g** | **Alto** | #27 |
-| **B15** | **Project path dinamico in ownsPaths** | **0.5g** | **Alto** | — |
-| **B16** | **HOOK_MANAGER schema con nomi Claude Code** | **0.5g** | **Alto** | #27 |
+| **B13 ✅** | **Fix nomi tool nei 22 manifest** | **0.5g** | **Alto** | #27 |
+| **B14 ✅** | **Fix Mustache template write-tool-names** | **0.5g** | **Alto** | #27 |
+| **B15 ✅** | **Project path dinamico in ownsPaths** | **0.5g** | **Alto** | — |
+| **B16 ✅** | **HOOK_MANAGER schema con nomi Claude Code** | **0.5g** | **Alto** | #27 |
 | **B17 ✅** | **Context overflow da `fs_read` senza limiti** | **1.5g** | **Critico** | — |
 | **23 ✅** | **Enrichment Pipeline Activation** | **2g** | **Molto alto** (sblocca S1-S3) | — |
 | **25 ✅** | **mcp-bash-tool + mcp-python-tool** | **1.5g** | **Alto** | — |
@@ -624,17 +624,17 @@ I nomi dei tool attraversano tre livelli di enforcement, TUTTI devono usare gli 
 | **2. Task-level policy** | `PolicyEnforcingToolCallback` | Ogni chiamata tool a runtime | Blocca esecuzione tool non in `HookPolicy.allowedTools` (il LLM li vede ma non li puo' usare) | `PolicyEnforcingToolCallback.java:113-125` |
 | **3. Path ownership** | `PathOwnershipEnforcer` | Solo write/read tools | Blocca tool che scrivono fuori da `ownsPaths` o leggono fuori da `relevantFiles` | `PathOwnershipEnforcer.java:49-99` |
 
-**Stato attuale**: Livello 1 ✅ (corretto dopo B13). Livello 2 ❌ (B16 — HOOK_MANAGER genera nomi Claude Code). Livello 3 ❌ parziale (B14 — `write-tool-names` hardcoded nel template).
+**Stato attuale**: Livello 1 ✅ (corretto dopo B13). Livello 2 ✅ (B16 — HOOK_MANAGER schema corretto con nomi MCP). Livello 3 ✅ (B14 — template non hardcoda piu', B15 — projectPath wired).
 
 **Nomi tool sparsi in 6 file diversi** — necessaria centralizzazione (#27):
 
 | # | File | Nomi usati | Stato |
 |---|------|------------|-------|
 | 1 | `HookPolicyResolver.java:35-46` | `fs_list, fs_read, fs_write, fs_search` | ✅ Corretto |
-| 2 | `PolicyProperties.java:43` | `Write, Edit, fs_write` | ⚠️ Misto |
-| 3 | `PathOwnershipEnforcer.java:117` | `Read, fs_read` (hardcoded) | ⚠️ Misto |
-| 4 | `hook-manager.agent.yml:34` | `Read, Write, Edit, Glob, Grep, Bash` | ❌ Sbagliato |
-| 5 | `application.yml.mustache:30-32` | `Write, Edit` | ❌ Sbagliato |
+| 2 | `PolicyProperties.java:43` | `ToolNames.WRITE_TOOLS` (default) | ✅ Corretto (#27) |
+| 3 | `PathOwnershipEnforcer.java:117` | `ToolNames.isReadTool/isWriteTool` | ✅ Corretto (#27) |
+| 4 | `hook-manager.agent.yml:34` | `fs_list, fs_read, fs_write, fs_search, fs_grep, bash_execute` | ✅ Corretto (B16) |
+| 5 | `application.yml.mustache:30-32` | Rimosso (usa default PolicyProperties) | ✅ Corretto (B14) |
 | 6 | Worker generati (`toolAllowlist()`) | `fs_list, fs_read, fs_write, fs_search` | ✅ Corretto |
 
 ---

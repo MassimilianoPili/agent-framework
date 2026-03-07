@@ -148,12 +148,17 @@ public class OrchestrationService {
      * Creates a new Plan, calls Claude to decompose the spec into PlanItems,
      * persists everything, then dispatches the first wave of tasks.
      *
-     * @param spec   natural-language plan specification
-     * @param budget optional token budget — null means no budget enforced
+     * @param spec        natural-language plan specification
+     * @param budget      optional token budget — null means no budget enforced
+     * @param projectPath optional base path for dynamic ownsPaths resolution — null means static only
      */
     @Transactional
-    public Plan createAndStart(String spec, PlanRequest.Budget budget) {
+    public Plan createAndStart(String spec, PlanRequest.Budget budget, String projectPath) {
         Plan plan = new Plan(UUID.randomUUID(), spec);
+
+        if (projectPath != null && !projectPath.isBlank()) {
+            plan.setProjectPath(projectPath);
+        }
 
         if (budget != null) {
             try {

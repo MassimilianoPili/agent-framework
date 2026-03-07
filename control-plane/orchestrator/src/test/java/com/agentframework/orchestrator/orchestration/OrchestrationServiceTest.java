@@ -110,7 +110,7 @@ class OrchestrationServiceTest {
         when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Plan result = service.createAndStart(spec, null);
+        Plan result = service.createAndStart(spec, null, null);
 
         assertThat(result.getStatus()).isEqualTo(PlanStatus.RUNNING);
         assertThat(result.getItems()).contains(item);
@@ -128,7 +128,7 @@ class OrchestrationServiceTest {
         when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findDispatchableItems(any(UUID.class))).thenReturn(List.of());
 
-        Plan result = service.createAndStart(spec, budget);
+        Plan result = service.createAndStart(spec, budget, null);
 
         assertThat(result.getBudgetJson()).isNotNull();
         assertThat(result.getBudgetJson()).contains("FAIL_FAST");
@@ -149,7 +149,7 @@ class OrchestrationServiceTest {
         when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findDispatchableItems(any(UUID.class))).thenReturn(List.of());
 
-        Plan result = service.createAndStart(spec, null);
+        Plan result = service.createAndStart(spec, null, null);
 
         verify(councilService).conductPrePlanningSession(spec);
         assertThat(result.getCouncilReport()).isNotNull();
@@ -165,7 +165,7 @@ class OrchestrationServiceTest {
         when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findDispatchableItems(any(UUID.class))).thenReturn(List.of());
 
-        Plan result = service.createAndStart(spec, null);
+        Plan result = service.createAndStart(spec, null, null);
 
         verify(councilService, never()).conductPrePlanningSession(any());
         assertThat(result.getCouncilReport()).isNull();
@@ -182,7 +182,7 @@ class OrchestrationServiceTest {
         when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findDispatchableItems(any(UUID.class))).thenReturn(List.of());
 
-        Plan result = service.createAndStart(spec, null);
+        Plan result = service.createAndStart(spec, null, null);
 
         assertThat(result.getCouncilReport()).isNull();
         assertThat(result.getStatus()).isEqualTo(PlanStatus.RUNNING);
