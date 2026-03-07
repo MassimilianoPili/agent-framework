@@ -11,6 +11,8 @@ import com.agentframework.orchestrator.domain.ItemStatus;
 import com.agentframework.orchestrator.domain.Plan;
 import com.agentframework.orchestrator.graph.CriticalPathCalculator;
 import com.agentframework.orchestrator.graph.PlanGraphService;
+import com.agentframework.orchestrator.graph.SpectralAnalyzer;
+import com.agentframework.orchestrator.graph.SpectralMetrics;
 import com.agentframework.orchestrator.orchestration.OrchestrationService;
 import com.agentframework.orchestrator.repository.QualityGateReportRepository;
 import com.agentframework.orchestrator.service.PlanSnapshotService;
@@ -40,6 +42,7 @@ public class PlanController {
     private final QualityGateReportRepository reportRepository;
     private final PlanGraphService planGraphService;
     private final CriticalPathCalculator criticalPathCalculator;
+    private final SpectralAnalyzer spectralAnalyzer;
     private final SseEmitterRegistry sseEmitterRegistry;
     private final PlanItemRepository planItemRepository;
 
@@ -48,6 +51,7 @@ public class PlanController {
                           QualityGateReportRepository reportRepository,
                           PlanGraphService planGraphService,
                           CriticalPathCalculator criticalPathCalculator,
+                          SpectralAnalyzer spectralAnalyzer,
                           SseEmitterRegistry sseEmitterRegistry,
                           PlanItemRepository planItemRepository) {
         this.orchestrationService = orchestrationService;
@@ -55,6 +59,7 @@ public class PlanController {
         this.reportRepository = reportRepository;
         this.planGraphService = planGraphService;
         this.criticalPathCalculator = criticalPathCalculator;
+        this.spectralAnalyzer = spectralAnalyzer;
         this.sseEmitterRegistry = sseEmitterRegistry;
         this.planItemRepository = planItemRepository;
     }
@@ -296,6 +301,20 @@ public class PlanController {
     public ResponseEntity<CriticalPathCalculator.ScheduleView> getPlanSchedule(@PathVariable UUID id) {
         return orchestrationService.getPlan(id)
             .map(plan -> ResponseEntity.ok(criticalPathCalculator.buildView(plan)))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/spectral
+     *
+     * <p>Returns spectral graph theory metrics for the plan's task DAG: Fiedler value
+     * (algebraic connectivity), spectral gap, bi-partition from the Fiedler eigenvector,
+     * and bottleneck nodes near the partition boundary.</p>
+     */
+    @GetMapping("/{id}/spectral")
+    public ResponseEntity<SpectralMetrics> getPlanSpectral(@PathVariable UUID id) {
+        return orchestrationService.getPlan(id)
+            .map(plan -> ResponseEntity.ok(spectralAnalyzer.analyse(plan)))
             .orElse(ResponseEntity.notFound().build());
     }
 
