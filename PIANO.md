@@ -1906,35 +1906,18 @@ con la public key dal registry.
 
 ---
 
-## Idee aggiuntive blockchain-inspired (da valutare per roadmap futura)
+## Idee aggiuntive blockchain-inspired → promosse a #45-#48
 
-### A. Merkle Tree per DAG Verification
-Ogni nodo del DAG (plan item) ha un hash che include gli hash dei suoi predecessori.
-Il root hash rappresenta l'intero piano. Qualsiasi modifica a qualsiasi task cambia
-il root hash → tamper detection istantanea a livello piano.
-Utile quando il DAG viene serializzato/deserializzato (REST, SSE, export).
+Le idee A-D originariamente elencate qui sono state promosse a roadmap items completi:
+- **A. Merkle Tree per DAG Verification** → #45
+- **B. Commit-Reveal per Council Votes** → #46 (reframed: Verifiable Council Deliberation)
+- **C. Reputation Staking** → #47
+- **D. Content-Addressable Storage per Artifact** → #48
 
-### B. Commit-Reveal per Council Votes
-Problema: i Council member vedono i voti degli altri (anchoring bias).
-Soluzione 2 fasi: (1) ogni membro invia `SHA-256(vote + nonce)`, (2) dopo tutti i commit,
-ogni membro rivela `vote + nonce`. Il coordinator verifica `hash(revealed) == committed`.
-Previene che un membro modifichi il suo voto dopo aver visto gli altri.
-Complessita': bassa. Valore: medio (i member sono LLM, non umani — l'anchoring bias
-e' meno rilevante se le chiamate sono parallele e indipendenti, come gia' avviene nel CouncilService).
+Aggiunto inoltre:
+- **#49 — Quadratic Voting per Council Weighting** (Mechanism Design, Vitalik Buterin 2019)
 
-### C. Reputation Staking
-I worker "mettono in gioco" punti reputazione prima di accettare un task.
-Se il task ha successo, recuperano lo stake + bonus. Se fallisce, perdono lo stake.
-Meccanismo: `worker_elo_stats.staked_reputation` (sottratto prima del dispatch,
-restituito + bonus dopo reward computation).
-Effetto: worker con bassa reputazione non accettano task rischiosi (self-selection).
-Integrazione naturale con GP engine (UCB policy diventa risk-aware).
-
-### D. Content-Addressable Storage per Artifact
-I risultati dei worker (codice generato, file modificati) vengono salvati con
-chiave = SHA-256(content). Due task che producono lo stesso output puntano allo
-stesso storage. Deduplica naturale, verifica integrita' gratis.
-Pattern: simile a Git objects (blob → tree → commit).
+Dettagli completi nella sezione "Advanced Mechanisms (#45-#49)" sotto.
 
 ---
 
@@ -2395,7 +2378,7 @@ public class LaplaceMechanism implements DifferentialPrivacyMechanism {
 
 ---
 
-## Riepilogo unificato — Tutti i 14 items (#30-#43)
+## Riepilogo unificato — Tutti i 32 items (#30-#61)
 
 ### Grafo di dipendenze
 
@@ -2416,10 +2399,21 @@ Dipendenze INTERNE (tra #30-#43):
 
   #36 Queueing ─── condivide CriticalPathCalculator ───► #42 Global Assignment
 
+Dipendenze INTERNE (tra #45-#49):
+
+  #45 Merkle DAG ──────────────────► #34 Federazione (DAG fingerprints)
+  #46 Verifiable Council ~~~~~~~~~~► #49 Quadratic Voting (complementare)
+  #47 Reputation Staking ~~~~~~~~~~► #40 Shapley (sinergia reward)
+  #48 Content-Addressable ─────────► #31 Verifiable Compute (firma su content_hash)
+
+  Tutti #45, #46, #48 ─────────────► HashUtil (agent-common dopo #30)
+
 Dipendenze ESTERNE (da roadmap items precedenti):
 
   #23 Enrichment Pipeline ──► #32, #35, #41
-  #15 GP Engine ────────────► #35, #41, #42
+  #15 GP Engine ────────────► #35, #41, #42, #47
+
+Legenda: ──► dipendenza, ~~~► sinergia (non bloccante)
 ```
 
 ### Tier di implementazione
@@ -2478,6 +2472,12 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 | 3 | **42** | Ottimizzazione | Global Task Assignment | 2.0g | (#36 shared) | #15 | Alto |
 | 3 | **41** | Topologia | Topological Pattern Detection | 2.5g | — | #23, #15 | Medio |
 | 3 | **43** | Diff. Privacy | Metriche Federate Private | 1.0g | #34 | — | Medio |
+| — | | | | | | | |
+| 0 | **45** | Crittografia | Merkle Tree per DAG | 1.5g | — | HashUtil | Alto |
+| 0 | **47** | Teoria dei Giochi | Reputation Staking | 2.0g | — | GP engine, EloStats | Alto |
+| 0 | **48** | Crittografia | Content-Addressable Storage | 2.0g | — | HashUtil | Medio-Alto |
+| 1 | **46** | Crittografia | Verifiable Council | 1.5g | — | HashUtil | Medio-Alto |
+| 2 | **49** | Mechanism Design | Quadratic Voting (Buterin) | 2.5g | #46 (compl.) | — | Alto |
 
 ### Note sulle dipendenze critiche
 
@@ -2506,6 +2506,16 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 7. **#43 (DP) ha senso solo con #34 (Federazione)**: senza federazione, non ci sono metriche
    da condividere e la privacy e' irrilevante. Implementare solo se #34 viene attivato.
 
+8. **#45, #46, #48 dipendono da HashUtil in agent-common**: dopo #30, `HashUtil` e' accessibile
+   dall'orchestratore. Senza #30, duplicare localmente (pragmatico ma non ideale).
+
+9. **#49 richiede robustezza nel parsing LLM**: il Quadratic Voting funziona solo se il member LLM
+   restituisce JSON strutturato valido. Fallback obbligatorio: raw text con peso standard.
+   Feature flag `council.quadratic-voting-enabled` (default false).
+
+10. **#47 (Reputation Staking) potenzia #40 (Shapley)**: lo stake pre-dispatch rende la distribuzione
+    Shapley piu' significativa — i profili che rischiano di piu' ricevono reward proporzionalmente.
+
 ### Ordine consigliato di implementazione
 
 ```
@@ -2513,19 +2523,1068 @@ Fase 1 (fondazioni, ~3.5g):  #30 → #38 → #39
 Fase 2 (pratico, ~5g):       #36 → #33 → #40
 Fase 3 (trust, ~4g):         #31 → #32 → #37
 Fase 4 (avanzato, ~7g):      #34 → #35 → #42 → #41 → #43
+Fase 5 (advanced, ~5.5g):    #45 → #47 → #48  (parallelo)
+Fase 6 (~1.5g):              #46
+Fase 7 (~2.5g):              #49
                               ─────────────────────
-                              Totale: ~19.5g
+                              Totale: ~29.5g (#30-#49)
 ```
 
 ### Codice condiviso tra items
 
 | Classe | Usata da | Modulo |
 |--------|----------|--------|
-| `HashUtil.java` (promossa) | #30, #31, #32 | agent-common |
+| `HashUtil.java` (promossa) | #30, #31, #32, #45, #46, #48 | agent-common |
 | `CriticalPathCalculator.java` | #36, #42 | orchestrator |
 | `PolicyLattice.java` | #39, #32 (canonical JSON) | agent-common |
+| `WorkerEloStats.java` | #47 | orchestrator/reward |
+| `CouncilService.java` | #46, #49 | orchestrator/council |
 
-**Totale Mathematical Foundations**: ~19.5 giorni di lavoro.
+**Totale complessivo (#30-#49)**: ~29.5 giorni di lavoro
+(Mathematical Foundations ~19.5g + Advanced Mechanisms ~10g con prerequisito #30).
+
+---
+
+# Advanced Mechanisms (#45-#49)
+
+Roadmap items derivati dalle idee blockchain-inspired (A-D, promosse a #45-#48)
+piu' Quadratic Voting (#49, Vitalik Buterin 2019). Branche: crittografia applicata,
+teoria dei giochi, mechanism design.
+
+---
+
+## #45 — Merkle Tree per DAG Verification (Crittografia)
+
+**Problema**: il DAG di un piano e' serializzato e trasmesso via REST (`GET /api/v1/plans/{id}/dag`)
+e SSE. Non esiste garanzia crittografica che la struttura ricevuta dal client corrisponda a quella
+persistita nel DB. Un bug nel serializer, un proxy di caching, o un attore con accesso al DB potrebbe
+alterare i `dependsOn` di un nodo senza che il cambiamento venga rilevato.
+`Plan.workingTreeDiffHash` traccia il diff git, non la struttura del DAG.
+`PlanGraphService.toJson()` e `toMermaid()` non includono nessun hash.
+
+**Soluzione**: ogni `PlanItem` ottiene un `dagHash = SHA-256(taskKey || workerType || title || sort(predecessors_dagHashes))`.
+Il sort deterministico dei predecessori garantisce che lo stesso DAG logico produca sempre lo stesso hash.
+Il `Plan.merkleRoot` e' il SHA-256 combinato degli hash dei nodi sink (foglie del DAG).
+
+**Design**:
+
+```java
+// DagHashService.java (NEW)
+@Service
+public class DagHashService {
+
+    public void recomputeHashes(Plan plan) {
+        Map<String, String> hashByKey = new LinkedHashMap<>();
+
+        List<PlanItem> ordered = plan.getItems().stream()
+            .sorted(Comparator.comparingInt(PlanItem::getOrdinal))
+            .toList();
+
+        for (PlanItem item : ordered) {
+            String predecessorHashes = item.getDependsOn().stream()
+                .sorted()
+                .map(key -> hashByKey.getOrDefault(key, "0".repeat(64)))
+                .collect(Collectors.joining("|"));
+
+            String nodeInput = item.getTaskKey()
+                + "|" + item.getWorkerType().name()
+                + "|" + item.getTitle()
+                + "|" + predecessorHashes;
+
+            String hash = HashUtil.sha256(nodeInput);
+            hashByKey.put(item.getTaskKey(), hash);
+            item.setDagHash(hash);
+        }
+
+        // Sink nodes = nodi che non sono predecessori di nessun altro
+        Set<String> allDependencies = plan.getItems().stream()
+            .flatMap(i -> i.getDependsOn().stream())
+            .collect(Collectors.toSet());
+
+        String merkleInput = plan.getItems().stream()
+            .filter(i -> !allDependencies.contains(i.getTaskKey()))
+            .map(PlanItem::getDagHash)
+            .sorted()
+            .collect(Collectors.joining("|"));
+
+        plan.setMerkleRoot(HashUtil.sha256(merkleInput));
+    }
+
+    public Optional<String> verify(Plan plan) {
+        // Ricomputa e confronta — restituisce primo taskKey corrotto
+        // ... (stessa logica di recomputeHashes ma con confronto)
+    }
+}
+```
+
+- Ricalcolo: in `PlannerService.decompose()` dopo costruzione DAG, e in `addDependency()` (missing-context loop)
+- `PlanController.java`: `GET /api/v1/plans/{id}/dag-verify` → `{planId, merkleRoot, valid, brokenAtKey}`
+- `PlanGraphService.toJson()`: include `dagHash` in ogni nodo e `merkleRoot` nel root JSON
+- Flyway V11: `ALTER TABLE plan_items ADD COLUMN dag_hash VARCHAR(64)`,
+  `ALTER TABLE plans ADD COLUMN merkle_root VARCHAR(64)`
+
+**File**: `DagHashService.java` (NEW), `PlanItem.java` (+dagHash), `Plan.java` (+merkleRoot),
+`PlannerService.java` (chiama recomputeHashes), `PlanGraphService.java` (include hash in JSON),
+`PlanController.java` (+endpoint), Flyway V11
+
+**Sforzo**: 1.5g. **Dipendenze**: `HashUtil` (opz. aspetta #30 per promozione a agent-common, oppure duplica locale).
+**Impatto**: alto — ogni piano ha un fingerprint crittografico verificabile. Prerequisito per federazione (#34).
+
+---
+
+## #46 — Verifiable Council Deliberation (Crittografia)
+
+**Problema**: i member LLM del council sono gia' consultati in parallelo (`consultMembersParallel()`),
+quindi l'anchoring bias e' gia' mitigato. Il problema reale e' diverso: tra la consultazione
+e la sintesi, il testo transita in memoria senza garanzia crittografica di integrita'.
+Non esiste audit trail delle deliberazioni raw — solo il `CouncilReport` finale viene persistito,
+perdendo i view grezzi dei singoli membri.
+
+**Soluzione**: commit-reveal per integrita' verificabile. Ogni view grezzo viene hashato con un nonce,
+il commitment viene persistito in DB, e il verifier controlla il match prima di passare alla sintesi.
+
+**Design**:
+
+```java
+// CouncilCommitment.java (NEW)
+public record CouncilCommitment(
+    String memberProfile,
+    String commitHash,    // SHA-256(rawOutput | nonce)
+    String nonce,         // UUID, generato per-member per-session
+    String rawOutput,     // il view grezzo del membro
+    Instant committedAt
+) {
+    public boolean verify() {
+        return HashUtil.sha256(rawOutput + "|" + nonce).equals(commitHash);
+    }
+}
+```
+
+- `CouncilService.consultMembersParallel()`: modificato per restituire `List<CouncilCommitment>`
+  invece di `Map<String,String>`. Ogni view viene committato con nonce UUID prima della sintesi.
+- `verifyAndExtract()`: verifica tutti i commitments. Output con hash non corrispondente
+  viene scartato dalla sintesi con log `SECURITY WARNING`.
+- Tabella `council_commitments`: plan_id, session_type, task_key, member_profile,
+  commit_hash, nonce, raw_output, committed_at, verified, verification_failed
+- `PlanController.java`: `GET /api/v1/plans/{id}/council-audit` → lista commitments con flag verified
+
+**File**: `CouncilCommitment.java` (NEW), `CouncilCommitmentRepository.java` (NEW),
+`CouncilService.java` (modifica), `CouncilController.java` (NEW, endpoint audit),
+Flyway V12 (`council_commitments` table)
+
+**Sforzo**: 1.5g. **Dipendenze**: `HashUtil`. Nessuna dipendenza bloccante.
+**Impatto**: medio-alto — audit trail crittografico delle deliberazioni. Base per federazione (#34).
+
+---
+
+## #47 — Reputation Staking (Teoria dei Giochi)
+
+**Problema**: la selezione GP UCB ottimizza per expected reward ma non considera il rischio.
+Un profilo con `mu=0.7, sigma2=0.4` (alta incertezza) viene trattato come uno con
+`mu=0.7, sigma2=0.01` (prevedibile). Non c'e' meccanismo di accountability pre-task:
+un profilo che fallisce sistematicamente vede scendere l'ELO, ma senza costo immediato.
+
+**Soluzione**: prima del dispatch, il profilo "mette in gioco" una quota della propria reputazione (ELO)
+commisurata alla difficolta' del task. Successo → stake + bonus. Fallimento → stake perso.
+
+**Design**:
+
+```
+stake = base_stake * (1 + complexity_factor)
+
+base_stake        = 0.05 * workerElo (5% dell'ELO corrente)
+complexity_factor = sigma2 dal GP (clampato a [0.0, 2.0])
+
+Liquidazione successo:  workerElo += stake * 0.30 (bonus)
+Liquidazione fallimento: workerElo -= stake (perso)
+
+UCB adjusted: UCB_with_stake = mu + kappa * sigma - (stake / workerElo)
+```
+
+- `ReputationStakingService.java` (NEW): `stake(profile, gpSigma2)`, `settle(profile, success, amount)`,
+  `stakePenalty(profile, stake)`
+- `WorkerEloStats.java`: +3 campi (`staked_reputation`, `total_staked`, `total_forfeited`),
+  +2 metodi (`addStake()`, `settleStake()`)
+- `OrchestrationService`: chiama `stake()` pre-dispatch, `settle()` in `onTaskCompleted()`
+- `GpWorkerSelectionService`: UCB adjustment con stake penalty
+- `PlanItem.java`: +`stakedAmount` (registra quanto stakato per questo task)
+- Flyway V13: ALTER TABLE `worker_elo_stats` (+3 colonne), ALTER TABLE `plan_items` (+staked_amount)
+
+**Cold start**: profili senza record ELO skippano lo staking (stake=0). Graceful degradation
+con GP disabilitato: sigma2=0 → stake basale senza complexity bonus.
+
+**File**: `ReputationStakingService.java` (NEW), `WorkerEloStats.java` (modifica),
+`OrchestrationService.java` (modifica), `GpWorkerSelectionService.java` (modifica),
+`PlanItem.java` (modifica), Flyway V13
+
+**Sforzo**: 2g. **Dipendenze**: `EloRatingService` e GP engine (gia' implementati). Sinergia con #40 (Shapley).
+**Impatto**: alto — self-selection game-theoretic. Riduce varianza fallimenti.
+
+---
+
+## #48 — Content-Addressable Storage per Artifact (Crittografia)
+
+**Problema**: i risultati dei worker sono salvati inline in `plan_items.result` (TEXT).
+Nessuna deduplicazione: due task con output identico → due copie. Nessuna verifica di integrita'.
+`AgentResult.promptHash` e `modelId` sono riservati ma sempre null.
+
+**Soluzione**: Content-Addressable Store (CAS) ispirato a Git objects.
+`SHA-256(content)` come chiave primaria. Deduplica automatica, verifica integrita' gratuita.
+
+**Design**:
+
+```sql
+CREATE TABLE artifact_store (
+    content_hash  VARCHAR(64)  PRIMARY KEY,
+    content       TEXT         NOT NULL,
+    size_bytes    BIGINT       NOT NULL,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    access_count  BIGINT       NOT NULL DEFAULT 1
+);
+
+ALTER TABLE plan_items
+    ADD COLUMN result_hash VARCHAR(64) REFERENCES artifact_store(content_hash),
+    ADD COLUMN prompt_hash VARCHAR(64);
+```
+
+```java
+@Service
+public class ArtifactStore {
+    public String save(String content) {
+        String hash = HashUtil.sha256(content);
+        repository.findById(hash).ifPresentOrElse(
+            existing -> { existing.incrementAccessCount(); repository.save(existing); },
+            () -> repository.save(new ArtifactBlob(hash, content, content.getBytes(UTF_8).length))
+        );
+        return hash;
+    }
+
+    public Optional<String> get(String hash) {
+        return repository.findById(hash).map(blob -> {
+            String recomputed = HashUtil.sha256(blob.getContent());
+            if (!recomputed.equals(hash))
+                throw new ArtifactCorruptedException("hash mismatch: " + hash);
+            return blob.getContent();
+        });
+    }
+}
+```
+
+- `OrchestrationService.onTaskCompleted()`: salva nel CAS, setta `result_hash`.
+  Mantiene `result` inline per backward compatibility (migrazione graduale).
+- `AbstractWorker.java` (worker-sdk): popola `promptHash` con SHA-256 del prompt inviato al LLM.
+- Flyway V14 con backfill: hash degli `result` esistenti → popola `artifact_store` e `result_hash`.
+- Endpoint: `GET /api/v1/analytics/artifact-dedup` → stats deduplicazione.
+
+**File**: `ArtifactStore.java` (NEW), `ArtifactBlob.java` (NEW entity), `ArtifactRepository.java` (NEW),
+`ArtifactCorruptedException.java` (NEW), `OrchestrationService.java` (modifica),
+`PlanItem.java` (+resultHash, +promptHash), `AbstractWorker.java` (modifica, promptHash),
+Flyway V14, `ArtifactController.java` (NEW, endpoint analytics)
+
+**Sforzo**: 2g. **Dipendenze**: `HashUtil`. Sinergia con #31 (Verifiable Compute: firma sul content_hash).
+**Impatto**: medio-alto — deduplicazione ~20-35%, integrita' verificabile, `promptHash` finalmente popolato.
+
+---
+
+## #49 — Quadratic Voting per Council Weighting (Mechanism Design — Vitalik Buterin)
+
+**Problema**: nel `CouncilService`, tutti i membri hanno peso uguale nella sintesi.
+Una raccomandazione critica del `security-specialist` ("non usare MD5 per password")
+ha lo stesso peso di un suggerimento stilistico del `ui-ux-specialist` ("bottoni arrotondati").
+Non esiste meccanismo per esprimere la **forza** delle preferenze.
+
+**Soluzione**: Quadratic Voting (Vitalik Buterin, 2019 — "Quadratic Payments: A Primer").
+Ogni membro riceve N voice credits (basati su ELO). Allocare k voti a una raccomandazione
+costa k^2 crediti. Il costo marginale crescente impedisce la dominazione di un singolo membro.
+
+**Design**:
+
+```
+Budget per membro: N_credits = 100 + floor((elo - 1600) / 100) * 10
+                   (range: 70-160 crediti)
+
+Costo di k voti su raccomandazione j: k^2
+Vincolo: sum_j k^2_ij <= N_credits per ogni membro i
+Peso finale raccomandazione j: W_j = sum_i k_ij
+
+Esempio: 8^2 + 6^2 = 64 + 36 = 100 crediti (budget esaurito)
+         → 8 voti su "bcrypt cost=12" + 6 voti su "rate limiting"
+```
+
+**Perche' quadratic e non lineare**: con costo lineare (plutocracy), un membro con ELO alto
+puo' dominare ogni raccomandazione. Con QV, concentrare voti e' costoso — incentiva la diversificazione.
+
+```java
+@Service
+public class QuadraticVotingService {
+    private static final int BASE_VOICE_CREDITS = 100;
+
+    public int computeVoiceCredits(double eloRating) {
+        int bonus = (int) Math.floor((eloRating - 1600.0) / 100.0) * 10;
+        return Math.max(70, Math.min(160, BASE_VOICE_CREDITS + bonus));
+    }
+
+    public ValidationResult validateBudget(MemberVoteAllocation alloc, int credits) {
+        long cost = alloc.recommendations().stream()
+            .mapToLong(r -> (long) r.votesAllocated() * r.votesAllocated())
+            .sum();
+        return new ValidationResult(cost <= credits, ...);
+    }
+
+    public List<WeightedRecommendation> aggregate(List<MemberVoteAllocation> allocs) {
+        Map<String, Integer> totalVotes = new LinkedHashMap<>();
+        for (var alloc : allocs)
+            for (var rec : alloc.recommendations())
+                totalVotes.merge(normalize(rec.text()), rec.votesAllocated(), Integer::sum);
+        return totalVotes.entrySet().stream()
+            .sorted(Map.Entry.<String,Integer>comparingByValue().reversed())
+            .map(e -> new WeightedRecommendation(e.getKey(), e.getValue()))
+            .toList();
+    }
+
+    public record Recommendation(String id, String text, int votesAllocated, String rationale) {}
+    public record MemberVoteAllocation(String memberProfile, String analysis,
+                                        List<Recommendation> recommendations, int voiceCreditsUsed) {}
+    public record WeightedRecommendation(String text, int totalVotes) {}
+}
+```
+
+- Prompt member aggiornato: include budget voice credits, formato JSON per raccomandazioni con voti.
+  Fallback: se il LLM non produce JSON valido, usa il raw text con peso standard (pre-#49).
+- `CouncilService.synthesize()`: riceve le raccomandazioni weighted-by-QV ordinate per influenza,
+  il COUNCIL_MANAGER sa che "bcrypt cost=12" ha 14 voti e "bottoni arrotondati" ha 2.
+- `CouncilProperties.java`: +`quadraticVotingEnabled` (default false), +`baseVoiceCredits` (default 100)
+
+**File**: `QuadraticVotingService.java` (NEW), `CouncilService.java` (modifica),
+`CouncilProperties.java` (modifica), `prompts/council/member-qv.prompt.md` (NEW)
+
+**Sforzo**: 2.5g. **Dipendenze**: nessuna bloccante. Complementare a #46 (le allocazioni QV sono incluse
+nel commitment per audit trail). Sinergia con #40 (Shapley: QV totalVotes come proxy del contributo).
+**Impatto**: alto — prima metrica di intensita' delle preferenze nel council.
+
+---
+
+## Riepilogo items Advanced Mechanisms (#45-#49)
+
+### Grafo di dipendenze
+
+```
+#45 Merkle DAG ──────────────────────────────► #34 Federazione (futuro, DAG fingerprints)
+
+#46 Verifiable Council ~~~~~~~~~~~~~~~~~~~~~~► #49 Quadratic Voting
+(complementare, non bloccante)                 (QV allocations nel commitment audit)
+
+#47 Reputation Staking ~~~~~~~~~~~~~~~~~~~~~► #40 Shapley (sinergia reward)
+
+#48 Content-Addressable ────────────────────► #31 Verifiable Compute (firma su content_hash)
+
+Tutti #45, #46, #48 ────────────────────────► HashUtil (worker-sdk, o agent-common dopo #30)
+
+Legenda: ──► dipendenza, ~~~► sinergia (non bloccante)
+```
+
+### Tier di implementazione
+
+```
+TIER 0 — Partenza parallela (nessuna dipendenza interna tra #45-#49)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #45  Merkle Tree per DAG Verification          1.5g
+  #47  Reputation Staking                        2.0g
+  #48  Content-Addressable Storage               2.0g
+                                                 ────
+                                                 5.5g totale Tier 0
+
+TIER 1 — Dopo Tier 0 (riusa HashUtil e pattern)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #46  Verifiable Council Deliberation           1.5g
+                                                 ────
+                                                 1.5g totale Tier 1
+
+TIER 2 — Dopo Tier 1 (piu' efficace con #46 per audit)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #49  Quadratic Voting per Council              2.5g
+                                                 ────
+                                                 2.5g totale Tier 2
+```
+
+### Tabella completa
+
+| Tier | # | Branca | Titolo | Sforzo | Dip. interne | Dip. esterne | Valore |
+|------|---|--------|--------|--------|-------------|-------------|--------|
+| 0 | **45** | Crittografia | Merkle Tree per DAG | 1.5g | — | HashUtil | Alto |
+| 0 | **47** | Teoria dei Giochi | Reputation Staking | 2.0g | — | GP engine, EloStats | Alto |
+| 0 | **48** | Crittografia | Content-Addressable Storage | 2.0g | — | HashUtil | Medio-Alto |
+| 1 | **46** | Crittografia | Verifiable Council | 1.5g | — | HashUtil | Medio-Alto |
+| 2 | **49** | Mechanism Design | Quadratic Voting (Buterin) | 2.5g | #46 (compl.) | — | Alto |
+| | | | **Totale** | **9.5g** | | | |
+
+### Note sulle dipendenze critiche
+
+1. **HashUtil denominatore comune di #45, #46, #48**: attualmente in `worker-sdk`, non accessibile
+   dall'orchestratore. Opzione A: duplicare localmente (pragmatico). Opzione B: fare #30 prima (0.5g,
+   promuove ad `agent-common`). Raccomandazione: #30 come prerequisito.
+
+2. **#49 richiede robustezza nel parsing LLM**: il QV funziona solo se il member LLM restituisce JSON
+   strutturato valido. Fallback obbligatorio: se parsing fallisce, usa raw text con peso standard.
+   Feature flag `council.quadratic-voting-enabled` per abilitare/disabilitare.
+
+3. **#48 backfill Flyway potenzialmente lento**: il `UPDATE plan_items SET result_hash = sha256(result)`
+   su grandi dataset puo' richiedere minuti. Eseguire come migration separata con check idempotente.
+
+4. **Flyway numbering**: V11 (#45), V12 (#46), V13 (#47), V14 (#48). #49 non richiede migration.
+
+### Ordine consigliato di implementazione
+
+```
+Prerequisito (0.5g):  #30 promozione HashUtil → agent-common
+Fase 1 (parallelo, ~5.5g):  #45 → #47 → #48
+Fase 2 (~1.5g):             #46
+Fase 3 (~2.5g):             #49
+                             ─────────────
+                             Totale: ~10g (incluso prerequisito)
+```
+
+### Codice condiviso tra items
+
+| Classe | Usata da | Modulo |
+|--------|----------|--------|
+| `HashUtil.java` | #45, #46, #48 | agent-common (dopo #30) |
+| `WorkerEloStats.java` | #47 | orchestrator/reward |
+| `CouncilService.java` | #46, #49 | orchestrator/council |
+
+**Totale Advanced Mechanisms**: ~9.5 giorni di lavoro (~10g con prerequisito #30).
+
+---
+
+# Research Domains (#50-#61)
+
+Fase 8 della roadmap: ricerca in tre domini — intuizioni economico-finanziarie, gestione sistemi complessi,
+matematica avanzata. I concetti sono selezionati per qualita' e impatto, non per presenza nel codebase.
+
+Tre branche: **Finanza** (#50-#54), **Sistemi Complessi** (#55-#57), **Matematica Avanzata** (#58-#61).
+
+---
+
+## Dominio A: Intuizioni Economico-Finanziarie (#50-#54)
+
+---
+
+### #50 — Portfolio Theory per Worker Allocation (Markowitz Mean-Variance)
+
+**Problema**: il budget token e' allocato con ceiling statici per worker type (`PlanRequest.Budget.perWorkerType`).
+Non c'e' considerazione del trade-off rischio/rendimento. Un'allocazione "concentrata" (tutto il budget
+su un singolo modello tier) ha alta varianza: se quel profilo fallisce, il piano perde l'intero investimento.
+`TokenBudgetService` modula il limite con GP (`effectiveLimit = base * (1 + alpha * sigma^2) * clip(mu)`),
+ma agisce task-per-task, non a livello globale di piano.
+
+**Soluzione**: applicare l'ottimizzazione Mean-Variance di Markowitz. I worker profile diventano "asset":
+il reward medio (`task_outcomes.actual_reward`) e' il "rendimento", la varianza dei reward e' il "rischio".
+Il piano ha un "portafoglio" di allocazioni budget, e l'ottimizzatore trova la frontiera efficiente.
+
+**Design**:
+
+```
+Formule:
+  E[R_p] = sum(w_i * E[R_i])                            // rendimento atteso portafoglio
+  sigma^2_p = sum_i sum_j (w_i * w_j * Cov(R_i, R_j))   // varianza portafoglio
+  Sharpe Ratio = (E[R_p] - R_f) / sigma_p               // R_f = reward minimo accettabile (0.3)
+
+Vincoli:
+  sum(w_i) = 1 (allocazione completa)
+  w_i >= 0 (no short selling)
+  w_i <= 0.6 (diversificazione minima — nessun profilo prende piu' del 60%)
+```
+
+- **Matrice di covarianza**: calcolata da `task_outcomes` raggruppati per `worker_profile`.
+  Richiede almeno 100 record per coppia di profili per stabilita' statistica.
+  Fallback alla diagonale (solo varianza) con meno dati.
+- **Risolutore**: scansione parametrica di `target_return` in 20 step e selezione del portafoglio
+  con Sharpe Ratio massimo.
+- `PortfolioOptimizer.java` (NEW, `orchestrator/budget/`): frontiera efficiente, pesi ottimali
+- `CovarianceMatrix.java` (NEW): covarianza da `task_outcomes`, aggiornamento incrementale (Welford)
+- `TokenBudgetService.java` (modifica): pesi dal portfolio invece di ceiling flat
+- `PlanRequest.java`: `+riskTolerance: Double` (0.0-1.0, default null = backward compatible)
+- `PlanController.java`: `GET /api/v1/plans/{id}/portfolio-analysis`
+- Nessuna migrazione DB (dati gia' in `task_outcomes`)
+
+**File**: `PortfolioOptimizer.java` (NEW), `CovarianceMatrix.java` (NEW), `TokenBudgetService.java` (modifica),
+`PlanRequest.java` (+riskTolerance), `PlanController.java` (+endpoint)
+
+**Sforzo**: 2g. **Dipendenze**: GP engine (#15, `task_outcomes` con >100 record per coppia profilo).
+**Impatto**: alto — trasforma il budget statico in allocazione risk-adjusted.
+**Riferimento**: Markowitz, H. (1952), "Portfolio Selection", *Journal of Finance*, 7(1), 77-91.
+
+---
+
+### #51 — Market Making per Task Queue Management (Bid-Ask + Inventory Risk)
+
+**Problema**: il dispatch dei task e' FIFO all'interno del batch pronto (`findDispatchableItems()`).
+Non c'e' load shedding: se il pool di worker BE ha 15 task pendenti ma throughput 2/ora, i nuovi task
+arrivano allo stesso ritmo. Non c'e' riassegnamento di task stalli (un task pendente da ore senza pickup).
+`AutoRetryScheduler` gestisce solo task FAILED, non task DISPATCHED che non tornano mai.
+
+**Soluzione**: modellare ogni worker pool come un market maker con inventario. Lo spread (bid-ask) si allarga
+quando l'inventario (task pendenti) supera il target (calcolato dal throughput storico). Task con priorita'
+piu' alta (urgency, critical path) ricevono dispatch preferenziale. Task stalli subiscono decay e riassegnamento.
+
+**Design**:
+
+```
+Parametri per worker type:
+  target_inventory     = avg(tasks_dispatched_per_hour) * 2
+  base_spread          = 1.0
+  current_inventory    = count(DISPATCHED, non DONE/FAILED)
+
+Spread adjustment:
+  spread = base_spread * (1 + |current_inventory - target_inventory| / target_inventory)
+
+Priority scoring:
+  priority(task) = (1 / spread) * urgency_factor * critical_path_bonus
+  urgency_factor     = 1.0 + (hours_since_ready / 4.0)
+  critical_path_bonus = 2.0 se task e' sul percorso critico
+
+Inventory decay:
+  task pendente > decay_threshold_hours → riassegnato a profilo alternativo
+  decay_threshold configurable: default 2h
+```
+
+- `MarketMakingDispatcher.java` (NEW, `orchestrator/orchestration/`): wrappa la logica di dispatch
+- `InventoryTracker.java` (NEW): inventario per worker type in Redis DB 3
+- `DispatchProperties.java` (modifica): `+inventory.target-multiplier`, `+inventory.decay-threshold-hours`
+- `OrchestrationService.java` (modifica): ordina task per priorita' prima del dispatch
+- `AutoRetryScheduler.java` (modifica): check staleness per task DISPATCHED > `decay_threshold_hours`
+
+**File**: `MarketMakingDispatcher.java` (NEW), `InventoryTracker.java` (NEW), `DispatchProperties.java` (modifica),
+`OrchestrationService.java` (modifica), `AutoRetryScheduler.java` (modifica)
+
+**Sforzo**: 2g. **Dipendenze**: #36 (Queueing Theory, stime throughput), `CriticalPathCalculator`.
+**Impatto**: alto — previene accumulo di task, riassegna stalli, riduce latenza del piano.
+**Riferimento**: Avellaneda, M. & Stoikov, S. (2008), "High-frequency trading in a limit order book",
+*Quantitative Finance*, 8(3), 217-224.
+
+---
+
+### #52 — Black-Scholes Greeks per Worker Risk Profiling
+
+**Problema**: ELO e' un singolo numero (`WorkerEloStats.eloRating`). GP fornisce `(mu, sigma^2)`.
+Nessuno dei due cattura *come* la performance cambia al variare dei parametri del task. Un profilo "be-java"
+con mu=0.8 potrebbe avere mu=0.85 su task semplici e mu=0.2 su task complessi — il punto medio nasconde
+il gradiente. Non c'e' analisi di sensitivita'.
+
+**Soluzione**: modellare la qualita' del worker come "valore dell'opzione" e calcolare le Greeks
+(derivate parziali) via finite differences sulle predizioni GP. Non Black-Scholes come modello
+di pricing, ma come *metafora computazionale* per l'analisi di sensitivita'.
+
+**Design**:
+
+```
+Greeks calcolate per finite differences sulle predizioni GP:
+
+  Delta = dmu/d(difficulty)         // pendenza — come degrada la qualita' con la complessita'
+  Gamma = d^2mu/d(difficulty)^2     // convessita' — la degradazione accelera?
+  Vega  = dmu/d(sigma^2)           // sensitivita' all'incertezza (domini sconosciuti)
+  Theta = dmu/d(time)              // velocita' di miglioramento (learning rate del profilo)
+
+Finite differences centrali:
+  Delta ≈ (mu(x+h) - mu(x-h)) / (2h)
+  Gamma ≈ (mu(x+h) - 2*mu(x) + mu(x-h)) / h^2
+```
+
+- `WorkerGreeksService.java` (NEW, `orchestrator/gp/`): calcola le 4 Greeks per ogni profilo candidato
+- `WorkerGreeks.java` (NEW, record): `{delta, gamma, vega, theta, profile, workerType}`
+- `GpWorkerSelectionService.java` (modifica): arricchisce il `ProfileSelection` con le Greeks.
+  Se `delta` fortemente negativo → penalizza il profilo nella selezione.
+- `RewardController.java`: `GET /api/v1/workers/{profile}/greeks`
+- Nessuna migrazione DB (Greeks calcolate on-the-fly)
+
+**File**: `WorkerGreeksService.java` (NEW), `WorkerGreeks.java` (NEW), `GpWorkerSelectionService.java` (modifica),
+`RewardController.java` (+endpoint)
+
+**Sforzo**: 1.5g. **Dipendenze**: GP engine (#15) con dati sufficienti.
+**Impatto**: medio-alto — analisi di sensitivita' per selezione profilo in scenari eterogenei.
+**Riferimento**: Black, F. & Scholes, M. (1973), "The Pricing of Options and Corporate Liabilities",
+*JPE*, 81(3), 637-654. Applicato come metafora per analisi di sensitivita'.
+
+---
+
+### #53 — Bayesian Success Prediction (Pre-Dispatch Probability)
+
+**Problema**: nessuna stima probabilistica di successo prima dell'esecuzione. GP fornisce mu (reward atteso),
+ma non `P(success)` come probabilita' calibrata. Lo status binario DONE/FAILED perde informazione
+(un task DONE con reward 0.2 e' quasi un fallimento). Non esiste admission control.
+
+**Soluzione**: regressione logistica Bayesiana sulle feature del task:
+`P(success | embedding, profile, context_quality, budget) = sigmoid(beta . x)`.
+Prior dal posterior GP. Calibrazione via Platt scaling.
+
+**Design**:
+
+```
+Feature vector (dimensione: 1024 + 5):
+  - task_embedding (1024 dim)
+  - gp_mu (predizione GP)
+  - gp_sigma2 (incertezza GP)
+  - elo_at_dispatch (rating profilo)
+  - context_quality_score (da #35, oppure 0)
+  - log(budget_remaining) (tokens disponibili)
+
+Soglie:
+  - success_threshold = 0.5 (reward > 0.5 = successo)
+  - dispatch_threshold = 0.3 (sotto → warning/blocco)
+  - decompose_threshold = 0.5 (TUTTI i profili < 0.5 → suggerire decomposizione)
+
+Calibrazione Platt: P_calibrated = sigmoid(a * P_raw + b)
+```
+
+- `BayesianSuccessPredictor.java` (NEW, `orchestrator/gp/`): pre-dispatch check
+- `SuccessPrediction.java` (NEW, record): `{probability, calibratedProbability, threshold, action}`
+  dove action = ALLOW, WARN, DECOMPOSE
+- `OrchestrationService.java` (modifica): pre-dispatch check, `LOW_SUCCESS_PROBABILITY` event
+- `PlanItem.java`: `+predictedSuccessProbability: Double`
+- `PlanRequest.java`: `+admissionControl: Boolean` (default false)
+- Flyway V15: `ALTER TABLE plan_items ADD COLUMN predicted_success_probability DOUBLE PRECISION`
+
+**File**: `BayesianSuccessPredictor.java` (NEW), `SuccessPrediction.java` (NEW),
+`OrchestrationService.java` (modifica), `PlanItem.java` (+campo), `PlanRequest.java` (+admissionControl)
+
+**Sforzo**: 2g. **Dipendenze**: GP engine (#15), `task_outcomes` con >200 record.
+**Impatto**: alto — admission control previene spreco di token su task destinati a fallire.
+**Riferimento**: Gelman, A. et al. (2013), *Bayesian Data Analysis*, 3rd ed., CRC Press.
+
+---
+
+### #54 — Causal Inference per Root Cause Analysis (Pearl's Do-Calculus)
+
+**Problema**: "Perche' il task X e' fallito?" — oggi l'unica risposta e' `failureReason` (testo libero
+dal worker LLM). Non c'e' analisi causale strutturata. Non c'e' ragionamento controfattuale
+("sarebbe riuscito con piu' budget?"). Le correlazioni ingannano: un profilo potrebbe avere ELO basso
+non perche' e' debole, ma perche' riceve task piu' complessi (confondente).
+
+**Soluzione**: costruire un DAG causale dei fattori di esecuzione e applicare il do-calculus di Pearl
+per distinguere cause reali da confondenti.
+
+**Design**:
+
+```
+DAG causale (domain knowledge + validazione statistica):
+
+  context_quality ──────────────────────────────► task_success
+  worker_experience (elo) ──► quality ──────────► task_success
+  token_budget ──► duration ────────────────────► task_success
+  task_complexity (embedding norm) ──► difficulty ► task_success
+
+Intervento (do-calculus):
+  P(success | do(budget=X)) vs P(success | budget=X)
+  Backdoor adjustment: P(Y|do(X)) = sum_Z P(Y|X,Z) * P(Z)
+```
+
+- **PC Algorithm**: discovery delle archi causali da test di indipendenza condizionale
+- `CausalDag.java` (NEW, `orchestrator/analytics/`): DAG causale (nodi + archi + confondenti)
+- `RootCauseAnalyzer.java` (NEW): probabilita' interventionale per ogni potenziale causa
+- `CausalAttribution.java` (NEW, record): `{factor, contribution, interventionalP, observationalP}`
+- `PlanController.java`: `GET /api/v1/plans/{planId}/items/{taskKey}/root-cause`
+
+**File**: `CausalDag.java` (NEW), `RootCauseAnalyzer.java` (NEW), `CausalAttribution.java` (NEW),
+`PlanController.java` (+endpoint)
+
+**Sforzo**: 2.5g. **Dipendenze**: `task_outcomes` con metadata ricchi.
+**Impatto**: alto — trasforma il debugging da aneddotico a quantitativo.
+**Riferimento**: Pearl, J. (2009), *Causality: Models, Reasoning, and Inference*, 2nd ed., Cambridge University Press.
+
+---
+
+## Dominio B: Sistemi Complessi (#55-#57)
+
+---
+
+### #55 — Evolutionary Game Theory per Worker Dynamics (Replicator Dynamics)
+
+**Problema**: la distribuzione dei profili worker e' statica (configurata in `WorkerProfileRegistry`,
+41 profili in 7 tipi). Non c'e' modello di come i profili dovrebbero evolvere nel tempo. Un profilo
+"be-rust" potrebbe essere dominante (reward piu' alto) ma sotto-rappresentato, o viceversa.
+Non c'e' previsione di quali profili "sopravviveranno" a regime.
+
+**Soluzione**: equazione del replicatore:
+`dx_i/dt = x_i * (pi_i - <pi>)` dove `x_i` = proporzione del profilo i, `pi_i` = payoff medio,
+`<pi>` = payoff medio della popolazione. Profili con payoff sopra la media crescono.
+
+**Design**:
+
+```
+Strategia Evolutivamente Stabile (ESS):
+  Un mix x* e' ESS se nessun "mutante" puo' invadere.
+  Condizione: pi(x*, x*) > pi(y, x*) per ogni y != x*
+
+Simulazione:
+  1. Calcola x_i corrente da task_outcomes (proporzione dispatches per profilo)
+  2. Calcola pi_i da worker_elo_stats (avgReward)
+  3. Simula replicator dynamics per T=100 step, dt=0.1
+  4. Trova equilibrio, confronta con distribuzione corrente
+  5. D_ESS = sum_i |x_i_current - x_i_equilibrium| → se > 0.3 → raccomanda ri-bilanciamento
+```
+
+- `ReplicatorDynamicsService.java` (NEW, `orchestrator/analytics/`)
+- `WorkerPopulationReport.java` (NEW, record): `{currentDistribution, equilibriumDistribution,
+  essDistance, recommendations, populationTrajectory[]}`
+- `AnalyticsController.java` (NEW): `GET /api/v1/analytics/worker-dynamics`
+
+**File**: `ReplicatorDynamicsService.java` (NEW), `WorkerPopulationReport.java` (NEW),
+`AnalyticsController.java` (NEW)
+
+**Sforzo**: 1.5g. **Dipendenze**: dati ELO per profilo (gia' in `worker_elo_stats`).
+**Impatto**: medio — guida il tuning della distribuzione profili, identifica profili inutilmente mantenuti.
+**Riferimento**: Maynard Smith, J. (1982), *Evolution and the Theory of Games*, Cambridge University Press.
+
+---
+
+### #56 — Self-Organized Criticality per Failure Cascade (Sandpile Model)
+
+**Problema**: non c'e' modello di come i fallimenti si propagano nel sistema. Un CONTEXT_MANAGER fallito
+blocca tutti i worker domain dipendenti. Un auto-retry puo' amplificare il fallimento (storm di retry).
+Non c'e' early warning di fallimento sistemico — il sistema reagisce solo dopo che i task sono gia' falliti.
+
+**Soluzione**: modello sandpile di Bak-Tang-Wiesenfeld. Ogni nodo (worker pool) ha un "carico" che aumenta
+con task pendenti/falliti. Quando il carico supera una soglia, "topple" (cascata) ai vicini.
+La distribuzione power-law delle dimensioni delle cascate emerge naturalmente.
+
+**Design**:
+
+```
+Modello:
+  load[workerType] = pending_count + failed_count * 2 + dispatched_stale_count * 1.5
+  threshold[workerType] = target_inventory * 3
+
+Topple event:
+  Quando load[wt] > threshold[wt]:
+    load[wt] -= threshold[wt]
+    Per ogni wt_neighbor: load[wt_neighbor] += spillover (0.3 * threshold[wt] / num_neighbors)
+
+Criticality index:
+  C = max_wt(load[wt] / threshold[wt])
+  C < 0.5: stabile, 0.5-0.8: warning, >= 0.8: alert
+```
+
+- `CriticalityMonitor.java` (NEW, `orchestrator/orchestration/`): traccia carico, check ogni 30s
+- `SandpileSimulator.java` (NEW): simula distribuzione dimensioni cascate
+- `PlanEvent.java`: `+SYSTEM_CRITICALITY` tipo evento
+
+**File**: `CriticalityMonitor.java` (NEW), `SandpileSimulator.java` (NEW), `PlanEvent.java` (+tipo)
+
+**Sforzo**: 1.5g. **Dipendenze**: nessuna (osservazionale).
+**Impatto**: alto — early warning di fallimento sistemico. Previene cascate distruttive.
+**Riferimento**: Bak, P., Tang, C. & Wiesenfeld, K. (1987), "Self-organized criticality",
+*Physical Review Letters*, 59(4), 381-384.
+
+---
+
+### #57 — Swarm Intelligence per Workflow Discovery (ACO Pheromone)
+
+**Problema**: le sequenze di task sono determinate dal planner LLM. Non c'e' apprendimento dalle sequenze
+storiche di successo. Lo stesso pattern (es. CM → SM → HM → BE → REVIEW) viene "riscoperto" ogni volta.
+
+**Soluzione**: modello di feromone Ant Colony Optimization. I "sentieri" sono sequenze di worker type.
+Il feromone viene depositato proporzionalmente al reward del piano. L'evaporazione decay le sequenze vecchie.
+I nuovi piani seguono probabilisticamente i sentieri ad alto feromone.
+
+**Design**:
+
+```
+Matrice di feromone tau[workerType_from][workerType_to]: 12x12
+Inizializzazione: tau_0 = 1.0
+
+Deposito (al completamento piano):
+  delta_tau[dep.wt][item.wt] += plan_reward / num_edges
+
+Evaporazione (ogni ora):
+  tau(t+1) = (1 - rho) * tau(t), rho = 0.1
+
+Probabilita' transizione:
+  P(next = wt_j | current = wt_i) = tau[i][j]^alpha / sum_k(tau[i][k]^alpha)
+```
+
+- `PheromoneService.java` (NEW, `orchestrator/orchestration/`): gestisce matrice, deposit, suggest
+- `PheromoneMatrix.java` (NEW): `double[][]` + Redis DB 3
+- `PlannerService.java` (modifica): include "suggested workflow patterns" nel prompt del planner
+
+**File**: `PheromoneService.java` (NEW), `PheromoneMatrix.java` (NEW), `PlannerService.java` (modifica)
+
+**Sforzo**: 2g. **Dipendenze**: piani completati con reward data.
+**Impatto**: medio-alto — il sistema impara dai propri successi. Riduce carico sul planner LLM.
+**Riferimento**: Dorigo, M. & Stutzle, T. (2004), *Ant Colony Optimization*, MIT Press.
+
+---
+
+## Dominio C: Matematica Avanzata (#58-#61)
+
+---
+
+### #58 — Spectral Graph Theory per DAG Decomposition (Laplacian Eigenvalues)
+
+**Problema**: l'analisi del DAG e' limitata al topological sort e alla risoluzione delle dipendenze.
+Non c'e' insight sulla struttura del grafo: quanto e' robusto? Dove sono i bottleneck?
+Come partizionare il DAG in sub-piani indipendenti per esecuzione parallela?
+
+**Soluzione**: calcolare la matrice Laplaciana `L = D - A` del DAG e analizzare lo spettro degli autovalori.
+
+**Design**:
+
+```
+Matrice Laplaciana L (simmetrica):
+  L[i][i] = degree(node_i)
+  L[i][j] = -1 se arco (i,j) esiste, 0 altrimenti
+
+Autovalori lambda_0 <= lambda_1 <= ... <= lambda_n:
+  lambda_1 = Fiedler value (connettivita' algebrica)
+    - lambda_1 alto → grafo robusto
+    - lambda_1 basso → grafo fragile (singolo bottleneck)
+  Vettore di Fiedler: partiziona il grafo in due cluster
+
+Spectral gap = lambda_1 / lambda_max:
+  - Alto → grafo "connesso" (molte dipendenze cross-task)
+  - Basso → grafo "modulare" (sub-piani indipendenti)
+```
+
+- `SpectralAnalyzer.java` (NEW, `orchestrator/graph/`): spettro Laplaciana, Fiedler, partizione
+- `SpectralMetrics.java` (NEW, record): `{fiedlerValue, spectralGap, partition, bottlenecks, eigenvalues}`
+- `PlanGraphService.java` (modifica): `extractAdjacencyMatrix(Plan) -> double[][]`
+- `PlanController.java`: `GET /api/v1/plans/{id}/spectral`
+- Dipendenza: EJML (`org.ejml:ejml-simple:0.43`, ~300KB)
+
+**File**: `SpectralAnalyzer.java` (NEW), `SpectralMetrics.java` (NEW), `PlanGraphService.java` (modifica),
+`PlanController.java` (+endpoint), `pom.xml` (+ejml-simple)
+
+**Sforzo**: 2g. **Dipendenze**: libreria EJML.
+**Impatto**: alto — identifica bottleneck e suggerisce partizionamento per sub-piani paralleli (#9).
+**Riferimento**: Fiedler, M. (1973), "Algebraic connectivity of graphs",
+*Czech. Math. Journal*, 23(2), 298-305. Spielman, D. (2012), "Spectral Graph Theory", Yale.
+
+---
+
+### #59 — Tropical Geometry per Critical Path Scheduling (Min-Plus Algebra)
+
+**Problema**: il calcolo del percorso critico e' ad-hoc (`CriticalPathCalculator` usa topological sort
++ longest path). Non c'e' algebra formale per ragionare sull'ottimizzazione dello schedule.
+I tempi di inizio sono calcolati greedily senza prova di ottimalita'.
+
+**Soluzione**: semianello tropicale `(R ∪ {+∞}, min, +)` dove "addizione" e' min e "moltiplicazione" e' +.
+La matrice del DAG nel semianello tropicale codifica i cammini minimi/massimi algebricamente.
+
+**Design**:
+
+```
+Semianello tropicale:
+  a ⊕ b = min(a, b)           // "somma" tropicale
+  a ⊗ b = a + b               // "prodotto" tropicale
+  0_tropicale = +∞             // elemento neutro addizione
+  1_tropicale = 0              // elemento neutro moltiplicazione
+
+Earliest start time:
+  est[j] = min_i(est[i] + duration[i])   ← formula tropicale
+
+Chiusura di Kleene A* = I ⊕ A ⊕ A^2 ⊕ ... ⊕ A^(n-1) → percorso critico
+```
+
+- `TropicalSemiring.java` (NEW, `orchestrator/graph/`): operazioni (~100 righe, autocontenute)
+- `TropicalScheduler.java` (NEW): earliest/latest start, slack, percorso critico
+- `CriticalPathCalculator.java` (refactor): thin wrapper su `TropicalScheduler` per backward compatibility
+- `PlanGraphService.java` (modifica): `computeSchedule(Plan) -> ScheduleView`
+- Nessuna dipendenza esterna
+
+**File**: `TropicalSemiring.java` (NEW), `TropicalScheduler.java` (NEW),
+`CriticalPathCalculator.java` (refactor), `PlanGraphService.java` (modifica)
+
+**Sforzo**: 1.5g. **Dipendenze**: nessuna (algebra autocontenuta).
+**Impatto**: medio-alto — formalizzazione del critical path con garanzia di ottimalita'.
+**Riferimento**: Speyer, D. & Sturmfels, B. (2009), "Tropical Mathematics",
+*Mathematics Magazine*, 82(3), 163-173. Butkovic, P. (2010), *Max-linear Systems*, Springer.
+
+---
+
+### #60 — Optimal Transport per Distribution Alignment (Wasserstein Distance)
+
+**Problema**: il confronto tra worker usa stime puntuali (ELO, GP mu). Non c'e' confronto delle
+*distribuzioni* di output. Due worker con lo stesso reward medio ma varianza diversa sono trattati
+identicamente. Non c'e' rilevamento di drift nelle performance dei modelli LLM.
+
+**Soluzione**: distanza di Wasserstein (earth mover's distance) tra le distribuzioni di reward dei worker.
+`W_1` misura il "costo di spostare massa" dalla distribuzione P alla distribuzione Q.
+
+**Design**:
+
+```
+Casi d'uso:
+  1. Worker substitution safety: W_1(P_A, P_B) piccolo → sicuro sostituire
+  2. Version drift detection: W_1(P_week1, P_week2) per stesso profilo → alert se drift
+  3. Capability matching: W_1(P_requirements, P_capability) → match score
+
+Calcolo 1D:
+  W_1(P, Q) = integral |F_P(x) - F_Q(x)| dx
+  Implementazione: sort quantili, sum |p_i - q_i| / n
+  Complessita': O(n log n)
+```
+
+- `WassersteinService.java` (NEW, `orchestrator/analytics/`): W_1 tra distribuzioni di reward
+- `WorkerDriftMonitor.java` (NEW): scheduled check giornaliero
+- `DriftResult.java` (NEW, record): `{profile, w1Distance, previousMean, currentMean, driftDetected}`
+- `GpWorkerSelectionService.java` (modifica): penalizza profili con drift alto
+- `PlanEvent.java`: `+WORKER_DRIFT_DETECTED`
+
+**File**: `WassersteinService.java` (NEW), `WorkerDriftMonitor.java` (NEW), `DriftResult.java` (NEW),
+`GpWorkerSelectionService.java` (modifica), `PlanEvent.java` (+tipo)
+
+**Sforzo**: 2g. **Dipendenze**: `task_outcomes` con almeno 30 reward per profilo per finestra.
+**Impatto**: alto — rileva degradazione performance modelli LLM (version drift).
+**Riferimento**: Villani, C. (2009), *Optimal Transport: Old and New*, Springer.
+Peyre, G. & Cuturi, M. (2019), "Computational Optimal Transport", *Foundations and Trends in ML*.
+
+---
+
+### #61 — Submodular Optimization per Agent Selection (Greedy with Guarantees)
+
+**Problema**: la selezione dei membri del council usa regole fisse (4 manager + 4 specialist in
+`CouncilService`). Non c'e' garanzia di copertura o diversita'. Aggiungere un membro che si sovrappone
+con quelli esistenti spreca LLM call. Il `COUNCIL_EXECUTOR` ha max 8 thread.
+
+**Soluzione**: modellare la copertura dei topic come funzione submodulare `f(S)` (rendimenti decrescenti):
+`f(S ∪ {x}) - f(S) >= f(T ∪ {x}) - f(T)` quando `S ⊆ T`.
+L'algoritmo greedy e' provabilmente `(1 - 1/e) ≈ 63%`-ottimale.
+
+**Design**:
+
+```
+Funzione di copertura:
+  f(S) = |topics_covered(S)| pesato per rilevanza alla spec del piano
+  topics_covered(member) = set di topic estratti dal profilo dell'agent
+
+Greedy con lazy evaluation (CELF):
+  1. Calcola guadagno marginale per tutti i candidati
+  2. Ordina per guadagno decrescente
+  3. Seleziona il primo, aggiungi a S
+  4. Ricalcola SOLO il prossimo candidato (lazy evaluation)
+  Speedup: tipicamente 5-10x rispetto a greedy naive
+
+Applicazione duale:
+  A. Council member selection: f(S) = copertura topic spec
+  B. Context file selection (CONTEXT_MANAGER): f(S) = copertura codice sorgente
+```
+
+- `SubmodularSelector.java` (NEW, `orchestrator/council/`): greedy + CELF
+- `CoverageFunction.java` (NEW, interfaccia): `marginalGain(Set, Candidate)`
+- `TopicCoverageFunction.java` (NEW): per council member selection
+- `CouncilService.java` (modifica): usa `SubmodularSelector` con feature flag
+- `CouncilProperties.java`: `+submodularSelectionEnabled`, `+maxMembers`
+
+**File**: `SubmodularSelector.java` (NEW), `CoverageFunction.java` (NEW), `TopicCoverageFunction.java` (NEW),
+`CouncilService.java` (modifica), `CouncilProperties.java` (modifica)
+
+**Sforzo**: 2g. **Dipendenze**: `EmbeddingModel` (gia' presente in `TaskOutcomeService`).
+**Impatto**: alto — diversifica il council, elimina ridondanza, estensibile alla selezione contesto.
+**Riferimento**: Nemhauser, G., Wolsey, L. & Fisher, M. (1978), "Submodular set functions",
+*Mathematical Programming*, 14(1), 265-294. Krause, A. & Golovin, D. (2014), "Submodular Function
+Maximization", Cambridge University Press.
+
+---
+
+## Riepilogo items Research Domains (#50-#61)
+
+### Grafo di dipendenze
+
+```
+INTERNE (#50-#61):
+  #50 Portfolio ~~~~~~~~~~~~► #53 Bayesian (covarianza come input)
+  #51 Market Making ────────► #36 Queueing Theory (throughput)
+  #51 Market Making ~~~~~~~~► #56 Criticality (inventory → load)
+  #54 Causal ~~~~~~~~~~~~~~~► #53 (probabilita' come input)
+  #59 Tropical ─────────────► #36/#42 (CriticalPathCalculator refactor)
+  #60 Wasserstein ~~~~~~~~~~► #55 Replicator (distribuzione profili)
+
+ESTERNE:
+  GP Engine (#15) ──────────► #50, #52, #53
+  #36 Queueing Theory ──────► #51
+  #36/#42 CriticalPath ─────► #51, #59
+  EmbeddingModel ───────────► #61
+
+Legenda: ──► dipendenza, ~~~► sinergia (non bloccante)
+```
+
+### Tier di implementazione
+
+```
+TIER 0 — Nessuna dipendenza interna (~10g)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #52  Worker Greeks (B-S)               1.5g
+  #55  Replicator Dynamics               1.5g
+  #56  Criticality Monitor (Sandpile)    1.5g
+  #58  Spectral DAG Decomposition        2.0g
+  #59  Tropical Critical Path            1.5g
+  #61  Submodular Council Selection      2.0g
+
+TIER 1 — Dipende da Tier 0 o esterne (~8g)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #50  Portfolio Theory                  2.0g
+  #51  Market Making                     2.0g
+  #53  Bayesian Success Prediction       2.0g
+  #57  Swarm Intelligence (ACO)          2.0g
+
+TIER 2 — Dipende da Tier 1 (~4.5g)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #54  Causal Inference                  2.5g
+  #60  Wasserstein Distance              2.0g
+```
+
+### Tabella completa
+
+| Tier | # | Dominio | Titolo | Sforzo | Dip. esterne | Valore |
+|------|---|---------|--------|--------|-------------|--------|
+| 0 | **52** | Finanza | Worker Greeks (B-S) | 1.5g | GP engine | Medio-Alto |
+| 0 | **55** | Complessi | Replicator Dynamics | 1.5g | ELO data | Medio |
+| 0 | **56** | Complessi | Criticality Monitor | 1.5g | — | Alto |
+| 0 | **58** | Matematica | Spectral DAG | 2.0g | EJML lib | Alto |
+| 0 | **59** | Matematica | Tropical Scheduler | 1.5g | — | Medio-Alto |
+| 0 | **61** | Matematica | Submodular Selection | 2.0g | EmbeddingModel | Alto |
+| 1 | **50** | Finanza | Portfolio Theory | 2.0g | GP engine (#15) | Alto |
+| 1 | **51** | Finanza | Market Making | 2.0g | #36 Queueing | Alto |
+| 1 | **53** | Finanza | Bayesian Predictor | 2.0g | GP engine (#15) | Alto |
+| 1 | **57** | Complessi | Swarm Intelligence | 2.0g | Reward data | Medio-Alto |
+| 2 | **54** | Finanza | Causal Inference | 2.5g | task_outcomes | Alto |
+| 2 | **60** | Matematica | Wasserstein Distance | 2.0g | task_outcomes | Alto |
+| | | | **Totale Fase 8** | **22.5g** | | |
+
+### Note sulle dipendenze critiche
+
+1. **GP Engine (#15) prerequisito per #50, #52, #53**: leggono `task_outcomes` e usano predizioni GP.
+2. **#36 (Queueing Theory) sblocca #51**: stime throughput per target_inventory.
+3. **#59 (Tropical) refactora #36/#42**: `CriticalPathCalculator` riscritto su algebra tropicale, backward compat.
+4. **#56 (Criticality) indipendente**: piu' alto rapporto valore/sforzo, partenza immediata.
+5. **#61 e #49 complementari**: #61 seleziona *chi* nel council, #49 pesa *quanto*.
+6. **Flyway**: solo V15 per #53. Gli altri operano su dati esistenti o in-memory/Redis.
+
+### Ordine consigliato di implementazione
+
+```
+Fase 8a (fondazioni, ~6.5g):   #56 → #59 → #55 → #52
+Fase 8b (strutturale, ~6.0g):  #58 → #61 → #57
+Fase 8c (economico, ~6.0g):    #50 → #51 → #53
+Fase 8d (avanzato, ~4.5g):     #54 → #60
+                                ─────────────────────
+                                Totale: ~22.5g (#50-#61)
+```
+
+### Codice condiviso tra items
+
+| Classe | Usata da | Modulo |
+|--------|----------|--------|
+| `CovarianceMatrix.java` | #50 | orchestrator/budget |
+| `CriticalPathCalculator.java` (refactored) | #36, #42, #51, #59 | orchestrator/graph |
+| `TropicalSemiring.java` | #59 | orchestrator/graph |
+| `TaskOutcomeService.java` (existing) | #50, #52, #53, #54, #55, #60 | orchestrator/gp |
+| `WorkerEloStats.java` (existing) | #55 | orchestrator/reward |
+| `PlanGraphService.java` (existing) | #58, #59 | orchestrator/graph |
+| `CouncilService.java` (existing) | #61 | orchestrator/council |
+| `GpWorkerSelectionService.java` (existing) | #50, #52, #53, #60 | orchestrator/gp |
+| `AnalyticsController.java` (NEW) | #55, #60 | orchestrator/api |
+
+**Totale Research Domains**: ~22.5 giorni di lavoro.
 
 ---
 
