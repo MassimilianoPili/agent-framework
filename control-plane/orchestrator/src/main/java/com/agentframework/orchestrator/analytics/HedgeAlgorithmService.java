@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -51,7 +52,7 @@ public class HedgeAlgorithmService {
     @Value("${hedge.horizon:1000}")
     private int horizon;
 
-    public HedgeAlgorithmService(StringRedisTemplate redisTemplate,
+    public HedgeAlgorithmService(@Qualifier("redisMessagingTemplate") StringRedisTemplate redisTemplate,
                                   ObjectMapper objectMapper,
                                   WorkerProfileRegistry profileRegistry) {
         this.redisTemplate = redisTemplate;
