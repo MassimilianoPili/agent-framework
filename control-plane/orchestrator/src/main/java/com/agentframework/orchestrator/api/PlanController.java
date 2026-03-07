@@ -9,6 +9,7 @@ import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.domain.IllegalStateTransitionException;
 import com.agentframework.orchestrator.domain.ItemStatus;
 import com.agentframework.orchestrator.domain.Plan;
+import com.agentframework.orchestrator.graph.CriticalPathCalculator;
 import com.agentframework.orchestrator.graph.PlanGraphService;
 import com.agentframework.orchestrator.orchestration.OrchestrationService;
 import com.agentframework.orchestrator.repository.QualityGateReportRepository;
@@ -38,6 +39,7 @@ public class PlanController {
     private final PlanSnapshotService snapshotService;
     private final QualityGateReportRepository reportRepository;
     private final PlanGraphService planGraphService;
+    private final CriticalPathCalculator criticalPathCalculator;
     private final SseEmitterRegistry sseEmitterRegistry;
     private final PlanItemRepository planItemRepository;
 
@@ -45,12 +47,14 @@ public class PlanController {
                           PlanSnapshotService snapshotService,
                           QualityGateReportRepository reportRepository,
                           PlanGraphService planGraphService,
+                          CriticalPathCalculator criticalPathCalculator,
                           SseEmitterRegistry sseEmitterRegistry,
                           PlanItemRepository planItemRepository) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
         this.planGraphService = planGraphService;
+        this.criticalPathCalculator = criticalPathCalculator;
         this.sseEmitterRegistry = sseEmitterRegistry;
         this.planItemRepository = planItemRepository;
     }
@@ -279,6 +283,20 @@ public class PlanController {
     public SseEmitter streamPlanEvents(@PathVariable UUID id) {
         log.info("SSE client connected to plan {}", id);
         return sseEmitterRegistry.subscribe(id);
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/schedule
+     *
+     * <p>Returns the tropical-geometry critical path schedule: EST, LST, float, makespan,
+     * and critical path for every task in the plan. DONE items use actual elapsed time;
+     * others use a 5-minute default estimate.</p>
+     */
+    @GetMapping("/{id}/schedule")
+    public ResponseEntity<CriticalPathCalculator.ScheduleView> getPlanSchedule(@PathVariable UUID id) {
+        return orchestrationService.getPlan(id)
+            .map(plan -> ResponseEntity.ok(criticalPathCalculator.buildView(plan)))
+            .orElse(ResponseEntity.notFound().build());
     }
 
     /**

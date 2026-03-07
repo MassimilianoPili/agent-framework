@@ -21,6 +21,7 @@ import java.util.UUID;
  *   <li>{@code PLAN_COMPLETED} — all items are terminal, plan done</li>
  *   <li>{@code PLAN_PAUSED} — plan paused due to attemptsBeforePause threshold</li>
  *   <li>{@code PLAN_RESUMED} — paused plan was manually resumed</li>
+ *   <li>{@code SYSTEM_CRITICALITY} — system-level criticality alert (sandpile model, C &gt;= 0.8)</li>
  * </ul>
  */
 public record SpringPlanEvent(
@@ -40,6 +41,12 @@ public record SpringPlanEvent(
     public static final String PLAN_COMPLETED  = "PLAN_COMPLETED";
     public static final String PLAN_PAUSED     = "PLAN_PAUSED";
     public static final String PLAN_RESUMED    = "PLAN_RESUMED";
+    public static final String SYSTEM_CRITICALITY = "SYSTEM_CRITICALITY";
+
+    /** Factory for system-level events without a specific plan context. */
+    public static SpringPlanEvent forSystem(String eventType) {
+        return new SpringPlanEvent(eventType, null, null, null, null, true, 0, Instant.now());
+    }
 
     /** Factory for plan-level events (no item context). */
     public static SpringPlanEvent forPlan(String eventType, UUID planId) {
