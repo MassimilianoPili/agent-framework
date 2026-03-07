@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -32,7 +33,7 @@ class GpWorkerSelectionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new GpWorkerSelectionService(outcomeService, profileRegistry);
+        service = new GpWorkerSelectionService(outcomeService, profileRegistry, Optional.empty());
     }
 
     // ── Single profile (skip GP) ────────────────────────────────────────────

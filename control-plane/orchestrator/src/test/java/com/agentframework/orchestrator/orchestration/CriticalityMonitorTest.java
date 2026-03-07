@@ -61,9 +61,9 @@ class CriticalityMonitorTest {
     void computeLoads_pendingAndFailed_correctWeights() {
         // 3 pending BE + 2 failed BE → load = 3 + 2*2 = 7.0
         when(planItemRepository.countPendingByWorkerType())
-                .thenReturn(List.of(new Object[]{WorkerType.BE, 3L}));
+                .thenReturn(List.<Object[]>of(new Object[]{WorkerType.BE, 3L}));
         when(planItemRepository.countFailedByWorkerType())
-                .thenReturn(List.of(new Object[]{WorkerType.BE, 2L}));
+                .thenReturn(List.<Object[]>of(new Object[]{WorkerType.BE, 2L}));
         when(planItemRepository.countStaleDispatchedByWorkerType(any(Instant.class)))
                 .thenReturn(Collections.emptyList());
 
@@ -76,7 +76,7 @@ class CriticalityMonitorTest {
     void evaluate_stable_noEventPublished() {
         // load BE = 3 (pending), threshold = 15 → C = 3/15 = 0.2 → STABLE
         when(planItemRepository.countPendingByWorkerType())
-                .thenReturn(List.of(new Object[]{WorkerType.BE, 3L}));
+                .thenReturn(List.<Object[]>of(new Object[]{WorkerType.BE, 3L}));
         when(planItemRepository.countFailedByWorkerType())
                 .thenReturn(Collections.emptyList());
         when(planItemRepository.countStaleDispatchedByWorkerType(any(Instant.class)))
@@ -91,7 +91,7 @@ class CriticalityMonitorTest {
     void evaluate_warning_loggedButNoEvent() {
         // load BE = 10 (pending), threshold = 15 → C = 10/15 ≈ 0.667 → WARNING
         when(planItemRepository.countPendingByWorkerType())
-                .thenReturn(List.of(new Object[]{WorkerType.BE, 10L}));
+                .thenReturn(List.<Object[]>of(new Object[]{WorkerType.BE, 10L}));
         when(planItemRepository.countFailedByWorkerType())
                 .thenReturn(Collections.emptyList());
         when(planItemRepository.countStaleDispatchedByWorkerType(any(Instant.class)))
@@ -106,9 +106,9 @@ class CriticalityMonitorTest {
     void evaluate_alert_publishesSystemCriticalityEvent() {
         // load BE = 5 pending + 5 failed → 5 + 5*2 = 15, threshold = 15 → C = 1.0 → ALERT
         when(planItemRepository.countPendingByWorkerType())
-                .thenReturn(List.of(new Object[]{WorkerType.BE, 5L}));
+                .thenReturn(List.<Object[]>of(new Object[]{WorkerType.BE, 5L}));
         when(planItemRepository.countFailedByWorkerType())
-                .thenReturn(List.of(new Object[]{WorkerType.BE, 5L}));
+                .thenReturn(List.<Object[]>of(new Object[]{WorkerType.BE, 5L}));
         when(planItemRepository.countStaleDispatchedByWorkerType(any(Instant.class)))
                 .thenReturn(Collections.emptyList());
 

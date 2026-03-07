@@ -2,6 +2,8 @@ package com.agentframework.orchestrator.reward;
 
 import com.agentframework.orchestrator.domain.ItemStatus;
 import com.agentframework.orchestrator.domain.PlanItem;
+import com.agentframework.orchestrator.gp.WorkerGreeks;
+import com.agentframework.orchestrator.gp.WorkerGreeksService;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,13 +38,16 @@ public class RewardController {
     private final PlanItemRepository planItemRepository;
     private final WorkerEloStatsRepository eloStatsRepository;
     private final PreferencePairRepository pairRepository;
+    private final Optional<WorkerGreeksService> greeksService;
 
     public RewardController(PlanItemRepository planItemRepository,
                             WorkerEloStatsRepository eloStatsRepository,
-                            PreferencePairRepository pairRepository) {
+                            PreferencePairRepository pairRepository,
+                            Optional<WorkerGreeksService> greeksService) {
         this.planItemRepository = planItemRepository;
         this.eloStatsRepository = eloStatsRepository;
         this.pairRepository = pairRepository;
+        this.greeksService = greeksService;
     }
 
     /**
@@ -116,6 +122,32 @@ public class RewardController {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(NDJSON))
                 .body(ndjson);
+    }
+
+    /**
+     * GET /api/v1/rewards/workers/{profile}/greeks
+     *
+     * <p>Computes Black-Scholes-inspired Greeks (Delta, Gamma, Vega, Theta, riskScore)
+     * for the given worker profile using a neutral reference embedding.
+     * Returns 404 if the GP system is disabled.</p>
+     */
+    @GetMapping("/workers/{profile}/greeks")
+    public ResponseEntity<WorkerGreeks> getWorkerGreeks(
+            @PathVariable String profile,
+            @RequestParam(defaultValue = "BE") String workerType) {
+
+        if (greeksService.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // Neutral embedding: uniform vector normalised to unit magnitude
+        int dim = 1024;
+        float[] neutralEmbedding = new float[dim];
+        float value = (float) (1.0 / Math.sqrt(dim));
+        Arrays.fill(neutralEmbedding, value);
+
+        WorkerGreeks greeks = greeksService.get().computeGreeks(profile, workerType, neutralEmbedding);
+        return ResponseEntity.ok(greeks);
     }
 
     // ── Private serializers ───────────────────────────────────────────────────

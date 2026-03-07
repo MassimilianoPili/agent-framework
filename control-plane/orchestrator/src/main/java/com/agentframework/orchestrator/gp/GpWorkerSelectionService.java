@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * GP-based worker profile selection.
@@ -31,11 +32,14 @@ public class GpWorkerSelectionService {
 
     private final TaskOutcomeService outcomeService;
     private final WorkerProfileRegistry profileRegistry;
+    private final Optional<WorkerGreeksService> greeksService;
 
     public GpWorkerSelectionService(TaskOutcomeService outcomeService,
-                                     WorkerProfileRegistry profileRegistry) {
+                                     WorkerProfileRegistry profileRegistry,
+                                     Optional<WorkerGreeksService> greeksService) {
         this.outcomeService = outcomeService;
         this.profileRegistry = profileRegistry;
+        this.greeksService = greeksService;
     }
 
     /**
@@ -84,6 +88,35 @@ public class GpWorkerSelectionService {
             if (entry.getValue().mu() > bestMu) {
                 bestMu = entry.getValue().mu();
                 bestProfile = entry.getKey();
+            }
+        }
+
+        // Greeks risk penalty: if the selected profile is too risky, switch to a safer one
+        if (greeksService.isPresent()) {
+            try {
+                WorkerGreeks greeks = greeksService.get()
+                        .computeGreeks(bestProfile, workerType.name(), embedding);
+                if (greeks.riskScore() > 0.7) {
+                    // Find a safer alternative with mu >= bestMu * 0.9
+                    final double threshold = bestMu * 0.9;
+                    final String riskyProfile = bestProfile;
+                    for (var entry : predictions.entrySet()) {
+                        if (entry.getKey().equals(riskyProfile)) continue;
+                        if (entry.getValue().mu() >= threshold) {
+                            WorkerGreeks altGreeks = greeksService.get()
+                                    .computeGreeks(entry.getKey(), workerType.name(), embedding);
+                            if (altGreeks.riskScore() < greeks.riskScore()) {
+                                log.info("Greeks risk penalty: switching from '{}' (risk={}) to '{}' (risk={})",
+                                        riskyProfile, String.format("%.3f", greeks.riskScore()),
+                                        entry.getKey(), String.format("%.3f", altGreeks.riskScore()));
+                                bestProfile = entry.getKey();
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Greeks computation failed during selection, proceeding without risk check: {}", e.getMessage());
             }
         }
 
