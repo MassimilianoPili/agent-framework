@@ -44,9 +44,9 @@ class MarketMakingDispatcherTest {
     void prioritize_cpItemFirst() {
         Plan plan = new Plan(UUID.randomUUID(), "test");
         PlanItem cpItem = new PlanItem(UUID.randomUUID(), 0, "BE-001", "CP task",
-                "On critical path", WorkerType.BE, "be-java", List.of());
+                "On critical path", WorkerType.BE, "be-java", List.of(), List.of());
         PlanItem normalItem = new PlanItem(UUID.randomUUID(), 1, "FE-001", "Normal task",
-                "Not on critical path", WorkerType.FE, "fe-react", List.of());
+                "Not on critical path", WorkerType.FE, "fe-react", List.of(), List.of());
 
         // Setup: BE-001 is on critical path
         when(criticalPathCalculator.computeSchedule(any())).thenReturn(

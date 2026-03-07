@@ -119,6 +119,30 @@ public class PlanController {
     }
 
     /**
+     * POST /api/v1/plans/{id}/items/{itemId}/redispatch
+     * Redispatches a FAILED or DONE plan item directly to a worker, bypassing
+     * dependency resolution. This is the operator override for manual retry.
+     */
+    @PostMapping("/{id}/items/{itemId}/redispatch")
+    public ResponseEntity<?> redispatchItem(@PathVariable UUID id, @PathVariable UUID itemId) {
+        try {
+            ItemStatus previousStatus = orchestrationService.redispatchItem(itemId);
+            log.info("Redispatch triggered for item {} in plan {} (was {})", itemId, id, previousStatus);
+            return ResponseEntity.accepted().body(Map.of(
+                    "status", "redispatching",
+                    "itemId", itemId.toString(),
+                    "planId", id.toString(),
+                    "previousStatus", previousStatus.name()));
+        } catch (IllegalStateTransitionException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "error", e.getMessage()));
+        }
+    }
+
+    /**
      * GET /api/v1/plans/{id}/items/{itemId}/attempts
      * Returns the dispatch history for a plan item.
      */

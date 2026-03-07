@@ -85,6 +85,7 @@ public class EnrichmentInjectorService {
                             + "Plan spec: " + truncate(plan.getSpec(), 500),
                     WorkerType.CONTEXT_MANAGER,
                     null,
+                    List.of(),
                     List.of()
             );
             plan.addItem(cmItem);
@@ -105,7 +106,8 @@ public class EnrichmentInjectorService {
                             + "and related files for downstream workers.",
                     WorkerType.RAG_MANAGER,
                     null,
-                    rmDeps
+                    rmDeps,
+                    List.of()
             );
             plan.addItem(rmItem);
             injectedKeys.add("RM-001");
@@ -121,7 +123,8 @@ public class EnrichmentInjectorService {
                             + "relevant to the downstream tasks.",
                     WorkerType.SCHEMA_MANAGER,
                     null,
-                    smDeps
+                    smDeps,
+                    List.of()
             );
             plan.addItem(smItem);
             injectedKeys.add("SM-001");

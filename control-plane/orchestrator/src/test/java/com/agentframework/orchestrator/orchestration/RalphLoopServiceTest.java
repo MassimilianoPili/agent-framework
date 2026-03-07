@@ -232,7 +232,7 @@ class RalphLoopServiceTest {
     private PlanItem createItem(Plan plan, String taskKey, WorkerType workerType) {
         PlanItem item = new PlanItem(
             UUID.randomUUID(), 1, taskKey, "Title " + taskKey,
-            "Description", workerType, null, List.of()
+            "Description", workerType, null, List.of(), List.of()
         );
         plan.addItem(item);
         return item;

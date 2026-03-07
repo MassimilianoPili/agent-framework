@@ -3,8 +3,10 @@ package com.agentframework.orchestrator.api;
 import com.agentframework.orchestrator.analytics.*;
 import com.agentframework.orchestrator.analytics.CalibrationAudit.CalibrationReport;
 import com.agentframework.orchestrator.analytics.FisherInformationService.FisherUncertaintyReport;
+import com.agentframework.orchestrator.analytics.ContractTheoryService.ContractEvaluationReport;
 import com.agentframework.orchestrator.analytics.GoodhartDetectorService.GoodhartAuditReport;
 import com.agentframework.orchestrator.analytics.ModelPredictiveControlService.MpcScheduleReport;
+import com.agentframework.orchestrator.analytics.RealOptionsService.RealOptionsValuationReport;
 import com.agentframework.orchestrator.analytics.ProspectTheory.ProspectEvaluation;
 import com.agentframework.orchestrator.analytics.ShapleyValue.ShapleyReport;
 import com.agentframework.orchestrator.analytics.VCGMechanismService.VCGPricingReport;
@@ -34,7 +36,8 @@ import java.util.UUID;
  * Kelly criterion fractions, optimal stopping thresholds,
  * calibration audit, VCG mechanism pricing, Shapley value attribution,
  * MPC scheduling, Fisher uncertainty analysis, Value of Information exploration,
- * and Goodhart metric health endpoints for the worker profile ecosystem.</p>
+ * Goodhart metric health, Real Options deferral valuation,
+ * and Contract Theory incentive evaluation endpoints for the worker profile ecosystem.</p>
  */
 @RestController
 @RequestMapping("/api/v1/analytics")
@@ -53,6 +56,8 @@ public class AnalyticsController {
     private final Optional<FisherInformationService> fisherService;
     private final Optional<ValueOfInformationService> voiService;
     private final Optional<GoodhartDetectorService> goodhartService;
+    private final Optional<RealOptionsService> realOptionsService;
+    private final Optional<ContractTheoryService> contractTheoryService;
 
     public AnalyticsController(ReplicatorDynamicsService replicatorDynamicsService,
                                 Optional<WorkerDriftMonitor> driftMonitor,
@@ -66,7 +71,9 @@ public class AnalyticsController {
                                 Optional<ModelPredictiveControlService> mpcService,
                                 Optional<FisherInformationService> fisherService,
                                 Optional<ValueOfInformationService> voiService,
-                                Optional<GoodhartDetectorService> goodhartService) {
+                                Optional<GoodhartDetectorService> goodhartService,
+                                Optional<RealOptionsService> realOptionsService,
+                                Optional<ContractTheoryService> contractTheoryService) {
         this.replicatorDynamicsService = replicatorDynamicsService;
         this.driftMonitor = driftMonitor;
         this.prospectTheoryService = prospectTheoryService;
@@ -80,6 +87,8 @@ public class AnalyticsController {
         this.fisherService = fisherService;
         this.voiService = voiService;
         this.goodhartService = goodhartService;
+        this.realOptionsService = realOptionsService;
+        this.contractTheoryService = contractTheoryService;
     }
 
     /**
@@ -311,6 +320,47 @@ public class AnalyticsController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         }
         GoodhartAuditReport report = goodhartService.get().auditMetrics(workerType);
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/real-options-valuation?workerType=BE
+     *
+     * <p>Evaluates task deferral opportunities using Real Options Theory
+     * (Dixit &amp; Pindyck 1994). Computes the perpetual American option value
+     * for each profile, recommending deferral or execution based on
+     * expected reward vs. threshold V*.</p>
+     */
+    @GetMapping("/real-options-valuation")
+    public ResponseEntity<RealOptionsValuationReport> getRealOptionsValuation(
+            @RequestParam String workerType) {
+        if (realOptionsService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        RealOptionsValuationReport report = realOptionsService.get().evaluateDeferral(workerType);
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/contract-evaluation?workerType=BE
+     *
+     * <p>Evaluates SLA contracts for worker profiles using Contract Theory
+     * (Hart &amp; Holmström 2016). Calibrates optimal contracts from historical
+     * observations, evaluates performance, and checks incentive compatibility.</p>
+     */
+    @GetMapping("/contract-evaluation")
+    public ResponseEntity<ContractEvaluationReport> getContractEvaluation(
+            @RequestParam String workerType) {
+        if (contractTheoryService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        ContractEvaluationReport report = contractTheoryService.get().evaluateContracts(workerType);
         if (report == null) {
             return ResponseEntity.noContent().build();
         }

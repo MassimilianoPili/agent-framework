@@ -172,6 +172,6 @@ class SpectralAnalyzerTest {
 
     private PlanItem item(String taskKey, List<String> deps) {
         return new PlanItem(UUID.randomUUID(), 0, taskKey, "Title " + taskKey,
-                "Desc", WorkerType.BE, "be-java", deps);
+                "Desc", WorkerType.BE, "be-java", deps, List.of());
     }
 }

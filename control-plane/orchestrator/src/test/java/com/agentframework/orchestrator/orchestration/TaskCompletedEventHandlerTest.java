@@ -133,7 +133,7 @@ class TaskCompletedEventHandlerTest {
         Plan plan = new Plan(planId, "Test spec");
         plan.transitionTo(PlanStatus.RUNNING);
         PlanItem item = new PlanItem(UUID.randomUUID(), 0, taskKey, "Test: " + taskKey,
-                "Description", type, null, List.of());
+                "Description", type, null, List.of(), List.of());
         plan.addItem(item);
         return item;
     }

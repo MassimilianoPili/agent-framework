@@ -55,7 +55,7 @@ class PreferencePairGeneratorTest {
                                float reward, int retries, String result) {
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 1, taskKey, "Title " + taskKey,
-                "Description for " + taskKey, type, profile, List.of());
+                "Description for " + taskKey, type, profile, List.of(), List.of());
         item.forceStatus(ItemStatus.DONE);
         item.setAggregatedReward(reward);
         item.setResult(result);

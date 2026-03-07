@@ -25,5 +25,6 @@ public record AgentTask(
     String dispatchedAt,        // ISO-8601, dispatch metadata (null if unknown)
     HookPolicy policy,          // task-level hook policy set by HOOK_MANAGER (null = use static config)
     String councilContext,      // JSON CouncilReport from pre-planning session (null if council disabled)
-    List<String> dynamicOwnsPaths // project-path-resolved ownsPaths (merged with static in worker, null = none)
+    List<String> dynamicOwnsPaths, // project-path-resolved ownsPaths (merged with static in worker, null = none)
+    List<String> toolHints        // planner-suggested MCP tool names (null = no suggestion, use worker default)
 ) {}

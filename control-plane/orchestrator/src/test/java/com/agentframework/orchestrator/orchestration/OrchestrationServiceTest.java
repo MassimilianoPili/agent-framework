@@ -414,7 +414,7 @@ class OrchestrationServiceTest {
 
         PlanItem subPlanItem = new PlanItem(
                 UUID.randomUUID(), 0, "SP-001", "Sub-plan", "desc",
-                WorkerType.SUB_PLAN, null, List.of());
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
         subPlanItem.setSubPlanSpec("Build auth module");
         plan.addItem(subPlanItem);
 
@@ -457,7 +457,7 @@ class OrchestrationServiceTest {
 
         PlanItem subPlanItem = new PlanItem(
                 UUID.randomUUID(), 0, "SP-001", "Sub-plan", "desc",
-                WorkerType.SUB_PLAN, null, List.of());
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
         subPlanItem.setSubPlanSpec("Go even deeper");
         deepPlan.addItem(subPlanItem);
 
@@ -487,7 +487,7 @@ class OrchestrationServiceTest {
         // tests the council logic independently of the state machine gap.
         PlanItem councilItem = new PlanItem(
                 UUID.randomUUID(), 0, "CL-001", "Council session", "desc",
-                WorkerType.COUNCIL_MANAGER, null, List.of());
+                WorkerType.COUNCIL_MANAGER, null, List.of(), List.of());
         plan.addItem(councilItem);
         councilItem.transitionTo(ItemStatus.DISPATCHED);
 
@@ -515,7 +515,7 @@ class OrchestrationServiceTest {
         // Pre-transition to DISPATCHED for same reason as councilDisabled test
         PlanItem councilItem = new PlanItem(
                 UUID.randomUUID(), 0, "CL-001", "Council session", "Advise on auth",
-                WorkerType.COUNCIL_MANAGER, null, List.of());
+                WorkerType.COUNCIL_MANAGER, null, List.of(), List.of());
         plan.addItem(councilItem);
         councilItem.transitionTo(ItemStatus.DISPATCHED);
 
@@ -552,7 +552,7 @@ class OrchestrationServiceTest {
 
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 0, "BE-001", "Dangerous task", "desc",
-                WorkerType.BE, null, List.of());
+                WorkerType.BE, null, List.of(), List.of());
         plan.addItem(item);
 
         HookPolicy criticalPolicy = new HookPolicy(
@@ -582,7 +582,7 @@ class OrchestrationServiceTest {
 
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 0, "BE-001", "Task", "desc",
-                WorkerType.BE, null, List.of());
+                WorkerType.BE, null, List.of(), List.of());
         plan.addItem(item);
 
         BudgetDecision failDecision = new BudgetDecision(BudgetDecision.Action.FAIL, 200, 100, 100);
@@ -611,7 +611,7 @@ class OrchestrationServiceTest {
 
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 0, "BE-001", "Task", "desc",
-                WorkerType.BE, null, List.of());
+                WorkerType.BE, null, List.of(), List.of());
         plan.addItem(item);
 
         BudgetDecision skipDecision = new BudgetDecision(BudgetDecision.Action.SKIP, 150, 100, 100);
@@ -664,7 +664,7 @@ class OrchestrationServiceTest {
 
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 0, "BE-001", "Task", "desc",
-                WorkerType.BE, "be-java", List.of());
+                WorkerType.BE, "be-java", List.of(), List.of());
         plan.addItem(item);
 
         when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
@@ -692,7 +692,7 @@ class OrchestrationServiceTest {
 
         PlanItem original = new PlanItem(
                 UUID.randomUUID(), 0, "BE-001", "Build user API", "desc",
-                WorkerType.BE, "be-java", List.of());
+                WorkerType.BE, "be-java", List.of(), List.of());
         plan.addItem(original);
         original.transitionTo(ItemStatus.DISPATCHED);
         original.transitionTo(ItemStatus.DONE);
@@ -722,7 +722,7 @@ class OrchestrationServiceTest {
 
         PlanItem original = new PlanItem(
                 UUID.randomUUID(), 0, "BE-001", "Build user API", "desc",
-                WorkerType.BE, "be-java", List.of());
+                WorkerType.BE, "be-java", List.of(), List.of());
         plan.addItem(original);
 
         when(planItemRepository.findByIdWithPlan(original.getId())).thenReturn(Optional.of(original));
@@ -748,7 +748,7 @@ class OrchestrationServiceTest {
         parentPlan.transitionTo(PlanStatus.RUNNING);
         PlanItem parentItem = new PlanItem(
                 UUID.randomUUID(), 0, "SP-001", "Sub-plan", "desc",
-                WorkerType.SUB_PLAN, null, List.of());
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
         parentPlan.addItem(parentItem);
         parentItem.transitionTo(ItemStatus.DISPATCHED);
         parentItem.setChildPlanId(childPlanId);
@@ -782,7 +782,7 @@ class OrchestrationServiceTest {
         parentPlan.transitionTo(PlanStatus.RUNNING);
         PlanItem parentItem = new PlanItem(
                 UUID.randomUUID(), 0, "SP-001", "Sub-plan", "desc",
-                WorkerType.SUB_PLAN, null, List.of());
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
         parentPlan.addItem(parentItem);
         parentItem.transitionTo(ItemStatus.DISPATCHED);
         parentItem.setChildPlanId(childPlanId);
@@ -825,6 +825,133 @@ class OrchestrationServiceTest {
         verify(planItemRepository, never()).save(any());
     }
 
+    // ── redispatchItem ────────────────────────────────────────────────────
+
+    @Test
+    void redispatchItem_failedItem_dispatchesDirectly() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        item.forceStatus(ItemStatus.FAILED);
+
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        // No planRepository.save stub needed — plan is already RUNNING, no reopening
+        when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(1));
+        when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ItemStatus previousStatus = service.redispatchItem(item.getId());
+
+        assertThat(previousStatus).isEqualTo(ItemStatus.FAILED);
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.DISPATCHED);
+        verify(taskProducer).dispatch(any());
+    }
+
+    @Test
+    void redispatchItem_doneItem_dispatchesDirectly() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.FE, "FE-001", planId, List.of());
+        item.forceStatus(ItemStatus.DONE);
+        item.getPlan().forceStatus(PlanStatus.COMPLETED);
+
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(0));
+        when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ItemStatus previousStatus = service.redispatchItem(item.getId());
+
+        assertThat(previousStatus).isEqualTo(ItemStatus.DONE);
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.DISPATCHED);
+        // Plan should be reopened from COMPLETED → RUNNING
+        assertThat(item.getPlan().getStatus()).isEqualTo(PlanStatus.RUNNING);
+        verify(taskProducer).dispatch(any());
+    }
+
+    @Test
+    void redispatchItem_reopensCompletedPlan() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        item.forceStatus(ItemStatus.FAILED);
+        item.getPlan().forceStatus(PlanStatus.FAILED);
+
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(0));
+        when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.redispatchItem(item.getId());
+
+        assertThat(item.getPlan().getStatus()).isEqualTo(PlanStatus.RUNNING);
+        verify(planRepository).save(item.getPlan());
+    }
+
+    @Test
+    void redispatchItem_unknownItem_throws() {
+        UUID unknownId = UUID.randomUUID();
+        when(planItemRepository.findByIdWithPlan(unknownId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.redispatchItem(unknownId))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Unknown plan item");
+    }
+
+    @Test
+    void redispatchItem_waitingItem_throwsIllegalTransition() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        // item starts in WAITING (default)
+
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> service.redispatchItem(item.getId()))
+            .isInstanceOf(IllegalStateTransitionException.class);
+    }
+
+    @Test
+    void redispatchItem_alreadyToDispatch_dispatchesWithoutDoubleTransition() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        item.forceStatus(ItemStatus.TO_DISPATCH);
+
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(0));
+        when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ItemStatus previousStatus = service.redispatchItem(item.getId());
+
+        assertThat(previousStatus).isEqualTo(ItemStatus.TO_DISPATCH);
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.DISPATCHED);
+        verify(taskProducer).dispatch(any());
+    }
+
+    @Test
+    void redispatchItem_clearsFailureReasonAndCompletedAt() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        item.forceStatus(ItemStatus.FAILED);
+        item.setFailureReason("original error");
+        item.setCompletedAt(java.time.Instant.now());
+
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        // No planRepository.save stub needed — plan is already RUNNING, no reopening
+        when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(0));
+        when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.redispatchItem(item.getId());
+
+        assertThat(item.getFailureReason()).isNull();
+        assertThat(item.getCompletedAt()).isNull();
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     /**
@@ -846,7 +973,7 @@ class OrchestrationServiceTest {
 
     private PlanItem createItem(WorkerType type, String taskKey, List<String> deps) {
         return new PlanItem(UUID.randomUUID(), 0, taskKey, "Test: " + taskKey,
-                "Description for " + taskKey, type, null, deps);
+                "Description for " + taskKey, type, null, deps, List.of());
     }
 
     /**
@@ -856,7 +983,7 @@ class OrchestrationServiceTest {
         Plan plan = new Plan(planId, "Test spec");
         plan.transitionTo(PlanStatus.RUNNING);
         PlanItem item = new PlanItem(UUID.randomUUID(), 0, taskKey, "Test: " + taskKey,
-                "Description for " + taskKey, type, null, deps);
+                "Description for " + taskKey, type, null, deps, List.of());
         plan.addItem(item);
         return item;
     }

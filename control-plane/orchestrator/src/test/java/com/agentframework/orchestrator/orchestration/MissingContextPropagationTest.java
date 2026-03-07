@@ -86,13 +86,13 @@ class MissingContextPropagationTest {
 
         // CM item (will fail)
         PlanItem cmItem = new PlanItem(UUID.randomUUID(), 0, "CM-001", "Context Manager",
-                "Build context", WorkerType.CONTEXT_MANAGER, null, List.of());
+                "Build context", WorkerType.CONTEXT_MANAGER, null, List.of(), List.of());
         plan.addItem(cmItem);
         cmItem.transitionTo(ItemStatus.DISPATCHED);
 
         // Dependent BE item (WAITING, depends on CM-001)
         PlanItem beItem = new PlanItem(UUID.randomUUID(), 1, "BE-001", "Backend",
-                "Implement API", WorkerType.BE, "be-java", List.of("CM-001"));
+                "Implement API", WorkerType.BE, "be-java", List.of("CM-001"), List.of());
         plan.addItem(beItem);
 
         AgentResult result = new AgentResult(planId, cmItem.getId(), "CM-001", false,
@@ -129,13 +129,13 @@ class MissingContextPropagationTest {
         plan.transitionTo(PlanStatus.RUNNING);
 
         PlanItem cmItem = new PlanItem(UUID.randomUUID(), 0, "CM-001", "Context Manager",
-                "Build context", WorkerType.CONTEXT_MANAGER, null, List.of());
+                "Build context", WorkerType.CONTEXT_MANAGER, null, List.of(), List.of());
         plan.addItem(cmItem);
         cmItem.transitionTo(ItemStatus.DISPATCHED);
 
         // Independent item (no dependency on CM-001)
         PlanItem independentItem = new PlanItem(UUID.randomUUID(), 1, "FE-001", "Frontend",
-                "Build UI", WorkerType.FE, "fe-react", List.of());
+                "Build UI", WorkerType.FE, "fe-react", List.of(), List.of());
         plan.addItem(independentItem);
 
         AgentResult result = new AgentResult(planId, cmItem.getId(), "CM-001", false,
@@ -168,7 +168,7 @@ class MissingContextPropagationTest {
         plan.transitionTo(PlanStatus.RUNNING);
 
         PlanItem beItem = new PlanItem(UUID.randomUUID(), 0, "BE-001", "Backend",
-                "Implement API", WorkerType.BE, "be-java", List.of());
+                "Implement API", WorkerType.BE, "be-java", List.of(), List.of());
         plan.addItem(beItem);
         beItem.transitionTo(ItemStatus.DISPATCHED);
 

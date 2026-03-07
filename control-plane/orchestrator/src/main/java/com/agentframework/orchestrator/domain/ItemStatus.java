@@ -11,8 +11,9 @@ import java.util.Set;
  * AWAITING_APPROVAL  → WAITING (approved), FAILED (rejected / timeout)
  * DISPATCHED         → RUNNING, DONE, FAILED, WAITING (context retry loop)
  * RUNNING            → DONE, FAILED
- * DONE               → (terminal)
- * FAILED             → WAITING  (retry — see Command pattern, Phase 3.1)
+ * DONE               → WAITING (ralph-loop), TO_DISPATCH (manual redispatch)
+ * FAILED             → WAITING (auto-retry), TO_DISPATCH (manual redispatch)
+ * TO_DISPATCH        → DISPATCHED (operator-initiated, bypasses dependency resolution)
  * </pre>
  */
 public enum ItemStatus {
@@ -52,14 +53,29 @@ public enum ItemStatus {
     },
     DONE {
         @Override public Set<ItemStatus> allowedTransitions() {
-            // WAITING is allowed for the ralph-loop: quality gate failure
-            // re-queues completed items with feedback context.
-            return Set.of(WAITING);
+            // WAITING: ralph-loop (quality gate failure re-queues with feedback)
+            // TO_DISPATCH: manual redispatch (operator override, bypasses dependency resolution)
+            return Set.of(WAITING, TO_DISPATCH);
         }
     },
     FAILED {
         @Override public Set<ItemStatus> allowedTransitions() {
-            return Set.of(WAITING);
+            // WAITING: auto-retry with backoff (via AutoRetryScheduler)
+            // TO_DISPATCH: manual redispatch (operator override, bypasses dependency resolution)
+            return Set.of(WAITING, TO_DISPATCH);
+        }
+    },
+
+    /**
+     * Operator-initiated redispatch. The item will be dispatched directly to a worker
+     * without re-checking dependency resolution. Used for manual retry after root-cause
+     * fix, or re-running a completed task with different parameters.
+     * <p>Reachable from: FAILED, DONE (via {@code POST .../redispatch})</p>
+     * <p>Exits to: DISPATCHED (via poller or immediate dispatch)</p>
+     */
+    TO_DISPATCH {
+        @Override public Set<ItemStatus> allowedTransitions() {
+            return Set.of(DISPATCHED);
         }
     };
 

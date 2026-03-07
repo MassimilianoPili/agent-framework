@@ -41,7 +41,7 @@ class BayesianSuccessPredictorServiceTest {
     @Test
     void predictForItem_noTrainingData_returnsPrior() {
         PlanItem item = new PlanItem(UUID.randomUUID(), 0, "BE-001", "Test task",
-                "Description", WorkerType.BE, "be-java", List.of());
+                "Description", WorkerType.BE, "be-java", List.of(), List.of());
 
         SuccessPrediction prediction = service.predictForItem(item, null, null, UUID.randomUUID());
 
@@ -53,7 +53,7 @@ class BayesianSuccessPredictorServiceTest {
     @Test
     void predictForItem_buildsCorrectFeatures() {
         PlanItem item = new PlanItem(UUID.randomUUID(), 0, "FE-001", "Frontend task",
-                "Build UI", WorkerType.FE, "fe-react", List.of());
+                "Build UI", WorkerType.FE, "fe-react", List.of(), List.of());
 
         SuccessPrediction prediction = service.predictForItem(item, null, null, UUID.randomUUID());
 

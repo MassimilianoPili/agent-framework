@@ -441,6 +441,21 @@ goodhart:
   divergence-threshold: 0.3         # Pearson r below this = divergence alert
   min-sample-size: 10               # regressional Goodhart detection threshold
 
+# Real Options Theory — task deferral valuation (Dixit & Pindyck 1994)
+real-options:
+  enabled: true
+  discount-rate: 0.05              # r: cost of delay
+  urgency-weight: 0.1             # delta base: convenience yield
+  min-observations: 5              # minimum data for volatility estimate
+
+# Contract Theory — SLA worker incentive design (Hart & Holmstrom 2016)
+contract-theory:
+  enabled: true
+  default-quality-target: 0.6     # baseline quality expectation
+  default-bonus-multiplier: 1.5   # beta: reward for above-target quality
+  default-penalty-rate: 0.5       # penalty for below-target quality
+  learning-rate: 0.1              # Bayesian update rate for contract adjustment
+
 # Cost Estimation — per-task token cost tracking (#26L1)
 cost:
   default-pricing:

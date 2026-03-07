@@ -85,6 +85,13 @@ public interface PlanItemRepository extends JpaRepository<PlanItem, UUID> {
         """)
     List<PlanItem> findStaleDispatched(@Param("cutoff") Instant cutoff);
 
+    /**
+     * Finds items with the given status, eagerly loading their plan.
+     * Used by RedispatchPollerService to pick up TO_DISPATCH items.
+     */
+    @Query("SELECT i FROM PlanItem i JOIN FETCH i.plan WHERE i.status = :status")
+    List<PlanItem> findByStatusWithPlan(@Param("status") ItemStatus status);
+
     // ── Aggregate queries for CriticalityMonitor (sandpile model) ────────
 
     /** Counts WAITING items grouped by WorkerType. Returns Object[]{WorkerType, Long}. */
