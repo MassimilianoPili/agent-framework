@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: be-python-worker
   displayName: "Backend Python Worker"
   description: >
-    Handles Python backend tasks — FastAPI/Django/Flask endpoints, Pydantic models,
-    SQLAlchemy/Django ORM, Alembic migrations, and pytest tests.
+    Handles Python backend tasks — FastAPI/Django/Flask endpoints, Pydantic models, SQLAlchemy/Django ORM, Alembic migrations, and pytest tests.
 
 spec:
   workerType: BE
   workerProfile: be-python
   topic: agent-tasks
   subscription: be-python-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/be-python/SKILL.md
     skills:
@@ -37,28 +33,31 @@ spec:
         "summary": "brief description of what was implemented",
         "test_results": "description of tests written and their status"
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-bash-tool
+      - io.github.massimilianopili:mcp-python-tool
     allowlist:
       - fs_list
       - fs_read
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
+      - python_execute
     mcpServers:
       - git
       - repo-fs
       - openapi
       - test
-
+      - bash
+      - python
   ownership:
     ownsPaths:
       - backend/
       - templates/be/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

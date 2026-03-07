@@ -1,25 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: fe-vanillajs-worker
   displayName: "Frontend Vanilla JS Worker"
   description: >
-    Handles vanilla HTML5, CSS, and JavaScript frontend tasks — semantic markup,
-    responsive design, accessibility, performance optimization, and progressive enhancement.
-    No frameworks or build tools unless explicitly requested.
+    Handles vanilla HTML5, CSS, and JavaScript frontend tasks — semantic markup, responsive design, accessibility, performance optimization, and progressive enhancement. No frameworks or build tools unless explicitly requested.
 
 spec:
   workerType: FE
   workerProfile: fe-vanillajs
   topic: agent-tasks
   subscription: fe-vanillajs-worker-sub
-
   model:
     name: claude-opus-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/fe/SKILL.md
     skills:
@@ -46,26 +41,26 @@ spec:
         "summary": "brief description of what was implemented",
         "test_results": "description of tests written and their status"
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
-
+      - bash
   ownership:
     ownsPaths:
       - cps4/
     readOnlyPaths:
       - cps3/
-
   concurrency:
     maxConcurrentCalls: 3

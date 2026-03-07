@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: dba-graphdb-worker
   displayName: "DBA Graph Database Worker (Neo4j/AGE)"
   description: >
-    Handles graph database administration — Neo4j Cypher, Apache AGE,
-    graph modeling, indexes, constraints, APOC, and query optimization.
+    Handles graph database administration — Neo4j Cypher, Apache AGE, graph modeling, indexes, constraints, APOC, and query optimization.
 
 spec:
   workerType: DBA
   workerProfile: dba-graphdb
   topic: agent-tasks
   subscription: dba-graphdb-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/dba-graphdb/SKILL.md
     skills:
@@ -45,12 +41,12 @@ spec:
           "downtime_required": "none/minimal/required"
         }
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-filesystem-tools
       - io.github.massimilianopili:mcp-graph-tools
       - io.github.massimilianopili:mcp-sql-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
@@ -63,15 +59,15 @@ spec:
       - graph_stats
       - graph_list_backends
       - db_query
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
-
+      - bash
   ownership:
     ownsPaths:
       - database/
       - templates/dba/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

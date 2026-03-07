@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: be-node-worker
   displayName: "Backend Node.js Worker"
   description: >
-    Handles Node.js/TypeScript backend tasks — Express/NestJS/Fastify
-    services, database access, and tests.
+    Handles Node.js/TypeScript backend tasks — Express/NestJS/Fastify services, database access, and tests.
 
 spec:
   workerType: BE
   workerProfile: be-node
   topic: agent-tasks
   subscription: be-node-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/be-node/SKILL.md
     skills:
@@ -35,28 +31,28 @@ spec:
         "summary": "brief description of what was implemented",
         "test_results": "description of tests written and their status"
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
       - openapi
       - test
-
+      - bash
   ownership:
     ownsPaths:
       - backend/
       - templates/be/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

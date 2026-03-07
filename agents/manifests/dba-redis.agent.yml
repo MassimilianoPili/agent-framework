@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: dba-redis-worker
   displayName: "DBA Redis/Valkey Worker"
   description: >
-    Handles Redis/Valkey database administration — data structure design,
-    key patterns, persistence, Lua scripting, Sentinel, and Cluster management.
+    Handles Redis/Valkey database administration — data structure design, key patterns, persistence, Lua scripting, Sentinel, and Cluster management.
 
 spec:
   workerType: DBA
   workerProfile: dba-redis
   topic: agent-tasks
   subscription: dba-redis-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/dba-redis/SKILL.md
     skills:
@@ -46,26 +42,26 @@ spec:
           "downtime_required": "none/minimal/required"
         }
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
-
+      - bash
   ownership:
     ownsPaths:
       - database/
       - templates/dba/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

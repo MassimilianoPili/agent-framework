@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: be-elixir-worker
   displayName: "Backend Elixir Worker (Phoenix)"
   description: >
-    Handles Elixir/Phoenix backend tasks — controllers, contexts, Ecto schemas,
-    migrations, LiveView, GenServer, and ExUnit tests.
+    Handles Elixir/Phoenix backend tasks — controllers, contexts, Ecto schemas, migrations, LiveView, GenServer, and ExUnit tests.
 
 spec:
   workerType: BE
   workerProfile: be-elixir
   topic: agent-tasks
   subscription: be-elixir-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/be-elixir/SKILL.md
     skills:
@@ -36,28 +32,28 @@ spec:
         "summary": "brief description of what was implemented",
         "test_results": "description of tests written and their status"
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
       - openapi
       - test
-
+      - bash
   ownership:
     ownsPaths:
       - backend/
       - templates/be/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3
