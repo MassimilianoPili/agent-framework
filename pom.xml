@@ -28,6 +28,8 @@
         <reactive-tools.version>0.2.0</reactive-tools.version>
         <mcp-devops-tools.version>0.0.2</mcp-devops-tools.version>
         <mcp-filesystem-tools.version>0.1.0</mcp-filesystem-tools.version>
+        <mcp-bash-tool.version>0.0.1</mcp-bash-tool.version>
+        <mcp-python-tool.version>0.0.1</mcp-python-tool.version>
         <mcp-sql-tools.version>0.0.1</mcp-sql-tools.version>
         <mcp-tracker-tools.version>0.0.1</mcp-tracker-tools.version>
         <mcp-mongo-tools.version>0.1.0</mcp-mongo-tools.version>
@@ -186,6 +188,16 @@
                 <groupId>io.github.massimilianopili</groupId>
                 <artifactId>mcp-filesystem-tools</artifactId>
                 <version>${mcp-filesystem-tools.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>mcp-bash-tool</artifactId>
+                <version>${mcp-bash-tool.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>mcp-python-tool</artifactId>
+                <version>${mcp-python-tool.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.github.massimilianopili</groupId>

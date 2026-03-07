@@ -488,8 +488,8 @@ agent.worker.policy:
   owns-paths:
     - backend/
   write-tool-names:
-    - Write
-    - Edit
+    - fs_write
+    - bash_execute
   audit:
     enabled: true
     include-input: false

@@ -27,7 +27,15 @@ public record PlanRequest(
     Double riskTolerance,
 
     /** Minimum success probability for dispatch admission control. Null=disabled. */
-    Double admissionControl
+    Double admissionControl,
+
+    /**
+     * Base project path for path ownership resolution (e.g. "/data/project/backend").
+     * When set, manifest-level relative ownsPaths are resolved against this base,
+     * producing absolute dynamicOwnsPaths for each dispatched task.
+     * Null means workers use static relative paths only.
+     */
+    String projectPath
 ) {
     /**
      * Per-workerType token limits and the enforcement policy when limits are exceeded.
