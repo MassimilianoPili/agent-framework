@@ -1,0 +1,71 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: dba-redis-worker
+  displayName: "DBA Redis/Valkey Worker"
+  description: >
+    Handles Redis/Valkey database administration — data structure design,
+    key patterns, persistence, Lua scripting, Sentinel, and Cluster management.
+
+spec:
+  workerType: DBA
+  workerProfile: dba-redis
+  topic: agent-tasks
+  subscription: dba-redis-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/dba-redis/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the database task using Redis or Valkey.
+
+      Follow these principles:
+      - Redis 7+ / Valkey: data structures, streams, modules
+      - Key design: namespacing, TTL patterns, expiry notifications
+      - Persistence: RDB, AOF, hybrid strategies
+      - Lua scripting: EVAL/EVALSHA for atomic operations
+      - Sentinel: automatic failover, quorum configuration
+      - Cluster: hash slot management, resharding
+      - Memory optimization: encoding, eviction policies
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "analysis": {
+          "estimated_gain": "performance improvement description",
+          "memory_impact": "memory usage change",
+          "downtime_required": "none/minimal/required"
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - database/
+      - templates/dba/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

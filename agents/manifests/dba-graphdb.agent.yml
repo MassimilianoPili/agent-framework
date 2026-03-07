@@ -1,0 +1,77 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: dba-graphdb-worker
+  displayName: "DBA Graph Database Worker (Neo4j/AGE)"
+  description: >
+    Handles graph database administration — Neo4j Cypher, Apache AGE,
+    graph modeling, indexes, constraints, APOC, and query optimization.
+
+spec:
+  workerType: DBA
+  workerProfile: dba-graphdb
+  topic: agent-tasks
+  subscription: dba-graphdb-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/dba-graphdb/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the database task using graph databases (Neo4j or Apache AGE).
+
+      Follow these principles:
+      - Neo4j 5+: Cypher, APOC, GDS library
+      - Apache AGE: openCypher via SQL wrapper on PostgreSQL
+      - Graph modeling: node/relationship design, label strategy
+      - Indexes: range, text, point, fulltext, composite
+      - Constraints: uniqueness, existence, node key
+      - Query optimization: PROFILE/EXPLAIN, avoid supernodes
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "analysis": {
+          "estimated_gain": "performance improvement description",
+          "space_overhead": "disk space impact",
+          "downtime_required": "none/minimal/required"
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-graph-tools
+      - io.github.massimilianopili:mcp-sql-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - graph_query
+      - graph_write
+      - graph_schema
+      - graph_stats
+      - graph_list_backends
+      - db_query
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - database/
+      - templates/dba/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

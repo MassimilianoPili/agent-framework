@@ -1,0 +1,61 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: fe-nextjs-worker
+  displayName: "Frontend Next.js Worker"
+  description: >
+    Handles Next.js/React/TypeScript frontend tasks — App Router pages, Server Components,
+    Server Actions, route handlers, middleware, and Vitest tests.
+
+spec:
+  workerType: FE
+  workerProfile: fe-nextjs
+  topic: agent-tasks
+  subscription: fe-nextjs-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/fe-nextjs/SKILL.md
+    skills:
+      - skills/nextjs-workflow-skills/
+      - skills/crosscutting/
+    instructions: |
+      Implement the frontend task described above using Next.js, React, and TypeScript.
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+
+  ownership:
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

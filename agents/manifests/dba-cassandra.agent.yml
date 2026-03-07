@@ -1,0 +1,71 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: dba-cassandra-worker
+  displayName: "DBA Cassandra/ScyllaDB Worker"
+  description: >
+    Handles Cassandra/ScyllaDB database administration — CQL, partition key design,
+    compaction strategies, consistency levels, and nodetool operations.
+
+spec:
+  workerType: DBA
+  workerProfile: dba-cassandra
+  topic: agent-tasks
+  subscription: dba-cassandra-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/dba-cassandra/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the database task using Apache Cassandra or ScyllaDB.
+
+      Follow these principles:
+      - Cassandra 5.0+ / ScyllaDB: CQL, wide-column model
+      - Partition key + clustering column: query-driven design
+      - Compaction: STCS, LCS, TWCS for different workloads
+      - Consistency levels: ONE, QUORUM, LOCAL_QUORUM
+      - SAI (Storage Attached Indexes) for secondary indexes
+      - nodetool: repair, cleanup, compact, snapshot
+      - Anti-patterns: tombstones, large partitions, ALLOW FILTERING
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "analysis": {
+          "estimated_gain": "performance improvement description",
+          "space_overhead": "disk space impact",
+          "downtime_required": "none/minimal/required"
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - database/
+      - templates/dba/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

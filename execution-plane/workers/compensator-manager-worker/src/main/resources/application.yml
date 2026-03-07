@@ -8,7 +8,7 @@ spring:
         options:
           model: claude-sonnet-4-6
           max-tokens: 8192
-          temperature: 0.1   # Low temperature: deterministic rollback, not creative writing
+          temperature: 0.0
 
 agent:
   worker:
@@ -17,18 +17,16 @@ agent:
     results-topic: agent-results
     policy:
       enabled: true
-      worker-profile: compensator-manager
+      worker-profile: 
       owns-paths:
-        - "."        # COMPENSATOR_MANAGER may restore any file in the workspace
+        - .
       write-tool-names:
-        - "git_revert"
-        - "git_checkout"
-        - "git_stash"
-        - "write_file"
+        - Write
+        - Edit
       audit:
-        enabled: true     # All git mutations must be auditable
-        include-input: true
-        max-input-length: 500
+        enabled: true
+        include-input: false
+        max-input-length: 200
 
 logging:
   level:

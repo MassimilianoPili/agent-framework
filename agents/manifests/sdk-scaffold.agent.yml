@@ -54,10 +54,11 @@ spec:
     dependencies:
       - io.github.massimilianopili:mcp-filesystem-tools
     allowlist:
-      - Read
-      - Write
-      - Edit
-      - Bash
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
     mcpServers:
       - repo-fs
 

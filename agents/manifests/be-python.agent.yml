@@ -1,0 +1,64 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: be-python-worker
+  displayName: "Backend Python Worker"
+  description: >
+    Handles Python backend tasks — FastAPI/Django/Flask endpoints, Pydantic models,
+    SQLAlchemy/Django ORM, Alembic migrations, and pytest tests.
+
+spec:
+  workerType: BE
+  workerProfile: be-python
+  topic: agent-tasks
+  subscription: be-python-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/be-python/SKILL.md
+    skills:
+      - skills/python-workflow-skills/
+      - skills/crosscutting/
+    instructions: |
+      Implement the backend task described above using Python.
+      Detect the framework in use (FastAPI, Django, or Flask) from the project structure.
+      Use the available filesystem tools to read existing code,
+      understand the project structure, and write the implementation.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "test_results": "description of tests written and their status"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
+
+  ownership:
+    ownsPaths:
+      - backend/
+      - templates/be/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

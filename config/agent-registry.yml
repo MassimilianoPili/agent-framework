@@ -3,70 +3,6 @@
 
 workers:
 
-  review-worker:
-    displayName: Review Worker
-    topic: agent-reviews
-    subscription: review-worker-sub
-    image: agent-framework/review-worker:latest
-    description: >-
-      Performs automated code review against quality gates, security policy, and architectural patterns. Runs after a PR is opened or updated.
-    mcpAllowlist:
-      - Read
-      - Glob
-      - Grep
-    maxConcurrentCalls: 2
-    skillPaths:
-      - skills/crosscutting/
-      - patterns/
-    ownsPaths:
-      - docs/
-
-  be-node-worker:
-    displayName: Backend Node.js Worker
-    workerProfile: be-node
-    topic: agent-tasks
-    subscription: be-node-worker-sub
-    image: agent-framework/be-node-worker:latest
-    description: >-
-      Handles Node.js/TypeScript backend tasks — Express/NestJS/Fastify services, database access, and tests.
-    mcpAllowlist:
-      - Read
-      - Write
-      - Edit
-      - Glob
-      - Grep
-      - Bash
-    maxConcurrentCalls: 3
-    skillPaths:
-      - skills/node-workflow-skills/
-      - skills/crosscutting/
-    ownsPaths:
-      - backend/
-      - templates/be/
-
-  fe-react-worker:
-    displayName: Frontend React Worker
-    workerProfile: fe-react
-    topic: agent-tasks
-    subscription: fe-react-worker-sub
-    image: agent-framework/fe-react-worker:latest
-    description: >-
-      Handles React/TypeScript frontend tasks — components, hooks, pages, API client integration, and Vitest tests.
-    mcpAllowlist:
-      - Read
-      - Write
-      - Edit
-      - Glob
-      - Grep
-      - Bash
-    maxConcurrentCalls: 3
-    skillPaths:
-      - skills/react-workflow-skills/
-      - skills/crosscutting/
-    ownsPaths:
-      - frontend/
-      - templates/fe/
-
   ai-task-worker:
     displayName: AI Task Worker
     topic: agent-tasks
@@ -75,37 +11,100 @@ workers:
     description: >-
       General-purpose task worker for cross-cutting concerns, documentation generation, test generation, and orchestration subtasks.
     mcpAllowlist:
-      - Read
-      - Write
-      - Edit
-      - Glob
-      - Grep
-      - Bash
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
     maxConcurrentCalls: 5
     skillPaths:
       - skills/crosscutting/
     ownsPaths:
-      - eval/
+      - cps4/
 
-  contract-worker:
-    displayName: Contract Worker
+  audit-manager-worker:
+    displayName: Audit Manager Worker
     topic: agent-tasks
-    subscription: contract-worker-sub
-    image: agent-framework/contract-worker:latest
+    subscription: audit-manager-worker-sub
+    image: agent-framework/audit-manager-worker:latest
     description: >-
-      Owns OpenAPI contracts — generates specs, runs Spectral lint, detects breaking changes with oasdiff, triggers codegen.
+      Optional final step in the plan pipeline. Reads audit events collected during execution and produces a human-readable audit report summarizing tool usage, path accesses, and policy decisions across all tasks in the plan.
     mcpAllowlist:
-      - Read
-      - Write
-      - Edit
-      - Glob
-      - Grep
-      - Bash
-    maxConcurrentCalls: 2
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 1
     skillPaths:
-      - skills/crosscutting/contracts/
+      - skills/crosscutting/
     ownsPaths:
-      - contracts/
+      - audit/
+
+  be-cpp-worker:
+    displayName: Backend C++ Worker
+    workerProfile: be-cpp
+    topic: agent-tasks
+    subscription: be-cpp-worker-sub
+    image: agent-framework/be-cpp-worker:latest
+    description: >-
+      Handles C++ backend tasks — modern C++20/23, CMake build system, RAII patterns, smart pointers, header/source separation, and testing with Google Test or Catch2.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - backend/
+      - templates/be/
+
+  be-dotnet-worker:
+    displayName: Backend .NET Worker (C#)
+    workerProfile: be-dotnet
+    topic: agent-tasks
+    subscription: be-dotnet-worker-sub
+    image: agent-framework/be-dotnet-worker:latest
+    description: >-
+      Handles C#/.NET backend tasks — ASP.NET Core controllers or minimal APIs, Entity Framework Core, dependency injection, and xUnit tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/dotnet-workflow-skills/
+      - skills/crosscutting/
+    ownsPaths:
+      - backend/
+      - templates/be/
+
+  be-elixir-worker:
+    displayName: Backend Elixir Worker (Phoenix)
+    workerProfile: be-elixir
+    topic: agent-tasks
+    subscription: be-elixir-worker-sub
+    image: agent-framework/be-elixir-worker:latest
+    description: >-
+      Handles Elixir/Phoenix backend tasks — controllers, contexts, Ecto schemas, migrations, LiveView, GenServer, and ExUnit tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/elixir-workflow-skills/
+      - skills/crosscutting/
+    ownsPaths:
+      - backend/
+      - templates/be/
 
   be-go-worker:
     displayName: Backend Go Worker
@@ -116,38 +115,14 @@ workers:
     description: >-
       Handles Go backend tasks — HTTP handlers, middleware, database access, and tests.
     mcpAllowlist:
-      - Read
-      - Write
-      - Edit
-      - Glob
-      - Grep
-      - Bash
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
     maxConcurrentCalls: 3
     skillPaths:
       - skills/go-workflow-skills/
-      - skills/crosscutting/
-    ownsPaths:
-      - backend/
-      - templates/be/
-
-  be-rust-worker:
-    displayName: Backend Rust Worker
-    workerProfile: be-rust
-    topic: agent-tasks
-    subscription: be-rust-worker-sub
-    image: agent-framework/be-rust-worker:latest
-    description: >-
-      Handles Rust backend tasks — Actix/Axum handlers, database access, and tests.
-    mcpAllowlist:
-      - Read
-      - Write
-      - Edit
-      - Glob
-      - Grep
-      - Bash
-    maxConcurrentCalls: 2
-    skillPaths:
-      - skills/rust-workflow-skills/
       - skills/crosscutting/
     ownsPaths:
       - backend/
@@ -162,12 +137,11 @@ workers:
     description: >-
       Handles Java/Spring Boot backend tasks — controllers, services, repositories, Flyway migrations, and unit/slice tests.
     mcpAllowlist:
-      - Read
-      - Write
-      - Edit
-      - Glob
-      - Grep
-      - Bash
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
     maxConcurrentCalls: 3
     skillPaths:
       - skills/springboot-workflow-skills/
@@ -176,52 +150,724 @@ workers:
       - backend/
       - templates/be/
 
-  hook-manager-worker:
-    displayName: Hook Manager
+  be-kotlin-worker:
+    displayName: Backend Kotlin Worker (Spring Boot)
+    workerProfile: be-kotlin
     topic: agent-tasks
-    subscription: hook-manager-worker-sub
-    image: agent-framework/hook-manager-worker:latest
+    subscription: be-kotlin-worker-sub
+    image: agent-framework/be-kotlin-worker:latest
     description: >-
-      Analyzes the full plan and generates contextual HookPolicy for every downstream task.
-      Produces a JSON map of taskKey → HookPolicy (allowedTools, ownedPaths, allowedMcpServers).
-      Runs after CONTEXT_MANAGER and SCHEMA_MANAGER, before domain workers (BE/FE/AI_TASK).
+      Handles Kotlin/Spring Boot backend tasks — controllers, services, repositories, coroutines, data classes, and unit/slice tests.
     mcpAllowlist:
-      - Read
-      - Glob
-      - Grep
-    maxConcurrentCalls: 1
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
     skillPaths:
+      - skills/kotlin-workflow-skills/
       - skills/crosscutting/
-    ownsPaths: []
+    ownsPaths:
+      - backend/
+      - templates/be/
 
-  audit-manager-worker:
-    displayName: Audit Manager
+  be-laravel-worker:
+    displayName: Backend Laravel Worker (PHP)
+    workerProfile: be-laravel
     topic: agent-tasks
-    subscription: audit-manager-worker-sub
-    image: agent-framework/audit-manager-worker:latest
+    subscription: be-laravel-worker-sub
+    image: agent-framework/be-laravel-worker:latest
     description: >-
-      Optional final step in the plan pipeline. Reads audit events collected during execution
-      and produces a human-readable audit report summarizing tool usage, path accesses, and policy decisions.
+      Handles PHP/Laravel backend tasks — controllers, Eloquent models, migrations, Blade templates, Form Requests validation, middleware, and PHPUnit tests.
     mcpAllowlist:
-      - Read
-      - Write
-    maxConcurrentCalls: 1
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
     ownsPaths:
-      - audit/
+      - backend/
+      - templates/be/
+
+  be-node-worker:
+    displayName: Backend Node.js Worker
+    workerProfile: be-node
+    topic: agent-tasks
+    subscription: be-node-worker-sub
+    image: agent-framework/be-node-worker:latest
+    description: >-
+      Handles Node.js/TypeScript backend tasks — Express/NestJS/Fastify services, database access, and tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/node-workflow-skills/
+      - skills/crosscutting/
+    ownsPaths:
+      - backend/
+      - templates/be/
+
+  be-ocaml-worker:
+    displayName: Backend OCaml Worker
+    workerProfile: be-ocaml
+    topic: agent-tasks
+    subscription: be-ocaml-worker-sub
+    image: agent-framework/be-ocaml-worker:latest
+    description: >-
+      Handles OCaml backend tasks — Dream/Eio HTTP handlers, modules, functors, ADTs, Dune build, and Alcotest tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/ocaml-workflow-skills/
+      - skills/crosscutting/
+    ownsPaths:
+      - backend/
+      - templates/be/
+
+  be-python-worker:
+    displayName: Backend Python Worker
+    workerProfile: be-python
+    topic: agent-tasks
+    subscription: be-python-worker-sub
+    image: agent-framework/be-python-worker:latest
+    description: >-
+      Handles Python backend tasks — FastAPI/Django/Flask endpoints, Pydantic models, SQLAlchemy/Django ORM, Alembic migrations, and pytest tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/python-workflow-skills/
+      - skills/crosscutting/
+    ownsPaths:
+      - backend/
+      - templates/be/
+
+  be-quarkus-worker:
+    displayName: Backend Quarkus Worker (Java)
+    workerProfile: be-quarkus
+    topic: agent-tasks
+    subscription: be-quarkus-worker-sub
+    image: agent-framework/be-quarkus-worker:latest
+    description: >-
+      Handles Java/Quarkus backend tasks — RESTEasy Reactive endpoints, CDI beans, Panache ORM entities/repositories, Flyway migrations, and JUnit 5 tests with QuarkusTest.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - backend/
+      - templates/be/
+
+  be-rust-worker:
+    displayName: Backend Rust Worker
+    workerProfile: be-rust
+    topic: agent-tasks
+    subscription: be-rust-worker-sub
+    image: agent-framework/be-rust-worker:latest
+    description: >-
+      Handles Rust backend tasks — Actix/Axum handlers, database access, and tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 2
+    skillPaths:
+      - skills/rust-workflow-skills/
+      - skills/crosscutting/
+    ownsPaths:
+      - backend/
+      - templates/be/
+
+  compensator-manager-worker:
+    displayName: Compensator Manager Worker
+    topic: agent-tasks
+    subscription: compensator-manager-worker-sub
+    image: agent-framework/compensator-manager-worker:latest
+    description: >-
+      Executes rollback operations (git revert, file restore) to undo the effect of a previously completed task. Uses the git-mcp tool set to operate on the workspace. Triggered via POST .../items/{itemId}/compensate.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_search
+      - fs_grep
+      - fs_write
+    maxConcurrentCalls: 1
+    ownsPaths:
+      - .
+
+  context-manager-worker:
+    displayName: Context Manager Worker
+    topic: agent-tasks
+    subscription: context-manager-worker-sub
+    image: agent-framework/context-manager-worker:latest
+    description: >-
+      Explores the codebase to produce enriched context for downstream domain workers. Identifies relevant files, summarises world state from completed parallel tasks, and surfaces key constraints. Always runs as a dependency before BE/FE/AI_TASK tasks.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 5
+    skillPaths:
+      - skills/crosscutting/
+
+  contract-worker:
+    displayName: Contract Worker
+    topic: agent-tasks
+    subscription: contract-worker-sub
+    image: agent-framework/contract-worker:latest
+    description: >-
+      Owns OpenAPI contracts — generates specs, runs Spectral lint, detects breaking changes with oasdiff, triggers codegen.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_search
+      - fs_grep
+      - fs_write
+    maxConcurrentCalls: 2
+    skillPaths:
+      - skills/crosscutting/contracts/
+    ownsPaths:
+      - contracts/
+
+  dba-cassandra-worker:
+    displayName: DBA Cassandra/ScyllaDB Worker
+    workerProfile: dba-cassandra
+    topic: agent-tasks
+    subscription: dba-cassandra-worker-sub
+    image: agent-framework/dba-cassandra-worker:latest
+    description: >-
+      Handles Cassandra/ScyllaDB database administration — CQL, partition key design, compaction strategies, consistency levels, and nodetool operations.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
+
+  dba-graphdb-worker:
+    displayName: DBA Graph Database Worker (Neo4j/AGE)
+    workerProfile: dba-graphdb
+    topic: agent-tasks
+    subscription: dba-graphdb-worker-sub
+    image: agent-framework/dba-graphdb-worker:latest
+    description: >-
+      Handles graph database administration — Neo4j Cypher, Apache AGE, graph modeling, indexes, constraints, APOC, and query optimization.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - graph_query
+      - graph_write
+      - graph_schema
+      - graph_stats
+      - graph_list_backends
+      - db_query
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
+
+  dba-mongo-worker:
+    displayName: DBA MongoDB Worker
+    workerProfile: dba-mongo
+    topic: agent-tasks
+    subscription: dba-mongo-worker-sub
+    image: agent-framework/dba-mongo-worker:latest
+    description: >-
+      Handles MongoDB database administration — document design, indexing, aggregation pipeline optimization, sharding, and replica set management.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - mongo_find
+      - mongo_count
+      - mongo_list_collections
+      - mongo_aggregate
+      - mongo_list_databases
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
+
+  dba-mssql-worker:
+    displayName: DBA SQL Server Worker
+    workerProfile: dba-mssql
+    topic: agent-tasks
+    subscription: dba-mssql-worker-sub
+    image: agent-framework/dba-mssql-worker:latest
+    description: >-
+      Handles SQL Server database administration — T-SQL, execution plans, columnstore indexes, Always On, DMVs, and performance tuning.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - db_query
+      - db_tables
+      - db_list_schemas
+      - db_count
+      - db_list_databases
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
+
+  dba-mysql-worker:
+    displayName: DBA MySQL/MariaDB Worker
+    workerProfile: dba-mysql
+    topic: agent-tasks
+    subscription: dba-mysql-worker-sub
+    image: agent-framework/dba-mysql-worker:latest
+    description: >-
+      Handles MySQL/MariaDB database administration — schema design, InnoDB tuning, indexing, replication, stored procedures, and query optimization.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - db_query
+      - db_tables
+      - db_list_schemas
+      - db_count
+      - db_list_databases
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
+
+  dba-oracle-worker:
+    displayName: DBA Oracle Worker
+    workerProfile: dba-oracle
+    topic: agent-tasks
+    subscription: dba-oracle-worker-sub
+    image: agent-framework/dba-oracle-worker:latest
+    description: >-
+      Handles Oracle Database administration — PL/SQL, tablespace management, execution plans, partitioning, Data Guard, and AWR/ASH analysis.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - db_query
+      - db_tables
+      - db_list_schemas
+      - db_count
+      - db_list_databases
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
+
+  dba-postgres-worker:
+    displayName: DBA PostgreSQL Worker
+    workerProfile: dba-postgres
+    topic: agent-tasks
+    subscription: dba-postgres-worker-sub
+    image: agent-framework/dba-postgres-worker:latest
+    description: >-
+      Handles PostgreSQL database administration — schema design, indexing, query optimization, Flyway migrations, partitioning, and performance tuning.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - db_query
+      - db_tables
+      - db_list_schemas
+      - db_count
+      - db_list_databases
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
+
+  dba-redis-worker:
+    displayName: DBA Redis/Valkey Worker
+    workerProfile: dba-redis
+    topic: agent-tasks
+    subscription: dba-redis-worker-sub
+    image: agent-framework/dba-redis-worker:latest
+    description: >-
+      Handles Redis/Valkey database administration — data structure design, key patterns, persistence, Lua scripting, Sentinel, and Cluster management.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
+
+  dba-sqlite-worker:
+    displayName: DBA SQLite/libSQL Worker
+    workerProfile: dba-sqlite
+    topic: agent-tasks
+    subscription: dba-sqlite-worker-sub
+    image: agent-framework/dba-sqlite-worker:latest
+    description: >-
+      Handles SQLite/libSQL database administration — PRAGMA tuning, WAL mode, FTS5, schema migrations, and embedded database optimization.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - db_query
+      - db_tables
+      - db_count
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
+
+  dba-vectordb-worker:
+    displayName: DBA Vector Database Worker (pgvector)
+    workerProfile: dba-vectordb
+    topic: agent-tasks
+    subscription: dba-vectordb-worker-sub
+    image: agent-framework/dba-vectordb-worker:latest
+    description: >-
+      Handles vector database administration — pgvector indexing (IVFFlat, HNSW), embedding management, hybrid search, and similarity search optimization.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - embeddings_search
+      - embeddings_stats
+      - embeddings_reindex
+      - db_query
+      - db_tables
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - database/
+      - templates/dba/
 
   event-manager-worker:
-    displayName: Event Manager
+    displayName: Event Manager Worker
     topic: agent-tasks
     subscription: event-manager-worker-sub
     image: agent-framework/event-manager-worker:latest
     description: >-
-      Analyzes hook violation patterns from the event log and proposes policy adjustments.
-      Can recommend tightening or relaxing HookPolicy constraints based on observed behavior.
+      Analyzes hook violation patterns from the event log and proposes policy adjustments for future plan executions. Can recommend tightening or relaxing HookPolicy constraints based on observed behavior across multiple plan runs.
     mcpAllowlist:
-      - Read
+      - fs_list
+      - fs_read
     maxConcurrentCalls: 1
     skillPaths:
       - skills/crosscutting/
-    ownsPaths: []
+
+  fe-angular-worker:
+    displayName: Frontend Angular Worker
+    workerProfile: fe-angular
+    topic: agent-tasks
+    subscription: fe-angular-worker-sub
+    image: agent-framework/fe-angular-worker:latest
+    description: >-
+      Handles Angular/TypeScript frontend tasks — standalone components, signals, reactive forms, routing with lazy loading, services, and testing with Vitest or Jasmine.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+
+  fe-nextjs-worker:
+    displayName: Frontend Next.js Worker
+    workerProfile: fe-nextjs
+    topic: agent-tasks
+    subscription: fe-nextjs-worker-sub
+    image: agent-framework/fe-nextjs-worker:latest
+    description: >-
+      Handles Next.js/React/TypeScript frontend tasks — App Router pages, Server Components, Server Actions, route handlers, middleware, and Vitest tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/nextjs-workflow-skills/
+      - skills/crosscutting/
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+
+  fe-react-worker:
+    displayName: Frontend React Worker
+    workerProfile: fe-react
+    topic: agent-tasks
+    subscription: fe-react-worker-sub
+    image: agent-framework/fe-react-worker:latest
+    description: >-
+      Handles React/TypeScript frontend tasks — components, hooks, pages, API client integration, and Vitest tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/react-workflow-skills/
+      - skills/crosscutting/
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+
+  fe-svelte-worker:
+    displayName: Frontend Svelte Worker
+    workerProfile: fe-svelte
+    topic: agent-tasks
+    subscription: fe-svelte-worker-sub
+    image: agent-framework/fe-svelte-worker:latest
+    description: >-
+      Handles Svelte/SvelteKit frontend tasks — components with runes ($state, $derived), reactive stores, server-side rendering, form actions, and Vitest tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+
+  fe-vanillajs-worker:
+    displayName: Frontend Vanilla JS Worker
+    workerProfile: fe-vanillajs
+    topic: agent-tasks
+    subscription: fe-vanillajs-worker-sub
+    image: agent-framework/fe-vanillajs-worker:latest
+    description: >-
+      Handles vanilla HTML5, CSS, and JavaScript frontend tasks — semantic markup, responsive design, accessibility, performance optimization, and progressive enhancement. No frameworks or build tools unless explicitly requested.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - cps4/
+
+  fe-vue-worker:
+    displayName: Frontend Vue.js Worker
+    workerProfile: fe-vue
+    topic: agent-tasks
+    subscription: fe-vue-worker-sub
+    image: agent-framework/fe-vue-worker:latest
+    description: >-
+      Handles Vue.js/TypeScript frontend tasks — components, composables, Pinia stores, Vue Router pages, and Vitest tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/vue-workflow-skills/
+      - skills/crosscutting/
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+
+  hook-manager-worker:
+    displayName: Hook Manager Worker
+    topic: agent-tasks
+    subscription: hook-manager-worker-sub
+    image: agent-framework/hook-manager-worker:latest
+    description: >-
+      Analyzes the full plan and generates contextual HookPolicy for every downstream task. Produces a JSON map of taskKey → HookPolicy (allowedTools, ownedPaths, allowedMcpServers). Runs after CONTEXT_MANAGER and SCHEMA_MANAGER, before domain workers (BE/FE/AI_TASK).
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 1
+    skillPaths:
+      - skills/crosscutting/
+
+  mobile-kotlin-worker:
+    displayName: Mobile Android (Kotlin) Worker
+    workerProfile: mobile-kotlin
+    topic: agent-tasks
+    subscription: mobile-kotlin-worker-sub
+    image: agent-framework/mobile-kotlin-worker:latest
+    description: >-
+      Handles Android mobile development — Kotlin 2.0+, Jetpack Compose, Material Design 3, coroutines/Flow, Hilt/Koin DI, Room, Gradle build system, and Google Play preparation.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - android/
+      - mobile/
+      - templates/mobile/
+
+  mobile-swift-worker:
+    displayName: Mobile iOS (Swift) Worker
+    workerProfile: mobile-swift
+    topic: agent-tasks
+    subscription: mobile-swift-worker-sub
+    image: agent-framework/mobile-swift-worker:latest
+    description: >-
+      Handles iOS mobile development — Swift 5.9+/6, SwiftUI, UIKit, async/await, SPM, XCTest, Xcode project configuration, and App Store submission preparation.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - ios/
+      - mobile/
+      - templates/mobile/
+
+  review-worker:
+    displayName: Review Worker
+    topic: agent-reviews
+    subscription: review-worker-sub
+    image: agent-framework/review-worker:latest
+    description: >-
+      Performs automated code review against quality gates, security policy, and architectural patterns. Runs after a PR is opened or updated.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 2
+    skillPaths:
+      - skills/crosscutting/
+      - patterns/
+    ownsPaths:
+      - docs/
+
+  schema-manager-worker:
+    displayName: Schema Manager Worker
+    topic: agent-tasks
+    subscription: schema-manager-worker-sub
+    image: agent-framework/schema-manager-worker:latest
+    description: >-
+      Extracts and normalises contracts, interfaces, data models, and architectural constraints relevant to a specific task. Runs as a dependency before domain workers so they receive complete contract awareness without free codebase exploration.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 5
+    skillPaths:
+      - skills/crosscutting/contracts/
+
+  sdk-scaffold-worker:
+    displayName: SDK Scaffold Worker
+    workerProfile: sdk-scaffold
+    topic: agent-tasks
+    subscription: sdk-scaffold-worker-sub
+    image: agent-framework/sdk-scaffold-worker:latest
+    description: >-
+      Generates complete Agent SDK project scaffolds (Python or TypeScript). Produces verified, runnable projects with tool definitions, entry points, deployment configs, and type-checked code. Uses workerProfile routing under AI_TASK — no dedicated WorkerType needed.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 3
+    skillPaths:
+      - skills/sdk-scaffold/
+    ownsPaths:
+      - generated/
+
+  task-manager-worker:
+    displayName: Task Manager Worker
+    topic: agent-tasks
+    subscription: task-manager-worker-sub
+    image: agent-framework/task-manager-worker:latest
+    description: >-
+      Fetches the latest issue snapshot from the external issue tracker (via tracker-mcp) and stores it on the PlanItem so downstream domain workers have rich, up-to-date task context. Typically runs as the first dependency in a plan.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+    maxConcurrentCalls: 3

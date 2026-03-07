@@ -13,11 +13,8 @@
     </parent>
 
     <artifactId>compensator-manager-worker</artifactId>
-    <name>Agent Framework :: Execution Plane :: Compensator Manager Worker</name>
-    <description>
-        Executes compensating transactions (git revert, file restore) to undo the effect of
-        previously completed tasks. Uses the git-mcp tool set to operate on the workspace.
-    </description>
+    <name>Agent Framework :: Execution Plane :: Compensator Manager Worker (Generated)</name>
+    <description>Executes rollback operations (git revert, file restore) to undo the effect of a previously completed task. Uses the git-mcp tool set to operate on the workspace. Triggered via POST .../items/{itemId}/compensate.</description>
 
     <dependencies>
         <!-- Worker SDK (auto-configuration for messaging, context, ChatClient) -->
@@ -36,6 +33,24 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-anthropic</artifactId>
+        </dependency>
+
+        <!-- MCP Tool Starters (in-process, disabled when profile 'mcp' excludes their auto-config) -->
+        <dependency>
+            <groupId>io.github.massimilianopili</groupId>
+            <artifactId>mcp-filesystem-tools</artifactId>
+        </dependency>
+
+        <!-- MCP Client (activated via SPRING_PROFILES_ACTIVE=mcp) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-client</artifactId>
+        </dependency>
+
+        <!-- Redis Streams messaging provider -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>messaging-redis</artifactId>
         </dependency>
 
         <!-- Reactive Tools (parallel tool calling) -->

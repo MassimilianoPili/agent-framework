@@ -30,6 +30,9 @@
         <mcp-filesystem-tools.version>0.1.0</mcp-filesystem-tools.version>
         <mcp-sql-tools.version>0.0.1</mcp-sql-tools.version>
         <mcp-tracker-tools.version>0.0.1</mcp-tracker-tools.version>
+        <mcp-mongo-tools.version>0.1.0</mcp-mongo-tools.version>
+        <mcp-graph-tools.version>0.1.2</mcp-graph-tools.version>
+        <mcp-vector-tools.version>0.2.2</mcp-vector-tools.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -69,6 +72,28 @@
         <module>execution-plane/workers/be-laravel-worker</module>
         <module>execution-plane/workers/be-quarkus-worker</module>
         <module>execution-plane/workers/be-cpp-worker</module>
+        <module>execution-plane/workers/be-kotlin-worker</module>
+        <!-- New workers (2026-03-07) -->
+        <module>execution-plane/workers/fe-vue-worker</module>
+        <module>execution-plane/workers/be-python-worker</module>
+        <module>execution-plane/workers/be-dotnet-worker</module>
+        <module>execution-plane/workers/be-elixir-worker</module>
+        <module>execution-plane/workers/fe-nextjs-worker</module>
+        <module>execution-plane/workers/be-ocaml-worker</module>
+        <!-- DBA workers (2026-03-07) -->
+        <module>execution-plane/workers/dba-postgres-worker</module>
+        <module>execution-plane/workers/dba-mysql-worker</module>
+        <module>execution-plane/workers/dba-oracle-worker</module>
+        <module>execution-plane/workers/dba-mssql-worker</module>
+        <module>execution-plane/workers/dba-sqlite-worker</module>
+        <module>execution-plane/workers/dba-mongo-worker</module>
+        <module>execution-plane/workers/dba-graphdb-worker</module>
+        <module>execution-plane/workers/dba-vectordb-worker</module>
+        <module>execution-plane/workers/dba-redis-worker</module>
+        <module>execution-plane/workers/dba-cassandra-worker</module>
+        <!-- Mobile workers (2026-03-07) -->
+        <module>execution-plane/workers/mobile-swift-worker</module>
+        <module>execution-plane/workers/mobile-kotlin-worker</module>
     </modules>
 
     <dependencyManagement>
@@ -166,10 +191,47 @@
                 <artifactId>mcp-tracker-tools</artifactId>
                 <version>${mcp-tracker-tools.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>mcp-mongo-tools</artifactId>
+                <version>${mcp-mongo-tools.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>mcp-graph-tools</artifactId>
+                <version>${mcp-graph-tools.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.massimilianopili</groupId>
+                <artifactId>mcp-vector-tools</artifactId>
+                <version>${mcp-vector-tools.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <build>
+        <plugins>
+            <plugin>
+                <groupId>com.agentframework</groupId>
+                <artifactId>agent-compiler-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>validate-manifests</id>
+                        <goals><goal>validate-manifests</goal></goals>
+                    </execution>
+                    <execution>
+                        <id>generate-workers</id>
+                        <goals><goal>generate-workers</goal></goals>
+                    </execution>
+                    <execution>
+                        <id>generate-registry</id>
+                        <goals><goal>generate-registry</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
         <pluginManagement>
             <plugins>
                 <plugin>

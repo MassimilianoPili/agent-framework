@@ -13,11 +13,8 @@
     </parent>
 
     <artifactId>task-manager-worker</artifactId>
-    <name>Agent Framework :: Execution Plane :: Task Manager Worker</name>
-    <description>
-        Fetches canonical issue snapshots from the external issue tracker (via tracker-mcp)
-        and stores them on PlanItems so all downstream workers have rich task context.
-    </description>
+    <name>Agent Framework :: Execution Plane :: Task Manager Worker (Generated)</name>
+    <description>Fetches the latest issue snapshot from the external issue tracker (via tracker-mcp) and stores it on the PlanItem so downstream domain workers have rich, up-to-date task context. Typically runs as the first dependency in a plan.</description>
 
     <dependencies>
         <!-- Worker SDK (auto-configuration for messaging, context, ChatClient) -->
@@ -26,7 +23,7 @@
             <artifactId>worker-sdk</artifactId>
         </dependency>
 
-        <!-- Spring Boot Web (health endpoint + RestClient for issue-snapshot PUT) -->
+        <!-- Spring Boot Web (health endpoint) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -38,10 +35,13 @@
             <artifactId>spring-ai-starter-model-anthropic</artifactId>
         </dependency>
 
-        <!-- MCP Tool Starters -->
+        <!-- MCP Tool Starters (in-process, disabled when profile 'mcp' excludes their auto-config) -->
+
+
+        <!-- Redis Streams messaging provider -->
         <dependency>
-            <groupId>io.github.massimilianopili</groupId>
-            <artifactId>mcp-tracker-tools</artifactId>
+            <groupId>com.agentframework</groupId>
+            <artifactId>messaging-redis</artifactId>
         </dependency>
 
         <!-- Reactive Tools (parallel tool calling) -->

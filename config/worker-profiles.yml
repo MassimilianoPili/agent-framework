@@ -2,11 +2,24 @@
 # Source of truth: agents/manifests/*.agent.yml
 
 worker-profiles:
-  be-node:
+  be-cpp:
     workerType: BE
     topic: agent-tasks
-    subscription: be-node-worker-sub
-    displayName: "Backend Node.js Worker"
+    subscription: be-cpp-worker-sub
+    displayName: "Backend C++ Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - backend/
+      - templates/be/
+      - execution-plane/workers/be-cpp-worker/
+
+  be-dotnet:
+    workerType: BE
+    topic: agent-tasks
+    subscription: be-dotnet-worker-sub
+    displayName: "Backend .NET Worker (C#)"
     mcpServers:
       - git
       - repo-fs
@@ -15,21 +28,22 @@ worker-profiles:
     ownsPaths:
       - backend/
       - templates/be/
-      - execution-plane/workers/be-node-worker/
+      - execution-plane/workers/be-dotnet-worker/
 
-  fe-react:
-    workerType: FE
+  be-elixir:
+    workerType: BE
     topic: agent-tasks
-    subscription: fe-react-worker-sub
-    displayName: "Frontend React Worker"
+    subscription: be-elixir-worker-sub
+    displayName: "Backend Elixir Worker (Phoenix)"
     mcpServers:
       - git
       - repo-fs
       - openapi
+      - test
     ownsPaths:
-      - frontend/
-      - templates/fe/
-      - execution-plane/workers/fe-react-worker/
+      - backend/
+      - templates/be/
+      - execution-plane/workers/be-elixir-worker/
 
   be-go:
     workerType: BE
@@ -46,21 +60,6 @@ worker-profiles:
       - templates/be/
       - execution-plane/workers/be-go-worker/
 
-  be-rust:
-    workerType: BE
-    topic: agent-tasks
-    subscription: be-rust-worker-sub
-    displayName: "Backend Rust Worker"
-    mcpServers:
-      - git
-      - repo-fs
-      - openapi
-      - test
-    ownsPaths:
-      - backend/
-      - templates/be/
-      - execution-plane/workers/be-rust-worker/
-
   be-java:
     workerType: BE
     topic: agent-tasks
@@ -76,25 +75,357 @@ worker-profiles:
       - templates/be/
       - execution-plane/workers/be-java-worker/
 
-  task-manager:
-    workerType: TASK_MANAGER
+  be-kotlin:
+    workerType: BE
     topic: agent-tasks
-    subscription: task-manager-worker-sub
-    displayName: "Task Manager Worker (Issue Tracker Integration)"
+    subscription: be-kotlin-worker-sub
+    displayName: "Backend Kotlin Worker (Spring Boot)"
     mcpServers:
-      - tracker
-    ownsPaths: []   # TASK_MANAGER only reads from tracker, no filesystem ownership
+      - git
+      - repo-fs
+      - openapi
+      - test
+    ownsPaths:
+      - backend/
+      - templates/be/
+      - execution-plane/workers/be-kotlin-worker/
 
-  compensator-manager:
-    workerType: COMPENSATOR_MANAGER
+  be-laravel:
+    workerType: BE
     topic: agent-tasks
-    subscription: compensator-manager-worker-sub
-    displayName: "Compensator Manager Worker (Rollback Operations)"
+    subscription: be-laravel-worker-sub
+    displayName: "Backend Laravel Worker (PHP)"
     mcpServers:
       - git
       - repo-fs
     ownsPaths:
-      - "."         # May restore any file in the workspace
+      - backend/
+      - templates/be/
+      - execution-plane/workers/be-laravel-worker/
+
+  be-node:
+    workerType: BE
+    topic: agent-tasks
+    subscription: be-node-worker-sub
+    displayName: "Backend Node.js Worker"
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
+    ownsPaths:
+      - backend/
+      - templates/be/
+      - execution-plane/workers/be-node-worker/
+
+  be-ocaml:
+    workerType: BE
+    topic: agent-tasks
+    subscription: be-ocaml-worker-sub
+    displayName: "Backend OCaml Worker"
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
+    ownsPaths:
+      - backend/
+      - templates/be/
+      - execution-plane/workers/be-ocaml-worker/
+
+  be-python:
+    workerType: BE
+    topic: agent-tasks
+    subscription: be-python-worker-sub
+    displayName: "Backend Python Worker"
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
+    ownsPaths:
+      - backend/
+      - templates/be/
+      - execution-plane/workers/be-python-worker/
+
+  be-quarkus:
+    workerType: BE
+    topic: agent-tasks
+    subscription: be-quarkus-worker-sub
+    displayName: "Backend Quarkus Worker (Java)"
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
+    ownsPaths:
+      - backend/
+      - templates/be/
+      - execution-plane/workers/be-quarkus-worker/
+
+  be-rust:
+    workerType: BE
+    topic: agent-tasks
+    subscription: be-rust-worker-sub
+    displayName: "Backend Rust Worker"
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+      - test
+    ownsPaths:
+      - backend/
+      - templates/be/
+      - execution-plane/workers/be-rust-worker/
+
+  dba-cassandra:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-cassandra-worker-sub
+    displayName: "DBA Cassandra/ScyllaDB Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-cassandra-worker/
+
+  dba-graphdb:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-graphdb-worker-sub
+    displayName: "DBA Graph Database Worker (Neo4j/AGE)"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-graphdb-worker/
+
+  dba-mongo:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-mongo-worker-sub
+    displayName: "DBA MongoDB Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-mongo-worker/
+
+  dba-mssql:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-mssql-worker-sub
+    displayName: "DBA SQL Server Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-mssql-worker/
+
+  dba-mysql:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-mysql-worker-sub
+    displayName: "DBA MySQL/MariaDB Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-mysql-worker/
+
+  dba-oracle:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-oracle-worker-sub
+    displayName: "DBA Oracle Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-oracle-worker/
+
+  dba-postgres:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-postgres-worker-sub
+    displayName: "DBA PostgreSQL Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-postgres-worker/
+
+  dba-redis:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-redis-worker-sub
+    displayName: "DBA Redis/Valkey Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-redis-worker/
+
+  dba-sqlite:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-sqlite-worker-sub
+    displayName: "DBA SQLite/libSQL Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-sqlite-worker/
+
+  dba-vectordb:
+    workerType: DBA
+    topic: agent-tasks
+    subscription: dba-vectordb-worker-sub
+    displayName: "DBA Vector Database Worker (pgvector)"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - database/
+      - templates/dba/
+      - execution-plane/workers/dba-vectordb-worker/
+
+  fe-angular:
+    workerType: FE
+    topic: agent-tasks
+    subscription: fe-angular-worker-sub
+    displayName: "Frontend Angular Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+      - execution-plane/workers/fe-angular-worker/
+
+  fe-nextjs:
+    workerType: FE
+    topic: agent-tasks
+    subscription: fe-nextjs-worker-sub
+    displayName: "Frontend Next.js Worker"
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+      - execution-plane/workers/fe-nextjs-worker/
+
+  fe-react:
+    workerType: FE
+    topic: agent-tasks
+    subscription: fe-react-worker-sub
+    displayName: "Frontend React Worker"
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+      - execution-plane/workers/fe-react-worker/
+
+  fe-svelte:
+    workerType: FE
+    topic: agent-tasks
+    subscription: fe-svelte-worker-sub
+    displayName: "Frontend Svelte Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+      - execution-plane/workers/fe-svelte-worker/
+
+  fe-vanillajs:
+    workerType: FE
+    topic: agent-tasks
+    subscription: fe-vanillajs-worker-sub
+    displayName: "Frontend Vanilla JS Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - cps4/
+      - execution-plane/workers/fe-vanillajs-worker/
+
+  fe-vue:
+    workerType: FE
+    topic: agent-tasks
+    subscription: fe-vue-worker-sub
+    displayName: "Frontend Vue.js Worker"
+    mcpServers:
+      - git
+      - repo-fs
+      - openapi
+    ownsPaths:
+      - frontend/
+      - templates/fe/
+      - execution-plane/workers/fe-vue-worker/
+
+  mobile-kotlin:
+    workerType: MOBILE
+    topic: agent-tasks
+    subscription: mobile-kotlin-worker-sub
+    displayName: "Mobile Android (Kotlin) Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - android/
+      - mobile/
+      - templates/mobile/
+      - execution-plane/workers/mobile-kotlin-worker/
+
+  mobile-swift:
+    workerType: MOBILE
+    topic: agent-tasks
+    subscription: mobile-swift-worker-sub
+    displayName: "Mobile iOS (Swift) Worker"
+    mcpServers:
+      - git
+      - repo-fs
+    ownsPaths:
+      - ios/
+      - mobile/
+      - templates/mobile/
+      - execution-plane/workers/mobile-swift-worker/
+
+  sdk-scaffold:
+    workerType: AI_TASK
+    topic: agent-tasks
+    subscription: sdk-scaffold-worker-sub
+    displayName: "SDK Scaffold Worker"
+    mcpServers:
+      - repo-fs
+    ownsPaths:
+      - generated/
+      - execution-plane/workers/sdk-scaffold-worker/
 
 defaults:
   BE: be-java
@@ -102,5 +433,3 @@ defaults:
   AI_TASK: ~
   CONTRACT: ~
   REVIEW: ~
-  TASK_MANAGER: task-manager
-  COMPENSATOR_MANAGER: compensator-manager

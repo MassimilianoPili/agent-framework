@@ -1,0 +1,76 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: dba-vectordb-worker
+  displayName: "DBA Vector Database Worker (pgvector)"
+  description: >
+    Handles vector database administration — pgvector indexing (IVFFlat, HNSW),
+    embedding management, hybrid search, and similarity search optimization.
+
+spec:
+  workerType: DBA
+  workerProfile: dba-vectordb
+  topic: agent-tasks
+  subscription: dba-vectordb-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/dba-vectordb/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the database task for vector databases (pgvector or similar).
+
+      Follow these principles:
+      - pgvector on PostgreSQL: vector(N) columns, operator classes
+      - Index types: IVFFlat (lists), HNSW (m, ef_construction)
+      - Distance metrics: cosine (<=>), L2 (<->), inner product (<#>)
+      - Hybrid search: vector similarity + BM25 full-text
+      - Chunking strategies, embedding dimensionality
+      - Batch operations, incremental sync patterns
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "analysis": {
+          "estimated_gain": "performance improvement description",
+          "recall_accuracy": "approximate recall at given speed",
+          "space_overhead": "disk space impact"
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-vector-tools
+      - io.github.massimilianopili:mcp-sql-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - embeddings_search
+      - embeddings_stats
+      - embeddings_reindex
+      - db_query
+      - db_tables
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - database/
+      - templates/dba/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3

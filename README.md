@@ -4,9 +4,9 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 
 ## Status Snapshot
 
-- Multi-stack worker profiles modeled explicitly (`be-java`, `be-go`, `be-rust`, `be-node`, `fe-react`).
+- 41 worker profiles across 7 domain types (BE×14, FE×6, DBA×10, MOBILE×2, AI_TASK, CONTRACT, REVIEW) plus infrastructure workers (CONTEXT_MANAGER, SCHEMA_MANAGER, HOOK_MANAGER, AUDIT_MANAGER, EVENT_MANAGER, TASK_MANAGER, COMPENSATOR_MANAGER, SDK_SCAFFOLD).
 - Worker modules generated compile-time from `agents/manifests/*.agent.yml` by `agent-compiler-maven-plugin`.
-- Middle-layer worker types (`CONTEXT_MANAGER`, `SCHEMA_MANAGER`) run as plan dependencies before domain workers; they explore the codebase and extract schemas, delivering enriched context via `contextJson` to BE/FE/AI_TASK workers.
+- Middle-layer worker types (`CONTEXT_MANAGER`, `SCHEMA_MANAGER`) run as plan dependencies before domain workers; they explore the codebase and extract schemas, delivering enriched context via `contextJson` to BE/FE/DBA/MOBILE/AI_TASK workers.
 - Context-aware Read enforcement: domain workers may only Read files listed in the `CONTEXT_MANAGER` result (`relevant_files`); enforced at runtime by `PathOwnershipEnforcer.checkReadOwnership()`.
 - Hook Manager worker (`HOOK_MANAGER`) sits between `SCHEMA_MANAGER` and domain workers in the pipeline (`CT→CM→SM→HM→BE/FE→RV`); it analyses each downstream task and produces a per-task `HookPolicy` more granular than the worker type alone.
 - **Polyglot Header (SKILL.md)**: every worker has a single `.claude/agents/<name>/SKILL.md` file with YAML frontmatter (read by Claude Code CLI/IDE for subagent discovery) and a Markdown body (read by `SkillLoader.java` after stripping the frontmatter). Zero duality: one file, two runtimes.
@@ -48,7 +48,7 @@ sequenceDiagram
     participant CM as CONTEXT_MANAGER
     participant SM as SCHEMA_MANAGER
     participant HM as HOOK_MANAGER
-    participant W as BE / FE / AI_TASK
+    participant W as BE / FE / DBA / MOBILE / AI_TASK
     participant RW as REVIEW
     participant QG as Quality Gate
     participant RS as Reward System
@@ -163,9 +163,9 @@ sequenceDiagram
             │             │                 │
             ▼             ▼                 ▼
     ┌─────────────┐ ┌──────────┐   ┌──────────────┐
-    │ BE Worker   │ │ FE Worker│   │  AI_TASK /   │
-    │ (java/go/   │ │ (react)  │   │  CONTRACT    │
-    │  rust/node) │ │          │   │              │
+    │ BE Worker   │ │ FE Worker│   │ DBA / MOBILE │
+    │ (14 profiles│ │(6 profs) │   │ AI_TASK /    │
+    │  java→ocaml)│ │react→vue │   │ CONTRACT     │
     └──────┬──────┘ └────┬─────┘   └──────┬───────┘
            │             │                │
            └─────────────┼────────────────┘
@@ -204,7 +204,7 @@ sequenceDiagram
 | `shared/gp-engine/` | GP regression engine: RBF kernel, Cholesky solver, posterior caching, prediction with uncertainty (Sessione 6) |
 | `agents/manifests/` | Source of truth for worker definitions (`*.agent.yml`) |
 | `.claude/agents/*/SKILL.md` | Worker system prompts — polyglot header format (YAML frontmatter for Claude Code + Markdown body for Java runtime via `SkillLoader`) |
-| `.claude/agents/` | 14 subagent definitions (Claude Code discovery): be, fe, contract, ai-task, context-manager, schema-manager, review, planner, be-go, be-node, be-rust, hook-manager, audit-manager, event-manager |
+| `.claude/agents/` | 34 subagent definitions (Claude Code discovery): BE×9 (be, be-go, be-node, be-rust, be-python, be-dotnet, be-kotlin, be-elixir, be-laravel, be-ocaml), FE×3 (fe, fe-nextjs, fe-vue), DBA×10 (dba-postgres thru dba-vectordb), MOBILE×2 (mobile-swift, mobile-kotlin), infra×6 (context-manager, schema-manager, hook-manager, audit-manager, event-manager, review), planner, contract, ai-task |
 | `prompts/` | Prompt templates (`plan_tasks`, `quality_gate_report`, etc.) |
 | `execution-plane/agent-compiler-maven-plugin/` | Manifest -> worker module generator |
 | `execution-plane/worker-sdk/` | `AbstractWorker`, context builder, ChatClient factory, policy enforcement, provenance |
@@ -218,15 +218,49 @@ sequenceDiagram
 
 ## Active Worker Profiles
 
+41 manifests generating 48 Maven modules (41 generated + 7 manual/special).
+
+### Domain Workers (32 profiles)
+
 | Worker | Type | Profile | Topic | Subscription | Owns Paths |
 |---|---|---|---|---|---|
 | Backend Java | `BE` | `be-java` | `agent-tasks` | `be-java-worker-sub` | `backend/` |
 | Backend Go | `BE` | `be-go` | `agent-tasks` | `be-go-worker-sub` | `backend/` |
 | Backend Rust | `BE` | `be-rust` | `agent-tasks` | `be-rust-worker-sub` | `backend/` |
 | Backend Node.js | `BE` | `be-node` | `agent-tasks` | `be-node-worker-sub` | `backend/` |
+| Backend Python | `BE` | `be-python` | `agent-tasks` | `be-python-worker-sub` | `backend/` |
+| Backend .NET | `BE` | `be-dotnet` | `agent-tasks` | `be-dotnet-worker-sub` | `backend/` |
+| Backend Kotlin | `BE` | `be-kotlin` | `agent-tasks` | `be-kotlin-worker-sub` | `backend/` |
+| Backend Elixir | `BE` | `be-elixir` | `agent-tasks` | `be-elixir-worker-sub` | `backend/` |
+| Backend Laravel | `BE` | `be-laravel` | `agent-tasks` | `be-laravel-worker-sub` | `backend/` |
+| Backend C++ | `BE` | `be-cpp` | `agent-tasks` | `be-cpp-worker-sub` | `backend/` |
+| Backend Quarkus | `BE` | `be-quarkus` | `agent-tasks` | `be-quarkus-worker-sub` | `backend/` |
+| Backend OCaml | `BE` | `be-ocaml` | `agent-tasks` | `be-ocaml-worker-sub` | `backend/` |
 | Frontend React | `FE` | `fe-react` | `agent-tasks` | `fe-react-worker-sub` | `frontend/` |
+| Frontend Angular | `FE` | `fe-angular` | `agent-tasks` | `fe-angular-worker-sub` | `frontend/` |
+| Frontend Vue | `FE` | `fe-vue` | `agent-tasks` | `fe-vue-worker-sub` | `frontend/` |
+| Frontend Svelte | `FE` | `fe-svelte` | `agent-tasks` | `fe-svelte-worker-sub` | `frontend/` |
+| Frontend Next.js | `FE` | `fe-nextjs` | `agent-tasks` | `fe-nextjs-worker-sub` | `frontend/` |
+| Frontend Vanilla JS | `FE` | `fe-vanillajs` | `agent-tasks` | `fe-vanillajs-worker-sub` | `frontend/` |
+| DBA PostgreSQL | `DBA` | `dba-postgres` | `agent-tasks` | `dba-postgres-worker-sub` | `database/`, `templates/dba/` |
+| DBA MySQL | `DBA` | `dba-mysql` | `agent-tasks` | `dba-mysql-worker-sub` | `database/`, `templates/dba/` |
+| DBA SQL Server | `DBA` | `dba-mssql` | `agent-tasks` | `dba-mssql-worker-sub` | `database/`, `templates/dba/` |
+| DBA Oracle | `DBA` | `dba-oracle` | `agent-tasks` | `dba-oracle-worker-sub` | `database/`, `templates/dba/` |
+| DBA MongoDB | `DBA` | `dba-mongo` | `agent-tasks` | `dba-mongo-worker-sub` | `database/`, `templates/dba/` |
+| DBA Redis | `DBA` | `dba-redis` | `agent-tasks` | `dba-redis-worker-sub` | `database/`, `templates/dba/` |
+| DBA SQLite | `DBA` | `dba-sqlite` | `agent-tasks` | `dba-sqlite-worker-sub` | `database/`, `templates/dba/` |
+| DBA Cassandra | `DBA` | `dba-cassandra` | `agent-tasks` | `dba-cassandra-worker-sub` | `database/`, `templates/dba/` |
+| DBA Graph DB | `DBA` | `dba-graphdb` | `agent-tasks` | `dba-graphdb-worker-sub` | `database/`, `templates/dba/` |
+| DBA Vector DB | `DBA` | `dba-vectordb` | `agent-tasks` | `dba-vectordb-worker-sub` | `database/`, `templates/dba/` |
+| Mobile iOS (Swift) | `MOBILE` | `mobile-swift` | `agent-tasks` | `mobile-swift-worker-sub` | `ios/`, `mobile/`, `templates/mobile/` |
+| Mobile Android (Kotlin) | `MOBILE` | `mobile-kotlin` | `agent-tasks` | `mobile-kotlin-worker-sub` | `android/`, `mobile/`, `templates/mobile/` |
 | AI Task | `AI_TASK` | n/a | `agent-tasks` | `ai-task-worker-sub` | (none) |
 | Contract | `CONTRACT` | n/a | `agent-tasks` | `contract-worker-sub` | `contracts/` |
+
+### Infrastructure Workers
+
+| Worker | Type | Profile | Topic | Subscription | Owns Paths |
+|---|---|---|---|---|---|
 | Review | `REVIEW` | n/a | `agent-reviews` | `review-worker-sub` | (none, read-only) |
 | Context Manager | `CONTEXT_MANAGER` | n/a | `agent-tasks` | `context-manager-worker-sub` | (none, read-only) |
 | Schema Manager | `SCHEMA_MANAGER` | n/a | `agent-tasks` | `schema-manager-worker-sub` | (none, read-only) |
@@ -235,7 +269,13 @@ sequenceDiagram
 | Event Manager | `EVENT_MANAGER` | n/a | `agent-tasks` | `event-manager-worker-sub` | (none, read-only) |
 | Task Manager | `TASK_MANAGER` | n/a | `agent-tasks` | `task-manager-worker-sub` | `issues/` |
 | Compensator | `COMPENSATOR_MANAGER` | n/a | `agent-tasks` | `compensator-manager-worker-sub` | `.` |
+| SDK Scaffold | `AI_TASK` | `sdk-scaffold` | `agent-tasks` | `sdk-scaffold-worker-sub` | `generated/`, `skills/sdkscaffold/` |
 | Sub-Plan | `SUB_PLAN` | — | — | — | — (handled inline by orchestrator) |
+
+### Advisory Workers (Council)
+
+| Worker | Type | Profile | Topic | Subscription | Owns Paths |
+|---|---|---|---|---|---|
 | Council Manager | `COUNCIL_MANAGER` | n/a | — | — | — (in-process, pre-planning) |
 | Manager (Advisory) | `MANAGER` | n/a | `agent-advisory` | — | (none, read-only) |
 | Specialist (Advisory) | `SPECIALIST` | n/a | `agent-advisory` | — | (none, read-only) |
@@ -256,6 +296,8 @@ Defaults are configured in `config/worker-profiles.yml`:
 
 - `BE -> be-java`
 - `FE -> fe-react`
+- `DBA -> dba-postgres`
+- `MOBILE -> mobile-swift`
 
 ## Agent Manifest Format
 
@@ -342,6 +384,10 @@ The plugin lives in `execution-plane/agent-compiler-maven-plugin` and provides t
 ### Typical Workflow
 
 ```bash
+# Single-command build (generate worker modules + full reactor compile)
+./build.sh -DskipTests
+
+# Or manually:
 # Build/install the plugin artifact locally
 mvn -pl execution-plane/agent-compiler-maven-plugin -am install -DskipTests
 
@@ -726,8 +772,8 @@ testing strategy recommendations.
 
 1. `CouncilService.runPrePlanningSession(spec)` analyses the specification and dynamically selects
    relevant council members from two pools:
-   - **MANAGER** workers — domain-level architectural advisors (4 roles: backend, frontend, infrastructure, data)
-   - **SPECIALIST** workers — cross-cutting experts (4 roles: security, performance, testing, observability)
+   - **MANAGER** workers — domain-level architectural advisors (4 roles: backend, frontend, security, data)
+   - **SPECIALIST** workers — cross-cutting experts (7 roles: database, auth, api, testing, seo, infra, network)
 2. Selected members are consulted in parallel via the `agent-advisory` topic (handled by the
    `AdvisoryWorker`). Each member receives the spec + a role-specific prompt loaded by
    `CouncilPromptLoader` from `resources/prompts/council/`.
@@ -885,7 +931,7 @@ The same file serves as both a **Claude Code subagent** and a **Java LLM system 
 
 | Category | Workers | `permissionMode` | Hooks |
 |----------|---------|-----------------|-------|
-| **Write-capable** | `be`, `fe`, `contract`, `ai-task`, `be-go`, `be-node`, `be-rust` | — | `enforce-ownership.sh` on `Edit\|Write`; `enforce-mcp-allowlist.sh` on `mcp__.*` |
+| **Write-capable** | `be`, `be-go`, `be-node`, `be-rust`, `be-python`, `be-dotnet`, `be-kotlin`, `be-elixir`, `be-laravel`, `be-ocaml`, `fe`, `fe-nextjs`, `fe-vue`, `dba-*` (×10), `mobile-swift`, `mobile-kotlin`, `contract`, `ai-task` | — | `enforce-ownership.sh` on `Edit\|Write`; `enforce-mcp-allowlist.sh` on `mcp__.*` |
 | **Read-only** | `context-manager`, `schema-manager`, `review`, `planner`, `hook-manager`, `event-manager` | `plan` | none (plan mode blocks all writes) |
 | **Audit-write** | `audit-manager` | — | `enforce-ownership.sh` (writes only to `audit/`) |
 

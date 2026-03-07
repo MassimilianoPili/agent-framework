@@ -1,0 +1,75 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: mobile-kotlin-worker
+  displayName: "Mobile Android (Kotlin) Worker"
+  description: >
+    Handles Android mobile development — Kotlin 2.0+, Jetpack Compose, Material Design 3,
+    coroutines/Flow, Hilt/Koin DI, Room, Gradle build system, and Google Play preparation.
+
+spec:
+  workerType: MOBILE
+  workerProfile: mobile-kotlin
+  topic: agent-tasks
+  subscription: mobile-kotlin-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+
+  prompts:
+    systemPromptFile: .claude/agents/mobile-kotlin/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the mobile task using Kotlin for Android.
+
+      Follow these principles:
+      - Kotlin 2.0+: coroutines, Flow, sealed classes, data classes
+      - Jetpack Compose first, XML Views only for legacy integration
+      - MVVM + Repository pattern, Hilt or Koin for dependency injection
+      - Gradle build.gradle.kts with version catalogs
+      - Room for local persistence, DataStore for preferences
+      - Retrofit + OkHttp + Kotlin Serialization for networking
+      - JUnit 5 + MockK for unit tests, Compose UI tests for UI
+      - Material Design 3, Material You dynamic theming
+      - ProGuard/R8 for release builds
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "test_results": {
+          "total": 0,
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0
+        }
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+    mcpServers:
+      - git
+      - repo-fs
+
+  ownership:
+    ownsPaths:
+      - android/
+      - mobile/
+      - templates/mobile/
+    readOnlyPaths: []
+
+  concurrency:
+    maxConcurrentCalls: 3
