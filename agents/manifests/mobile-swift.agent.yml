@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: mobile-swift-worker
   displayName: "Mobile iOS (Swift) Worker"
   description: >
-    Handles iOS mobile development — Swift 5.9+/6, SwiftUI, UIKit, async/await,
-    SPM, XCTest, Xcode project configuration, and App Store submission preparation.
+    Handles iOS mobile development — Swift 5.9+/6, SwiftUI, UIKit, async/await, SPM, XCTest, Xcode project configuration, and App Store submission preparation.
 
 spec:
   workerType: MOBILE
   workerProfile: mobile-swift
   topic: agent-tasks
   subscription: mobile-swift-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/mobile-swift/SKILL.md
     skills:
@@ -48,27 +44,27 @@ spec:
           "skipped": 0
         }
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
-
+      - bash
   ownership:
     ownsPaths:
       - ios/
       - mobile/
       - templates/mobile/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

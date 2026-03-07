@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: dba-sqlite-worker
   displayName: "DBA SQLite/libSQL Worker"
   description: >
-    Handles SQLite/libSQL database administration — PRAGMA tuning, WAL mode,
-    FTS5, schema migrations, and embedded database optimization.
+    Handles SQLite/libSQL database administration — PRAGMA tuning, WAL mode, FTS5, schema migrations, and embedded database optimization.
 
 spec:
   workerType: DBA
   workerProfile: dba-sqlite
   topic: agent-tasks
   subscription: dba-sqlite-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/dba-sqlite/SKILL.md
     skills:
@@ -45,11 +41,11 @@ spec:
           "downtime_required": "none/minimal/required"
         }
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-filesystem-tools
       - io.github.massimilianopili:mcp-sql-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
@@ -59,15 +55,15 @@ spec:
       - db_query
       - db_tables
       - db_count
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
-
+      - bash
   ownership:
     ownsPaths:
       - database/
       - templates/dba/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

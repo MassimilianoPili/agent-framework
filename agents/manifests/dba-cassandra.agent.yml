@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: dba-cassandra-worker
   displayName: "DBA Cassandra/ScyllaDB Worker"
   description: >
-    Handles Cassandra/ScyllaDB database administration — CQL, partition key design,
-    compaction strategies, consistency levels, and nodetool operations.
+    Handles Cassandra/ScyllaDB database administration — CQL, partition key design, compaction strategies, consistency levels, and nodetool operations.
 
 spec:
   workerType: DBA
   workerProfile: dba-cassandra
   topic: agent-tasks
   subscription: dba-cassandra-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/dba-cassandra/SKILL.md
     skills:
@@ -46,26 +42,26 @@ spec:
           "downtime_required": "none/minimal/required"
         }
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
-
+      - bash
   ownership:
     ownsPaths:
       - database/
       - templates/dba/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

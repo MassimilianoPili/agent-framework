@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: dba-mysql-worker
   displayName: "DBA MySQL/MariaDB Worker"
   description: >
-    Handles MySQL/MariaDB database administration — schema design, InnoDB tuning,
-    indexing, replication, stored procedures, and query optimization.
+    Handles MySQL/MariaDB database administration — schema design, InnoDB tuning, indexing, replication, stored procedures, and query optimization.
 
 spec:
   workerType: DBA
   workerProfile: dba-mysql
   topic: agent-tasks
   subscription: dba-mysql-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/dba-mysql/SKILL.md
     skills:
@@ -45,12 +41,12 @@ spec:
           "downtime_required": "none/minimal/required"
         }
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
       - io.github.massimilianopili:mcp-sql-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
@@ -62,15 +58,15 @@ spec:
       - db_list_schemas
       - db_count
       - db_list_databases
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
-
+      - bash
   ownership:
     ownsPaths:
       - database/
       - templates/dba/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

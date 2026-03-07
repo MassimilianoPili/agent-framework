@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: dba-mongo-worker
   displayName: "DBA MongoDB Worker"
   description: >
-    Handles MongoDB database administration — document design, indexing,
-    aggregation pipeline optimization, sharding, and replica set management.
+    Handles MongoDB database administration — document design, indexing, aggregation pipeline optimization, sharding, and replica set management.
 
 spec:
   workerType: DBA
   workerProfile: dba-mongo
   topic: agent-tasks
   subscription: dba-mongo-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/dba-mongo/SKILL.md
     skills:
@@ -45,12 +41,12 @@ spec:
           "downtime_required": "none/minimal/required"
         }
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
       - io.github.massimilianopili:mcp-mongo-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
@@ -62,15 +58,15 @@ spec:
       - mongo_list_collections
       - mongo_aggregate
       - mongo_list_databases
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
-
+      - bash
   ownership:
     ownsPaths:
       - database/
       - templates/dba/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

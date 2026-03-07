@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: dba-vectordb-worker
   displayName: "DBA Vector Database Worker (pgvector)"
   description: >
-    Handles vector database administration — pgvector indexing (IVFFlat, HNSW),
-    embedding management, hybrid search, and similarity search optimization.
+    Handles vector database administration — pgvector indexing (IVFFlat, HNSW), embedding management, hybrid search, and similarity search optimization.
 
 spec:
   workerType: DBA
   workerProfile: dba-vectordb
   topic: agent-tasks
   subscription: dba-vectordb-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/dba-vectordb/SKILL.md
     skills:
@@ -45,12 +41,12 @@ spec:
           "space_overhead": "disk space impact"
         }
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-filesystem-tools
       - io.github.massimilianopili:mcp-vector-tools
       - io.github.massimilianopili:mcp-sql-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
@@ -62,15 +58,15 @@ spec:
       - embeddings_reindex
       - db_query
       - db_tables
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
-
+      - bash
   ownership:
     ownsPaths:
       - database/
       - templates/dba/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3

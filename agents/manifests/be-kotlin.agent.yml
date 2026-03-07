@@ -1,24 +1,20 @@
 apiVersion: agent-framework/v1
 kind: AgentManifest
-
 metadata:
   name: be-kotlin-worker
   displayName: "Backend Kotlin Worker (Spring Boot)"
   description: >
-    Handles Kotlin/Spring Boot backend tasks — controllers, services,
-    repositories, coroutines, data classes, and unit/slice tests.
+    Handles Kotlin/Spring Boot backend tasks — controllers, services, repositories, coroutines, data classes, and unit/slice tests.
 
 spec:
   workerType: BE
   workerProfile: be-kotlin
   topic: agent-tasks
   subscription: be-kotlin-worker-sub
-
   model:
     name: claude-sonnet-4-6
     maxTokens: 16384
     temperature: 0.2
-
   prompts:
     systemPromptFile: .claude/agents/be-kotlin/SKILL.md
     skills:
@@ -36,29 +32,29 @@ spec:
         "summary": "brief description of what was implemented",
         "test_results": "description of tests written and their status"
       }
-
   tools:
     dependencies:
       - io.github.massimilianopili:mcp-devops-tools
       - io.github.massimilianopili:mcp-filesystem-tools
       - io.github.massimilianopili:mcp-sql-tools
+      - io.github.massimilianopili:mcp-bash-tool
     allowlist:
       - fs_list
       - fs_read
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     mcpServers:
       - git
       - repo-fs
       - openapi
       - test
-
+      - bash
   ownership:
     ownsPaths:
       - backend/
       - templates/be/
     readOnlyPaths: []
-
   concurrency:
     maxConcurrentCalls: 3
