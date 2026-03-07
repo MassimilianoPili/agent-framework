@@ -6,7 +6,6 @@ import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -15,13 +14,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for {@link AutoRetryScheduler} — retry eligibility polling,
- * per-item error isolation, and nextRetryAt clearing.
+ * per-item error isolation via {@link RetryTransactionService}.
  */
 @ExtendWith(MockitoExtension.class)
 class AutoRetrySchedulerTest {
@@ -30,7 +28,7 @@ class AutoRetrySchedulerTest {
     private PlanItemRepository planItemRepository;
 
     @Mock
-    private OrchestrationService orchestrationService;
+    private RetryTransactionService retryTransactionService;
 
     @InjectMocks
     private AutoRetryScheduler scheduler;
@@ -38,15 +36,14 @@ class AutoRetrySchedulerTest {
     // ── retryEligibleItems ───────────────────────────────────────────────────
 
     @Test
-    void retryEligibleItems_noEligibleItems_doesNotCallOrchestrationService() {
+    void retryEligibleItems_noEligibleItems_doesNotCallRetryService() {
         when(planItemRepository.findRetryEligible(any(Instant.class)))
                 .thenReturn(List.of());
 
         scheduler.retryEligibleItems();
 
         verify(planItemRepository).findRetryEligible(any(Instant.class));
-        verifyNoInteractions(orchestrationService);
-        verify(planItemRepository, never()).save(any());
+        verifyNoInteractions(retryTransactionService);
     }
 
     @Test
@@ -57,8 +54,7 @@ class AutoRetrySchedulerTest {
 
         scheduler.retryEligibleItems();
 
-        verify(orchestrationService).retryFailedItem(item.getId());
-        verify(planItemRepository).save(item);
+        verify(retryTransactionService).retryItem(item.getId());
     }
 
     @Test
@@ -71,10 +67,9 @@ class AutoRetrySchedulerTest {
 
         scheduler.retryEligibleItems();
 
-        verify(orchestrationService).retryFailedItem(item1.getId());
-        verify(orchestrationService).retryFailedItem(item2.getId());
-        verify(orchestrationService).retryFailedItem(item3.getId());
-        verify(planItemRepository, times(3)).save(any(PlanItem.class));
+        verify(retryTransactionService).retryItem(item1.getId());
+        verify(retryTransactionService).retryItem(item2.getId());
+        verify(retryTransactionService).retryItem(item3.getId());
     }
 
     @Test
@@ -86,45 +81,21 @@ class AutoRetrySchedulerTest {
                 .thenReturn(List.of(item1, item2, item3));
 
         // item2 throws during retry
-        doNothing().when(orchestrationService).retryFailedItem(item1.getId());
+        doNothing().when(retryTransactionService).retryItem(item1.getId());
         doThrow(new RuntimeException("Transient failure"))
-                .when(orchestrationService).retryFailedItem(item2.getId());
-        doNothing().when(orchestrationService).retryFailedItem(item3.getId());
+                .when(retryTransactionService).retryItem(item2.getId());
+        doNothing().when(retryTransactionService).retryItem(item3.getId());
 
         scheduler.retryEligibleItems();
 
-        // All three were attempted
-        verify(orchestrationService).retryFailedItem(item1.getId());
-        verify(orchestrationService).retryFailedItem(item2.getId());
-        verify(orchestrationService).retryFailedItem(item3.getId());
-    }
-
-    @Test
-    void retryEligibleItems_nextRetryAtClearedBeforeRetry() {
-        PlanItem item = createFailedItem();
-        Instant originalRetryAt = item.getNextRetryAt();
-        assertThat(originalRetryAt).isNotNull();
-
-        when(planItemRepository.findRetryEligible(any(Instant.class)))
-                .thenReturn(List.of(item));
-
-        scheduler.retryEligibleItems();
-
-        // Verify nextRetryAt was cleared
-        assertThat(item.getNextRetryAt()).isNull();
-
-        // Verify save happens before retryFailedItem (ordering)
-        InOrder inOrder = inOrder(planItemRepository, orchestrationService);
-        inOrder.verify(planItemRepository).save(item);
-        inOrder.verify(orchestrationService).retryFailedItem(item.getId());
+        // All three were attempted despite item2 failure
+        verify(retryTransactionService).retryItem(item1.getId());
+        verify(retryTransactionService).retryItem(item2.getId());
+        verify(retryTransactionService).retryItem(item3.getId());
     }
 
     // ── Helper ───────────────────────────────────────────────────────────────
 
-    /**
-     * Creates a PlanItem in FAILED status with nextRetryAt in the past.
-     * State transitions: WAITING -> FAILED (allowed by the state machine).
-     */
     private PlanItem createFailedItem() {
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 0, "BE-" + UUID.randomUUID().toString().substring(0, 3),

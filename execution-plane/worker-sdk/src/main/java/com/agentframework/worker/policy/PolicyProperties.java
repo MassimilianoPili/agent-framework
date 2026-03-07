@@ -1,5 +1,6 @@
 package com.agentframework.worker.policy;
 
+import com.agentframework.common.policy.ToolNames;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.ArrayList;
@@ -20,8 +21,7 @@ import java.util.List;
  *   owns-paths:
  *     - backend/
  *   write-tool-names:
- *     - Write
- *     - Edit
+ *     - fs_write
  *   audit:
  *     enabled: true
  *     include-input: false
@@ -40,7 +40,7 @@ public class PolicyProperties {
     private List<String> ownsPaths = new ArrayList<>();
 
     /** Tool names considered "write" operations for ownership checks. */
-    private List<String> writeToolNames = List.of("Write", "Edit", "fs_write");
+    private List<String> writeToolNames = new ArrayList<>(ToolNames.WRITE_TOOLS);
 
     private AuditConfig audit = new AuditConfig();
 

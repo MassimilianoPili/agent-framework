@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -14,8 +13,9 @@ import java.util.List;
 /**
  * Polls for FAILED plan items whose {@code nextRetryAt} has elapsed and re-queues them.
  *
- * <p>Runs every 5 seconds. Uses {@link OrchestrationService#retryFailedItem(java.util.UUID)}
- * which handles the FAILED → WAITING transition and re-opens PAUSED/FAILED plans.</p>
+ * <p>Runs every 5 seconds. Delegates each retry to {@link RetryTransactionService},
+ * which executes in a {@code REQUIRES_NEW} transaction so that a failure in one item
+ * does not roll back other retries in the same batch.</p>
  *
  * <p>The backoff and PAUSED threshold are set in {@code OrchestrationService.onTaskCompleted()}
  * at the time of failure. This scheduler only decides <em>when</em> to re-trigger, not how
@@ -27,16 +27,15 @@ public class AutoRetryScheduler {
     private static final Logger log = LoggerFactory.getLogger(AutoRetryScheduler.class);
 
     private final PlanItemRepository planItemRepository;
-    private final OrchestrationService orchestrationService;
+    private final RetryTransactionService retryTransactionService;
 
     public AutoRetryScheduler(PlanItemRepository planItemRepository,
-                               OrchestrationService orchestrationService) {
+                               RetryTransactionService retryTransactionService) {
         this.planItemRepository = planItemRepository;
-        this.orchestrationService = orchestrationService;
+        this.retryTransactionService = retryTransactionService;
     }
 
     @Scheduled(fixedDelayString = "${retry.scheduler-interval-ms:5000}")
-    @Transactional
     public void retryEligibleItems() {
         List<PlanItem> eligible = planItemRepository.findRetryEligible(Instant.now());
         if (eligible.isEmpty()) {
@@ -47,10 +46,7 @@ public class AutoRetryScheduler {
 
         for (PlanItem item : eligible) {
             try {
-                // Clear nextRetryAt before retrying so the scheduler doesn't pick it up again
-                item.setNextRetryAt(null);
-                planItemRepository.save(item);
-                orchestrationService.retryFailedItem(item.getId());
+                retryTransactionService.retryItem(item.getId());
                 log.info("Auto-retried item {} (task={})", item.getId(), item.getTaskKey());
             } catch (Exception e) {
                 log.error("Auto-retry failed for item {} (task={}): {}",

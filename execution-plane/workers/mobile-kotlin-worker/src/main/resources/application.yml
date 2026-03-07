@@ -22,9 +22,6 @@ agent:
         - android/
         - mobile/
         - templates/mobile/
-      write-tool-names:
-        - Write
-        - Edit
       audit:
         enabled: true
         include-input: false

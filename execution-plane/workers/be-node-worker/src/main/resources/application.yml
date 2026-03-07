@@ -21,9 +21,6 @@ agent:
       owns-paths:
         - backend/
         - templates/be/
-      write-tool-names:
-        - Write
-        - Edit
       audit:
         enabled: true
         include-input: false

@@ -19,9 +19,6 @@ agent:
       enabled: true
       worker-profile: 
       owns-paths: []
-      write-tool-names:
-        - Write
-        - Edit
       audit:
         enabled: true
         include-input: false

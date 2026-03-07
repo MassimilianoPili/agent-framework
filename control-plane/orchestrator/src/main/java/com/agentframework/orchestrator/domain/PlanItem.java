@@ -75,6 +75,9 @@ public class PlanItem {
     @Column(name = "issue_snapshot", columnDefinition = "TEXT")
     private String issueSnapshot;
 
+    @Version
+    private Long version;
+
     protected PlanItem() {}
 
     public PlanItem(UUID id, int ordinal, String taskKey, String title,
@@ -255,6 +258,8 @@ public class PlanItem {
     public void setLastQualityGateFeedback(String feedback) { this.lastQualityGateFeedback = feedback; }
 
     // ─────────────────────────────────────────────────────────────────────────
+
+    public Long getVersion() { return version; }
 
     /** Dynamically adds a dependency (used by the missing_context feedback loop). */
     public void addDependency(String taskKey) {

@@ -20,9 +20,6 @@ agent:
       worker-profile: fe-vanillajs
       owns-paths:
         - cps4/
-      write-tool-names:
-        - Write
-        - Edit
       audit:
         enabled: true
         include-input: false

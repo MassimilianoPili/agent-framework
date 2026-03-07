@@ -3,6 +3,7 @@ package com.agentframework.orchestrator.hooks;
 import com.agentframework.common.policy.ApprovalMode;
 import com.agentframework.common.policy.HookPolicy;
 import com.agentframework.common.policy.RiskLevel;
+import com.agentframework.common.policy.ToolNames;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.orchestration.WorkerProfileRegistry;
 import org.slf4j.Logger;
@@ -33,16 +34,16 @@ public class HookPolicyResolver {
      * Manager types are read-only by default.
      */
     private static final Map<WorkerType, List<String>> DEFAULT_TOOL_ALLOWLISTS = Map.of(
-        WorkerType.BE,              List.of("fs_list", "fs_read", "fs_write", "fs_search", "fs_grep"),
-        WorkerType.FE,              List.of("fs_list", "fs_read", "fs_write", "fs_search", "fs_grep"),
-        WorkerType.AI_TASK,         List.of("fs_list", "fs_read", "fs_write", "fs_search", "fs_grep"),
-        WorkerType.CONTRACT,        List.of("fs_list", "fs_read", "fs_write", "fs_search", "fs_grep"),
-        WorkerType.REVIEW,          List.of("fs_list", "fs_read", "fs_search", "fs_grep"),
-        WorkerType.CONTEXT_MANAGER, List.of("fs_list", "fs_read", "fs_search", "fs_grep"),
-        WorkerType.SCHEMA_MANAGER,  List.of("fs_list", "fs_read", "fs_search", "fs_grep"),
-        WorkerType.HOOK_MANAGER,    List.of("fs_list", "fs_read", "fs_search", "fs_grep"),
-        WorkerType.AUDIT_MANAGER,   List.of("fs_list", "fs_read", "fs_write", "fs_grep"),
-        WorkerType.EVENT_MANAGER,   List.of("fs_list", "fs_read")
+        WorkerType.BE,              ToolNames.ALL_FS_TOOLS,
+        WorkerType.FE,              ToolNames.ALL_FS_TOOLS,
+        WorkerType.AI_TASK,         ToolNames.ALL_FS_TOOLS,
+        WorkerType.CONTRACT,        ToolNames.ALL_FS_TOOLS,
+        WorkerType.REVIEW,          ToolNames.READONLY_FS_TOOLS,
+        WorkerType.CONTEXT_MANAGER, ToolNames.READONLY_FS_TOOLS,
+        WorkerType.SCHEMA_MANAGER,  ToolNames.READONLY_FS_TOOLS,
+        WorkerType.HOOK_MANAGER,    ToolNames.READONLY_FS_TOOLS,
+        WorkerType.AUDIT_MANAGER,   List.of(ToolNames.FS_LIST, ToolNames.FS_READ, ToolNames.FS_WRITE, ToolNames.FS_GREP),
+        WorkerType.EVENT_MANAGER,   List.of(ToolNames.FS_LIST, ToolNames.FS_READ)
     );
 
     private final WorkerProfileRegistry profileRegistry;

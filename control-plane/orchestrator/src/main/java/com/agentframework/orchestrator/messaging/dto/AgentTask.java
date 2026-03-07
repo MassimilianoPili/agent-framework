@@ -3,6 +3,7 @@ package com.agentframework.orchestrator.messaging.dto;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.common.policy.HookPolicy;
 
+import java.util.List;
 import java.util.UUID;
 
 public record AgentTask(
@@ -20,5 +21,6 @@ public record AgentTask(
     UUID traceId,               // dispatch metadata (null if unknown)
     String dispatchedAt,        // ISO-8601, dispatch metadata (null if unknown)
     HookPolicy policy,          // task-level hook policy set by HOOK_MANAGER (null = use static config)
-    String councilContext       // JSON CouncilReport from pre-planning session (null if council disabled)
+    String councilContext,      // JSON CouncilReport from pre-planning session (null if council disabled)
+    List<String> dynamicOwnsPaths // project-path-resolved ownsPaths (merged with static in worker, null = none)
 ) {}

@@ -77,6 +77,17 @@ public class Plan {
     @Column(name = "parent_plan_id")
     private UUID parentPlanId;
 
+    /**
+     * Base project path for the target codebase (e.g. "/data/project/backend").
+     * Propagated to workers via AgentTask.dynamicOwnsPaths so path ownership
+     * enforcement can resolve relative ownsPaths against the actual project location.
+     */
+    @Column(name = "project_path", length = 500)
+    private String projectPath;
+
+    @Version
+    private Long version;
+
     @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("ordinal ASC")
     private List<PlanItem> items = new ArrayList<>();
@@ -146,6 +157,11 @@ public class Plan {
     public int getDepth() { return depth; }
 
     public UUID getParentPlanId() { return parentPlanId; }
+
+    public String getProjectPath() { return projectPath; }
+    public void setProjectPath(String projectPath) { this.projectPath = projectPath; }
+
+    public Long getVersion() { return version; }
 
     public List<PlanItem> getItems() { return items; }
 

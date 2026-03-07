@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -87,6 +88,13 @@ public class RedisStreamListenerContainer implements MessageListenerContainer {
                      info.destination, consumerId, info.group);
         }
 
+        // Reclaim pending messages from previous consumers that may have crashed.
+        // This must happen before container.start() so reclaimed messages are processed
+        // by the listener registered above, ensuring at-least-once delivery.
+        for (var info : pendingSubscriptions) {
+            reclaimPendingMessages(info.destination, info.group, consumerId, info.handler);
+        }
+
         container.start();
         log.info("Redis Stream listener container started with {} subscription(s)",
                  activeSubscriptions.size());
@@ -111,6 +119,55 @@ public class RedisStreamListenerContainer implements MessageListenerContainer {
             } else {
                 log.warn("Error creating consumer group '{}' on '{}': {}", group, streamKey, e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Reclaims and reprocesses messages from the PEL (Pending Entries List) that have been
+     * idle for longer than the configured idle timeout. Uses XPENDING + XACK pattern:
+     * reads pending messages, dispatches them to the handler, lets the handler ACK them.
+     */
+    private void reclaimPendingMessages(String streamKey, String group, String consumerId,
+                                         MessageHandler handler) {
+        try {
+            long idleMs = properties.getReclaimIdleMs();
+            PendingMessages pending = redisTemplate.opsForStream()
+                    .pending(streamKey, group, org.springframework.data.domain.Range.unbounded(), 100L);
+
+            if (pending == null || pending.isEmpty()) {
+                return;
+            }
+
+            int reclaimed = 0;
+            for (var pm : pending) {
+                if (pm.getElapsedTimeSinceLastDelivery().toMillis() < idleMs) {
+                    continue;
+                }
+
+                // Read the actual message content by its ID
+                var messages = redisTemplate.opsForStream()
+                        .range(streamKey, org.springframework.data.domain.Range.closed(
+                                pm.getIdAsString(), pm.getIdAsString()));
+
+                if (messages != null && !messages.isEmpty()) {
+                    var msg = messages.get(0);
+                    Object bodyObj = msg.getValue().get("body");
+                    if (bodyObj != null) {
+                        String body = bodyObj.toString();
+                        var ack = new RedisStreamAcknowledgment(
+                                redisTemplate, streamKey, group, msg.getId(), body);
+                        handler.handle(body, ack);
+                        reclaimed++;
+                    }
+                }
+            }
+
+            if (reclaimed > 0) {
+                log.info("Reclaimed {} pending message(s) from stream '{}' group '{}'",
+                         reclaimed, streamKey, group);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to reclaim pending messages from '{}': {}", streamKey, e.getMessage());
         }
     }
 

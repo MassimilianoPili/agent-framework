@@ -189,7 +189,7 @@ public class OrchestrationService {
      */
     @Transactional
     public void onTaskCompleted(AgentResult result) {
-        PlanItem item = planItemRepository.findById(result.itemId())
+        PlanItem item = planItemRepository.findByIdWithPlan(result.itemId())
             .orElseThrow(() -> new IllegalStateException(
                 "Unknown plan item: " + result.itemId()));
 
@@ -225,38 +225,6 @@ public class OrchestrationService {
             item.setNextRetryAt(null);
             log.info("Task {} completed successfully (plan={}, profile={}, duration={}ms)",
                      result.taskKey(), result.planId(), item.getWorkerProfile(), result.durationMs());
-
-            // Reward signal — point 1: compute processScore from Provenance (zero LLM cost)
-            rewardComputationService.computeProcessScore(item, result);
-
-            // GP reward signal: feed aggregatedReward back to task_outcomes for GP training
-            if (gpTaskOutcomeService != null && item.getAggregatedReward() != null) {
-                gpTaskOutcomeService.updateReward(
-                        item.getId(), item.getAggregatedReward().doubleValue(),
-                        item.getWorkerType().name(), item.getWorkerProfile());
-            }
-
-            // Serendipity: collect file-task associations for future serendipity ranking.
-            // Must run after updateReward so the task_outcome has actual_reward populated.
-            if (serendipityService != null) {
-                try {
-                    serendipityService.collectFileOutcomes(item);
-                } catch (Exception e) {
-                    log.warn("Serendipity collection failed for task {} (non-blocking): {}",
-                             result.taskKey(), e.getMessage());
-                }
-            }
-
-            // Reward signal — point 2: if REVIEW worker, distribute per-task review scores
-            if (item.getWorkerType() == WorkerType.REVIEW) {
-                rewardComputationService.distributeReviewScore(item);
-            }
-
-            // Store per-task policies emitted by the Hook Manager worker so
-            // subsequent dispatchReadyItems() calls can inject them into AgentTask.
-            if (item.getWorkerType() == WorkerType.HOOK_MANAGER) {
-                hookManagerService.storePolicies(result.planId(), result.resultJson());
-            }
         } else {
             item.transitionTo(ItemStatus.FAILED);
             item.setFailureReason(result.failureReason());
@@ -294,6 +262,13 @@ public class OrchestrationService {
 
             log.warn("Task {} failed: {} (plan={}, profile={})",
                      result.taskKey(), result.failureReason(), result.planId(), item.getWorkerProfile());
+
+            // Propagate failure to dependents when a CONTEXT_MANAGER task fails.
+            // Without context, the dependent task cannot run — fail it immediately
+            // rather than leaving it WAITING forever.
+            if (item.getWorkerType() == WorkerType.CONTEXT_MANAGER) {
+                failDependentsOfContextManager(item, result.planId());
+            }
         }
         item.setCompletedAt(Instant.now());
         planItemRepository.save(item);
@@ -327,6 +302,12 @@ public class OrchestrationService {
                        "success", result.success(),
                        "durationMs", result.durationMs()));
 
+        // Publish side-effect event for successful tasks — consumed AFTER_COMMIT by
+        // TaskCompletedEventHandler (reward computation, GP update, serendipity, etc.)
+        if (result.success()) {
+            eventPublisher.publishEvent(new TaskCompletedSideEffectEvent(item.getId(), result));
+        }
+
         dispatchReadyItems(result.planId());
         checkPlanCompletion(result.planId());
     }
@@ -340,7 +321,7 @@ public class OrchestrationService {
      */
     @Transactional
     public void retryFailedItem(UUID itemId) {
-        PlanItem item = planItemRepository.findById(itemId)
+        PlanItem item = planItemRepository.findByIdWithPlan(itemId)
             .orElseThrow(() -> new IllegalStateException("Unknown plan item: " + itemId));
 
         int previousAttempts = attemptRepository.findMaxAttemptNumber(itemId).orElse(0);
@@ -377,7 +358,7 @@ public class OrchestrationService {
      */
     @Transactional
     public PlanItem createCompensationTask(UUID itemId, String compensationReason) {
-        PlanItem originalItem = planItemRepository.findById(itemId)
+        PlanItem originalItem = planItemRepository.findByIdWithPlan(itemId)
             .orElseThrow(() -> new IllegalStateException("Unknown plan item: " + itemId));
 
         Plan plan = originalItem.getPlan();
@@ -655,7 +636,8 @@ public class OrchestrationService {
                 traceId,
                 Instant.now().toString(),
                 policy,
-                plan.getCouncilReport()  // inject pre-planning council context into every task
+                plan.getCouncilReport(),  // inject pre-planning council context into every task
+                buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile())
             );
 
             try {
@@ -739,6 +721,26 @@ public class OrchestrationService {
                        "failedItems", failedCount));
     }
 
+    /**
+     * When a CONTEXT_MANAGER task fails, propagate the failure to all WAITING items
+     * that depend on it. Without context, those tasks cannot execute meaningfully.
+     */
+    private void failDependentsOfContextManager(PlanItem cmItem, UUID planId) {
+        String cmTaskKey = cmItem.getTaskKey();
+        List<PlanItem> waitingItems = planItemRepository.findByPlanIdAndStatus(planId, ItemStatus.WAITING);
+
+        for (PlanItem dependent : waitingItems) {
+            if (dependent.getDependsOn().contains(cmTaskKey)) {
+                dependent.transitionTo(ItemStatus.FAILED);
+                dependent.setFailureReason("context_manager_failed: " + cmTaskKey);
+                dependent.setCompletedAt(Instant.now());
+                planItemRepository.save(dependent);
+                log.warn("Propagated CM failure to dependent task {} (plan={})",
+                         dependent.getTaskKey(), planId);
+            }
+        }
+    }
+
     private Map<String, String> loadCompletedResults(UUID planId) {
         return planItemRepository.findByPlanId(planId).stream()
             .filter(i -> i.getStatus() == ItemStatus.DONE && i.getResult() != null)
@@ -756,6 +758,24 @@ public class OrchestrationService {
             log.warn("Failed to serialize context for task {}: {}", item.getTaskKey(), e.getMessage());
             return "{}";
         }
+    }
+
+    /**
+     * Builds dynamic ownsPaths by resolving profile-level relative paths against the plan's projectPath.
+     * Returns null if no projectPath is set or the profile has no ownsPaths.
+     */
+    private List<String> buildDynamicOwnsPaths(String projectPath, String workerProfile) {
+        if (projectPath == null || projectPath.isBlank() || workerProfile == null) {
+            return null;
+        }
+        WorkerProfileRegistry.ProfileEntry entry = profileRegistry.getProfileEntry(workerProfile);
+        if (entry == null || entry.getOwnsPaths().isEmpty()) {
+            return null;
+        }
+        String base = projectPath.endsWith("/") ? projectPath : projectPath + "/";
+        return entry.getOwnsPaths().stream()
+                .map(p -> base + p)
+                .toList();
     }
 
     /** Deserializes the plan's budget JSON back to a {@link PlanRequest.Budget} (null if absent/invalid). */

@@ -21,9 +21,6 @@ agent:
       owns-paths:
         - frontend/
         - templates/fe/
-      write-tool-names:
-        - Write
-        - Edit
       audit:
         enabled: true
         include-input: false
