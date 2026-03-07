@@ -19,6 +19,9 @@ jobs:
           distribution: temurin
           cache: maven
 
+      - name: Bootstrap compiler plugin
+        run: mvn install -B -q -DskipTests -f execution-plane/agent-compiler-maven-plugin/pom.xml
+
       - name: Build all modules
         run: ./build.sh -B -DskipTests
 
