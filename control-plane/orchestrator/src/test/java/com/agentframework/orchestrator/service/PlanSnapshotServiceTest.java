@@ -218,7 +218,7 @@ class PlanSnapshotServiceTest {
 
     private PlanItem createItem(Plan plan, String taskKey, ItemStatus status) {
         PlanItem item = new PlanItem(UUID.randomUUID(), 1, taskKey, "Title",
-            "Desc", WorkerType.BE, "be-java", List.of());
+            "Desc", WorkerType.BE, "be-java", List.of(), List.of());
         plan.addItem(item);
         item.forceStatus(status);
         return item;
@@ -226,7 +226,7 @@ class PlanSnapshotServiceTest {
 
     private PlanItem createItemWithId(Plan plan, UUID id, String taskKey, ItemStatus status) {
         PlanItem item = new PlanItem(id, 1, taskKey, "Title",
-            "Desc", WorkerType.BE, "be-java", List.of());
+            "Desc", WorkerType.BE, "be-java", List.of(), List.of());
         plan.addItem(item);
         item.forceStatus(status);
         return item;

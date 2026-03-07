@@ -99,7 +99,7 @@ class AutoRetrySchedulerTest {
     private PlanItem createFailedItem() {
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 0, "BE-" + UUID.randomUUID().toString().substring(0, 3),
-                "Test task", "Test description", WorkerType.BE, "be-java", List.of()
+                "Test task", "Test description", WorkerType.BE, "be-java", List.of(), List.of()
         );
         item.transitionTo(ItemStatus.FAILED);
         item.setNextRetryAt(Instant.now().minusSeconds(10));

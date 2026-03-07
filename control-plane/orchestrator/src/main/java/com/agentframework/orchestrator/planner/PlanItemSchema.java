@@ -31,5 +31,11 @@ public record PlanItemSchema(
     String workerProfile,
 
     @JsonPropertyDescription("Task keys this task depends on; empty array if no dependencies")
-    List<String> dependsOn
+    List<String> dependsOn,
+
+    @JsonPropertyDescription(
+        "MCP tool names this task needs. Use real MCP names: "
+        + "fs_read, fs_write, fs_search, fs_list, bash_execute, python_execute. "
+        + "null or empty = no tools (text-only task like REVIEW or CONTRACT)")
+    List<String> toolHints
 ) {}

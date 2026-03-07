@@ -51,7 +51,9 @@ public record PlanItemResponse(
     /** Number of times this item was re-queued by the ralph-loop (quality gate feedback). 0 = never looped. */
     int ralphLoopCount,
     /** Last quality gate feedback received when the item was re-queued. Null if never looped. */
-    String lastQualityGateFeedback
+    String lastQualityGateFeedback,
+    /** MCP tool names suggested by the planner for this task. Empty if no tools needed. */
+    List<String> toolHints
 ) {
 
     public static PlanItemResponse from(PlanItem item) {
@@ -76,7 +78,8 @@ public record PlanItemResponse(
             item.getOutputTokens(),
             item.getEstimatedCostUsd(),
             item.getRalphLoopCount(),
-            item.getLastQualityGateFeedback()
+            item.getLastQualityGateFeedback(),
+            item.getToolHints()
         );
     }
 }

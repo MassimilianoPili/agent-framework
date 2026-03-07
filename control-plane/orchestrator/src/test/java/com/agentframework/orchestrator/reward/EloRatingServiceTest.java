@@ -320,7 +320,7 @@ class EloRatingServiceTest {
 
     private static PlanItem newItem(String taskKey, WorkerType workerType, String workerProfile) {
         return new PlanItem(UUID.randomUUID(), 1, taskKey, "Title " + taskKey,
-                "Desc " + taskKey, workerType, workerProfile, List.of());
+                "Desc " + taskKey, workerType, workerProfile, List.of(), List.of());
     }
 
     /**

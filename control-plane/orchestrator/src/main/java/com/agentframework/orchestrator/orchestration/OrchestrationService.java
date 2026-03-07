@@ -391,6 +391,111 @@ public class OrchestrationService {
     }
 
     /**
+     * Redispatches a FAILED or DONE item by transitioning it through TO_DISPATCH → DISPATCHED.
+     *
+     * <p>Unlike {@link #retryFailedItem(UUID)}, which goes through WAITING and dependency
+     * resolution, this method dispatches the item directly to a worker — bypassing the
+     * dependency check. This is the operator override path for manual retry after root-cause
+     * fix, or re-running a completed task.</p>
+     *
+     * <p>If the item is already in TO_DISPATCH (e.g. set via direct DB update), the
+     * transition to TO_DISPATCH is skipped and dispatch proceeds directly.</p>
+     *
+     * @param itemId the plan item to redispatch
+     * @return the previous status of the item before redispatch
+     * @throws IllegalStateException if the item is not found
+     * @throws IllegalStateTransitionException if the transition is not legal
+     */
+    @Transactional
+    public ItemStatus redispatchItem(UUID itemId) {
+        PlanItem item = planItemRepository.findByIdWithPlan(itemId)
+            .orElseThrow(() -> new IllegalStateException("Unknown plan item: " + itemId));
+
+        ItemStatus previousStatus = item.getStatus();
+
+        // Transition to TO_DISPATCH (unless already there, e.g. from DB-level manual update)
+        if (item.getStatus() != ItemStatus.TO_DISPATCH) {
+            item.transitionTo(ItemStatus.TO_DISPATCH);
+        }
+        item.setFailureReason(null);
+        item.setCompletedAt(null);
+        planItemRepository.save(item);
+
+        // Reopen plan if needed
+        Plan plan = item.getPlan();
+        if (plan.getStatus() == PlanStatus.COMPLETED
+                || plan.getStatus() == PlanStatus.FAILED
+                || plan.getStatus() == PlanStatus.PAUSED) {
+            plan.transitionTo(PlanStatus.RUNNING);
+            plan.setCompletedAt(null);
+            plan.setPausedAt(null);
+            planRepository.save(plan);
+        }
+
+        // Direct dispatch — bypass dependency resolution
+        int attemptNum = attemptRepository.findMaxAttemptNumber(item.getId()).orElse(0) + 1;
+        DispatchAttempt attempt = new DispatchAttempt(UUID.randomUUID(), item, attemptNum);
+        UUID traceId = UUID.randomUUID();
+
+        log.info("Redispatching item {} (task={}, {} → TO_DISPATCH → DISPATCHED, attempt #{})",
+                 itemId, item.getTaskKey(), previousStatus, attemptNum);
+
+        // Build description with ralph-loop feedback if present
+        String description = item.getDescription();
+        if (item.getLastQualityGateFeedback() != null) {
+            description = description
+                + "\n\n--- QUALITY GATE FEEDBACK (iteration "
+                + item.getRalphLoopCount() + ") ---\n"
+                + item.getLastQualityGateFeedback();
+        }
+
+        Map<String, String> completedResults = loadCompletedResults(plan.getId());
+        AgentTask task = new AgentTask(
+            plan.getId(),
+            item.getId(),
+            item.getTaskKey(),
+            item.getTitle(),
+            description,
+            item.getWorkerType(),
+            item.getWorkerProfile(),
+            plan.getSpec(),
+            buildContextJson(item, completedResults),
+            attemptNum,
+            attempt.getId(),
+            traceId,
+            Instant.now().toString(),
+            null,  // no hook policy override for operator-initiated redispatch
+            plan.getCouncilReport(),
+            buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile()),
+            item.getToolHints()
+        );
+
+        try {
+            taskProducer.dispatch(task);
+            item.transitionTo(ItemStatus.DISPATCHED);
+            item.setDispatchedAt(Instant.now());
+            eventPublisher.publishEvent(new PlanItemDispatchedEvent(
+                    plan.getId(), item.getId(), item.getTaskKey(), item.getWorkerProfile()));
+            eventStore.append(plan.getId(), item.getId(), SpringPlanEvent.TASK_DISPATCHED,
+                    Map.of("taskKey", item.getTaskKey(),
+                           "workerProfile", item.getWorkerProfile() != null ? item.getWorkerProfile() : "",
+                           "attempt", attemptNum,
+                           "redispatch", true));
+        } catch (WorkerProfileRegistry.UnknownWorkerProfileException e) {
+            log.error("Redispatch failed — unknown worker profile for task {}: {}",
+                      item.getTaskKey(), e.getMessage());
+            item.transitionTo(ItemStatus.FAILED);
+            item.setFailureReason("Redispatch failed: unknown worker profile: " + item.getWorkerProfile());
+            item.setCompletedAt(Instant.now());
+            attempt.failImmediately("Unknown worker profile: " + item.getWorkerProfile());
+        }
+        attemptRepository.save(attempt);
+        planItemRepository.save(item);
+
+        return previousStatus;
+    }
+
+    /**
      * Creates a COMPENSATOR_MANAGER task to undo the effects of the specified item.
      *
      * <p>The compensation task is added to the same plan as the original item.
@@ -440,6 +545,7 @@ public class OrchestrationService {
                 compDesc,
                 WorkerType.COMPENSATOR_MANAGER,
                 "compensator-manager",
+                List.of(),
                 List.of()
         );
 
@@ -711,7 +817,8 @@ public class OrchestrationService {
                 Instant.now().toString(),
                 policy,
                 plan.getCouncilReport(),  // inject pre-planning council context into every task
-                buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile())
+                buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile()),
+                item.getToolHints()       // planner-suggested MCP tool allowlist (#24L1)
             );
 
             try {
@@ -915,6 +1022,7 @@ public class OrchestrationService {
                 ctxDesc,
                 WorkerType.CONTEXT_MANAGER,
                 null,
+                List.of(),
                 List.of()
         );
 

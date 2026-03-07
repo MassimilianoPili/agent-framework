@@ -43,6 +43,12 @@ public class PlanItem {
     @Column(name = "depends_on_key")
     private List<String> dependsOn = new ArrayList<>();
 
+    @ElementCollection
+    @CollectionTable(name = "plan_item_tool_hints",
+                     joinColumns = @JoinColumn(name = "item_id"))
+    @Column(name = "tool_hint")
+    private List<String> toolHints = new ArrayList<>();
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ItemStatus status;
@@ -82,7 +88,7 @@ public class PlanItem {
 
     public PlanItem(UUID id, int ordinal, String taskKey, String title,
                     String description, WorkerType workerType, String workerProfile,
-                    List<String> dependsOn) {
+                    List<String> dependsOn, List<String> toolHints) {
         this.id = id;
         this.ordinal = ordinal;
         this.taskKey = taskKey;
@@ -91,6 +97,7 @@ public class PlanItem {
         this.workerType = workerType;
         this.workerProfile = workerProfile;
         this.dependsOn = dependsOn != null ? new ArrayList<>(dependsOn) : new ArrayList<>();
+        this.toolHints = toolHints != null ? new ArrayList<>(toolHints) : new ArrayList<>();
         this.status = ItemStatus.WAITING;
     }
 
@@ -113,6 +120,8 @@ public class PlanItem {
     public void setWorkerProfile(String workerProfile) { this.workerProfile = workerProfile; }
 
     public List<String> getDependsOn() { return dependsOn; }
+
+    public List<String> getToolHints() { return toolHints; }
 
     public ItemStatus getStatus() { return status; }
 

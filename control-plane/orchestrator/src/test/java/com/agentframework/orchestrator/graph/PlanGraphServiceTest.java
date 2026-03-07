@@ -338,6 +338,6 @@ class PlanGraphServiceTest {
     private static PlanItem newItem(int ordinal, String taskKey, WorkerType workerType,
                                      String workerProfile, List<String> dependsOn) {
         return new PlanItem(UUID.randomUUID(), ordinal, taskKey, "Title " + taskKey,
-                "Description for " + taskKey, workerType, workerProfile, dependsOn);
+                "Description for " + taskKey, workerType, workerProfile, dependsOn, List.of());
     }
 }

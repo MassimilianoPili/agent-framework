@@ -130,7 +130,8 @@ public class PlannerService {
                 s.description(),
                 workerType,
                 s.workerProfile(),
-                s.dependsOn() != null ? s.dependsOn() : List.of()
+                s.dependsOn() != null ? s.dependsOn() : List.of(),
+                s.toolHints()
             );
             result.add(item);
         }

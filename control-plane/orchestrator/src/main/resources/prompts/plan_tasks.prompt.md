@@ -117,6 +117,28 @@ You MUST follow these rules strictly:
 - `MG-001` (MANAGER) -- Domain advisor, depends on CT, before BE/FE
 - `SP-001` (SPECIALIST) -- Cross-cutting expert, depends on CT, before BE/FE
 
+## Available MCP Tools
+
+Workers can interact with the filesystem and execute commands through MCP tools.
+Specify which tools each task needs in the `toolHints` field using exact MCP tool names:
+
+| Capability | MCP Tool Name | Description |
+|------------|---------------|-------------|
+| Read files | `fs_read` | Read file contents |
+| Write files | `fs_write` | Create or overwrite files |
+| Search files | `fs_search` | Search for files by name pattern |
+| List directory | `fs_list` | List directory contents |
+| Execute shell | `bash_execute` | Run shell commands |
+| Execute Python | `python_execute` | Run Python scripts |
+
+### toolHints Guidelines
+- **BE/FE/DBA/MOBILE tasks**: typically need `["fs_read", "fs_write", "fs_search", "fs_list", "bash_execute"]`
+- **AI_TASK tasks**: depends on nature — data generation may need `fs_write`, testing needs `bash_execute`
+- **CONTRACT tasks**: usually text-only, set `toolHints` to `[]` or `null`
+- **REVIEW tasks**: may need `fs_read` and `fs_search` to inspect code, but never `fs_write`
+- **MANAGER/SPECIALIST tasks**: read-only — `["fs_read", "fs_search", "fs_list"]`
+- Only include tools that the task actually needs — fewer tools = faster, cheaper execution
+
 ## Output
 
 Respond with ONLY a JSON object conforming to the schema appended below this prompt. NEVER output code, CSS, HTML, or implementation artifacts. Your role is to decompose, not to implement.

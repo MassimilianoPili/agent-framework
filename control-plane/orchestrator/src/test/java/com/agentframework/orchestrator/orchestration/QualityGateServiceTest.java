@@ -283,7 +283,7 @@ class QualityGateServiceTest {
     private PlanItem createItem(Plan plan, String taskKey, WorkerType workerType, String profile) {
         PlanItem item = new PlanItem(
             UUID.randomUUID(), 1, taskKey, "Title " + taskKey,
-            "Description", workerType, profile, List.of()
+            "Description", workerType, profile, List.of(), List.of()
         );
         plan.addItem(item);
         return item;

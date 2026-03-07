@@ -228,7 +228,7 @@ class EnrichmentInjectorServiceTest {
                 UUID.randomUUID(), ordinal, taskKey,
                 "Title for " + taskKey,
                 "Description for " + taskKey,
-                type, null, deps
+                type, null, deps, List.of()
         );
         plan.addItem(item);
     }

@@ -63,7 +63,7 @@ class RewardComputationServiceTest {
 
     private PlanItem createItem(String taskKey, WorkerType type, String profile) {
         PlanItem item = new PlanItem(UUID.randomUUID(), 0, taskKey, "Title " + taskKey,
-                "Description " + taskKey, type, profile, List.of());
+                "Description " + taskKey, type, profile, List.of(), List.of());
         plan.addItem(item);
         return item;
     }

@@ -132,6 +132,21 @@ public abstract class AbstractWorker {
     }
 
     /**
+     * Resolves the effective tool allowlist by merging the worker's static
+     * policy with the planner's toolHints from the task.
+     *
+     * <p>Priority: toolHints from planner &gt; worker static allowlist &gt; ALL (default).
+     * If toolHints is non-empty, it becomes the {@link ToolAllowlist.Explicit} allowlist.
+     * If toolHints is empty/null, falls back to the worker's {@link #toolAllowlist()}.</p>
+     */
+    private ToolAllowlist resolveToolAllowlist(AgentTask task) {
+        if (task.toolHints() != null && !task.toolHints().isEmpty()) {
+            return new ToolAllowlist.Explicit(task.toolHints());
+        }
+        return toolAllowlist();
+    }
+
+    /**
      * Additional skill document paths to compose into the system prompt.
      *
      * <p>Each path is resolved by {@link com.agentframework.worker.context.SkillLoader}
@@ -230,7 +245,7 @@ public abstract class AbstractWorker {
                 log.info("[{}] Task {} served from context cache", workerType(), task.taskKey());
                 resultJson = cachedResult;
             } else {
-                ChatClient chatClient = chatClientFactory.create(workerType(), toolAllowlist());
+                ChatClient chatClient = chatClientFactory.create(workerType(), resolveToolAllowlist(task));
                 resultJson = execute(context, chatClient);
             }
 

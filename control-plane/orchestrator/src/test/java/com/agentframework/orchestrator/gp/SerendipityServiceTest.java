@@ -50,7 +50,7 @@ class SerendipityServiceTest {
                                       float reward, List<String> dependsOn) {
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 1, taskKey, "Title " + taskKey,
-                "Description for " + taskKey, type, profile, dependsOn);
+                "Description for " + taskKey, type, profile, dependsOn, List.of());
         Plan plan = new Plan(PLAN_ID, "test spec");
         plan.addItem(item);
         item.forceStatus(ItemStatus.DONE);
@@ -61,7 +61,7 @@ class SerendipityServiceTest {
     private PlanItem buildCmItem(String taskKey, String resultJson) {
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 0, taskKey, "Context for " + taskKey,
-                "Find files", WorkerType.CONTEXT_MANAGER, null, List.of());
+                "Find files", WorkerType.CONTEXT_MANAGER, null, List.of(), List.of());
         item.forceStatus(ItemStatus.DONE);
         item.setResult(resultJson);
         return item;
@@ -173,7 +173,7 @@ class SerendipityServiceTest {
             PlanItem domain = buildDomainItem("BE-006", WorkerType.BE, "be-java", 0.9f, List.of("SM-001"));
             PlanItem schema = new PlanItem(
                     UUID.randomUUID(), 0, "SM-001", "Schema",
-                    "Desc", WorkerType.SCHEMA_MANAGER, null, List.of());
+                    "Desc", WorkerType.SCHEMA_MANAGER, null, List.of(), List.of());
             schema.forceStatus(ItemStatus.DONE);
             schema.setResult("{}");
 

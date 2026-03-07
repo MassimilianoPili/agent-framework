@@ -328,8 +328,8 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | **B17 ✅** | **Context overflow da `fs_read` senza limiti** | **1.5g** | **Critico** | — |
 | **23 ✅** | **Enrichment Pipeline Activation** | **2g** | **Molto alto** (sblocca S1-S3) | — |
 | **25 ✅** | **mcp-bash-tool + mcp-python-tool** | **1.5g** | **Alto** | — |
-| **24** | **Tool configurabili (Livello 1: toolHints)** | **1g** | **Alto** | B13, #25 |
-| 19 | Retry manuale TO_DISPATCH | 1g | Alto | S8 |
+| **24 ✅** | **Tool configurabili (Livello 1: toolHints)** | **1g** | **Alto** | B13, #25 |
+| **19 ✅** | **Retry manuale TO_DISPATCH** | **1g** | **Alto** | S8 |
 | 20 | Modello LLM per task | 2g | Alto | — |
 | 22 | Orchestrator singleton (leader election) | 1.5g | Medio-alto | S8-H |
 | **26L1 ✅** | **Cost tracking per task** | 0.5g | Alto | — |
@@ -348,11 +348,10 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-07.
 
-## Non implementati (30 item — nessun codice)
+## Non implementati (29 item — nessun codice)
 
 | # | Item |
 |---|------|
-| 19 | Retry manuale TO_DISPATCH |
 | 20 | Modello LLM per task (solo campo `modelId` reserved null) |
 | 21 | Redis topic splitting per workerType |
 | 22 | Orchestrator singleton (leader election) |
@@ -647,24 +646,22 @@ I nomi dei tool attraversano tre livelli di enforcement, TUTTI devono usare gli 
 
 # Roadmap items #19-#26
 
-## #19 — Retry manuale via DB `TO_DISPATCH`
+## #19 ✅ — Retry manuale via DB `TO_DISPATCH`
 
-**Problema**: l'unico modo per ritentare un task fallito e' tramite `AutoRetryScheduler` (automatico).
-Non c'e' un canale manuale semplice per rimettere task in coda.
+**Implementato**: 2026-03-07.
 
-**Soluzione**: nuovo stato `TO_DISPATCH` nel DB. Un poller leggero legge periodicamente i task
-in `TO_DISPATCH` e li ri-dispatcha. Per ritentare basta un `UPDATE status = 'TO_DISPATCH'`
-(via API o diretto DB).
+Stato `TO_DISPATCH` nella state machine. Dispatch diretto senza dependency resolution (operator override).
+Transizioni: `FAILED/DONE → TO_DISPATCH → DISPATCHED`. Riapertura automatica plan se COMPLETED/FAILED/PAUSED.
 
-**Design**:
-- `ItemStatus.TO_DISPATCH` — nuovo stato nella state machine
-- Transizioni ammesse: `FAILED → TO_DISPATCH`, `DONE → TO_DISPATCH` (ralph-loop manuale)
-- `DispatchPollerService` — `@Scheduled`, legge `findByStatus(TO_DISPATCH)`, chiama dispatch
-- API REST: `POST /api/v1/plans/{id}/items/{itemId}/redispatch` — setta stato TO_DISPATCH
-- Complementare ad AutoRetryScheduler (che usa FAILED → WAITING con backoff)
+**Componenti**:
+- `ItemStatus.TO_DISPATCH` — stato + transizioni in `FAILED`, `DONE`
+- `OrchestrationService.redispatchItem()` — dispatch diretto (bypass dep resolution, risk gate, Bayesian)
+- `PlanController: POST /{id}/items/{itemId}/redispatch` — endpoint REST (202 Accepted)
+- `RedispatchPollerService` — safety-net poller @Scheduled 10s (crash recovery, DB-level retry)
+- `RedispatchTransactionService` — tx isolation REQUIRES_NEW per poller
+- `PlanItemRepository.findByStatusWithPlan()` — query per poller
 
-**File**: `ItemStatus.java`, `PlanItem.java`, `PlanItemRepository.java`,
-`DispatchPollerService.java` (NEW), `PlanController.java`, `v1.yaml`
+**Test**: `ItemStatusTest` (13), `RedispatchPollerServiceTest` (3), `OrchestrationServiceTest` (+7 redispatch).
 
 **Sforzo**: 1g. **Dipendenze**: S8.
 

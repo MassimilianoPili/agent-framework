@@ -128,6 +128,6 @@ class PheromoneServiceTest {
 
     private PlanItem item(String taskKey, WorkerType workerType, List<String> deps) {
         return new PlanItem(UUID.randomUUID(), 0, taskKey, "Title " + taskKey,
-                "Desc", workerType, null, deps);
+                "Desc", workerType, null, deps, List.of());
     }
 }

@@ -65,7 +65,7 @@ class StaleTaskDetectorSchedulerTest {
         plan.transitionTo(PlanStatus.RUNNING);
         PlanItem item = new PlanItem(
                 UUID.randomUUID(), 0, "BE-001", "Stale task", "desc",
-                WorkerType.BE, "be-java", List.of()
+                WorkerType.BE, "be-java", List.of(), List.of()
         );
         plan.addItem(item);
         item.transitionTo(ItemStatus.DISPATCHED);
