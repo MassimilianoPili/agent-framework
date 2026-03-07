@@ -3685,12 +3685,16 @@ Fase 9e (agent found., ~5.5g):    #76 → #72
 ### Riepilogo sforzo complessivo Research Domains
 
 ```
-Fase 8  (#50-#61): 12 items, ~22.5g  [research-domains.md]
-Fase 9  (#62-#76): 15 items, ~33.0g  [research-domains-new.md]
-Fase 10 (#77-#86): 10 items, ~24.0g  [research-domains-new.md]
-Fase 11 (#87-#96): 10 items, ~22.5g  [research-domains-new.md]
-──────────────────────────────────────
-Totale:            47 items, ~102.0g
+Fase 8  (#50-#61):  12 items, ~22.5g  [research-domains.md]
+Fase 9  (#62-#76):  15 items, ~33.0g  [research-domains-new.md]
+Fase 10 (#77-#86):  10 items, ~24.0g  [research-domains-new.md]
+Fase 11 (#87-#96):  10 items, ~22.5g  [research-domains-new.md]
+Fase 12 (#97-#106): 10 items, ~21.5g  [research-domains-new.md]
+───────────────────────────────────────
+Totale:             57 items, ~123.5g
+
+Consolidamento: research-domains-consolidation.md
+  (matrice 57×21, Mermaid, coverage, priority ranking, theory clusters)
 ```
 
 ---
@@ -3777,6 +3781,55 @@ Fase 11c (avanzato, ~6.5g):        #93 → #94 → #92
 - **#95 Ergodic + #69 Kelly**: Kelly e' caso speciale ergoico — Ergodic Economics fornisce la giustificazione profonda
 - **#92 VSM meta-architettura**: mappa l'intero framework sui 5 sottosistemi di Beer (S1=Worker, S2=Redis, S3=Orchestration, S4=Council, S5=Human)
 - Nessuna Flyway migration — tutti in-memory, Redis, o metriche runtime
+
+---
+
+## Research Domains Extended — Fase 12 (#97-#106)
+
+10 nuovi concetti che colmano le ultime lacune di copertura sui componenti non mappati (SerendipityService, PlanEventStore, RewardComputationService, AbstractWorker, PlanSnapshotService, RalphLoopService, WorkerCapabilitySpec, RAG Services, HookManagerService, PlanGraphService). Documentazione completa: [`docs/agent-framework/research-domains-new.md`](../docs/agent-framework/research-domains-new.md). Consolidamento: [`docs/agent-framework/research-domains-consolidation.md`](../docs/agent-framework/research-domains-consolidation.md).
+
+### Tabella items Fase 12
+
+| Tier | # | Dominio | Titolo | Sforzo | Valore |
+|------|---|---------|--------|--------|--------|
+| 0 | **97** | Bayesian | Bayesian Surprise (serendipity detection) | 2.0g | Alto |
+| 0 | **99** | RL Theory | Potential-Based Reward Shaping | 2.0g | Alto |
+| 0 | **100** | Concurrency | Actor Model (worker isolation) | 2.5g | Alto |
+| 0 | **101** | Distributed | Chandy-Lamport Snapshots (plan checkpointing) | 2.0g | Alto |
+| 0 | **102** | Analysis | Fixed-Point Theory (iterative convergence) | 2.0g | Alto |
+| 0 | **105** | Logic | LTL (hook policies, temporal verification) | 2.0g | Alto |
+| 1 | **98** | Process | Process Mining (workflow discovery) | 2.5g | Alto |
+| 1 | **103** | KR | Description Logic ALC (capability matching) | 2.0g | Medio-Alto |
+| 1 | **104** | HCI/IR | Information Foraging (RAG optimization) | 2.5g | Alto |
+| 1 | **106** | Swarm | Stigmergy (coordinamento indiretto) | 2.0g | Medio-Alto |
+| | | | **Totale Fase 12** | **21.5g** | |
+
+### Ordine implementazione Fase 12
+
+```
+Fase 12a (core, ~12.0g):          #97 → #99 → #100 → #101 → #102 → #105
+Fase 12b (avanzato, ~9.5g):       #98 → #103 → #104 → #106
+                                    ─────────────────────
+                                    Totale: ~21.5g (#97-#106)
+```
+
+### Dipendenze critiche Fase 12
+
+- **#98 Process Mining → #87 Petri Nets**: il workflow net scoperto dal process mining E' un Petri net
+- **#100 Actor Model → #88 CSP**: complementari — Actor per isolamento, CSP per sincronizzazione
+- **#104 Info Foraging → #94 Compressed Sensing**: entrambi ottimizzano retrieval RAG
+- **#106 Stigmergy → #92 VSM**: meccanismo di coordinamento S2 nel VSM
+- **GP Engine (#15)** prerequisito per #97, #99, #102 (prior/posterior, reward, convergenza)
+- **OrchestrationService** target di #100, #101, #105, #106 (supervision, snapshot, policy, coordinamento)
+- Nessuna Flyway migration — tutti in-memory, Redis, o metriche runtime
+
+### Arricchimenti inclusi (Fasi 9-12)
+
+Oltre ai 57 items, `research-domains-new.md` contiene:
+- **10 pseudocodice** (items algoritmici: #62, #63, #67, #77, #81, #87, #89, #93, #94, #96)
+- **10 esempi numerici** (con dati concreti dal framework: #62, #67, #69, #77, #81, #87, #93, #94, #95, #96)
+- **15 implementation sketches** (Java signatures + data flow: #62, #64, #65, #73, #75, #77, #81, #87, #93, #96, #97, #99, #100, #102, #105)
+- **27 cross-reference "Vedi anche"** (bidirezionali tra items correlati)
 
 ---
 
