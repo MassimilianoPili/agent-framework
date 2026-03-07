@@ -84,4 +84,25 @@ public interface PlanItemRepository extends JpaRepository<PlanItem, UUID> {
           )
         """)
     List<PlanItem> findStaleDispatched(@Param("cutoff") Instant cutoff);
+
+    // ── Aggregate queries for CriticalityMonitor (sandpile model) ────────
+
+    /** Counts WAITING items grouped by WorkerType. Returns Object[]{WorkerType, Long}. */
+    @Query("SELECT i.workerType, COUNT(i) FROM PlanItem i "
+         + "WHERE i.status = com.agentframework.orchestrator.domain.ItemStatus.WAITING "
+         + "GROUP BY i.workerType")
+    List<Object[]> countPendingByWorkerType();
+
+    /** Counts FAILED items grouped by WorkerType. Returns Object[]{WorkerType, Long}. */
+    @Query("SELECT i.workerType, COUNT(i) FROM PlanItem i "
+         + "WHERE i.status = com.agentframework.orchestrator.domain.ItemStatus.FAILED "
+         + "GROUP BY i.workerType")
+    List<Object[]> countFailedByWorkerType();
+
+    /** Counts stale DISPATCHED items (dispatched before cutoff) grouped by WorkerType. */
+    @Query("SELECT i.workerType, COUNT(i) FROM PlanItem i "
+         + "WHERE i.status = com.agentframework.orchestrator.domain.ItemStatus.DISPATCHED "
+         + "AND i.dispatchedAt <= :cutoff "
+         + "GROUP BY i.workerType")
+    List<Object[]> countStaleDispatchedByWorkerType(@Param("cutoff") Instant cutoff);
 }

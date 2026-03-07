@@ -3688,8 +3688,9 @@ Fase 9e (agent found., ~5.5g):    #76 → #72
 Fase 8  (#50-#61): 12 items, ~22.5g  [research-domains.md]
 Fase 9  (#62-#76): 15 items, ~33.0g  [research-domains-new.md]
 Fase 10 (#77-#86): 10 items, ~24.0g  [research-domains-new.md]
+Fase 11 (#87-#96): 10 items, ~22.5g  [research-domains-new.md]
 ──────────────────────────────────────
-Totale:            37 items, ~79.5g
+Totale:            47 items, ~102.0g
 ```
 
 ---
@@ -3733,6 +3734,49 @@ Fase 10c (avanzato, ~8.0g):         #80 → #85 → #86
 - **#85 Persistent Homology**: richiede pgvector embeddings (TaskOutcomeService) + #78 IB (topologia dello spazio compresso)
 - **#86 Functorial Semantics**: richiede PlannerService DAG + #80 RG (composizione multi-scala)
 - Nessuna Flyway migration — tutti in-memory o Redis DB 4
+
+---
+
+## Research Domains Extended — Fase 11 (#87-#96)
+
+10 nuovi concetti da formal methods, social choice theory, cybernetics, learning theory, compressed sensing, ergodic economics e queuing theory. Strategia: colmare le lacune di copertura sui componenti sotto-serviti (CouncilService, Redis Streams, RAG Pipeline). Documentazione completa: [`docs/agent-framework/research-domains-new.md`](../docs/agent-framework/research-domains-new.md)
+
+### Tabella items Fase 11
+
+| Tier | # | Dominio | Titolo | Sforzo | Valore |
+|------|---|---------|--------|--------|--------|
+| 0 | **87** | Formal Methods | Petri Nets (plan concurrency analysis) | 2.5g | Alto |
+| 0 | **89** | Learning Theory | PAC-Bayes (GP convergence bounds) | 2.0g | Alto |
+| 0 | **90** | Social Choice | Social Choice Theory (council aggregation) | 2.5g | Alto |
+| 0 | **95** | Economics | Ergodic Economics (time-average budgets) | 2.0g | Medio-Alto |
+| 0 | **96** | Queuing Theory | M/G/1 (stream capacity planning) | 2.0g | Alto |
+| 1 | **88** | Formal Methods | CSP (worker communication protocol) | 2.5g | Alto |
+| 1 | **91** | Social Systems | Diversity Prediction (council composition) | 2.0g | Alto |
+| 1 | **93** | Learning Theory | Thompson Sampling (Bayesian exploration) | 2.0g | Alto |
+| 1 | **94** | Compressed S. | Compressed Sensing (sparse RAG retrieval) | 2.5g | Alto |
+| 2 | **92** | Cybernetics | VSM (viable system model, agent hierarchy) | 2.5g | Medio-Alto |
+| | | | **Totale Fase 11** | **22.5g** | |
+
+### Ordine implementazione Fase 11
+
+```
+Fase 11a (formal+voting, ~9.5g):   #87 → #90 → #89 → #88
+Fase 11b (council+econ, ~6.5g):    #91 → #95 → #96
+Fase 11c (avanzato, ~6.5g):        #93 → #94 → #92
+                                     ─────────────────────
+                                     Totale: ~22.5g (#87-#96)
+```
+
+### Dipendenze critiche Fase 11
+
+- **CouncilService** target di 3 items: #90 (voting protocol), #91 (diversity), #92 (VSM S4) — colma la lacuna principale
+- **Redis Streams** target di 2 items: #88 (CSP protocol verification), #96 (queuing capacity) — formalizza il messaging
+- **RAG HybridSearchService** target di #94 (compressed sensing) — primo item teorico per il retrieval pipeline
+- **#87 Petri Nets + #88 CSP complementari**: stato (places/tokens) vs processo (events/channels) — insieme coprono concorrenza statica e dinamica
+- **#93 Thompson + #89 PAC-Bayes**: Thompson esplora campionando dalla GP posterior, PAC-Bayes bounds quando smettere di esplorare
+- **#95 Ergodic + #69 Kelly**: Kelly e' caso speciale ergoico — Ergodic Economics fornisce la giustificazione profonda
+- **#92 VSM meta-architettura**: mappa l'intero framework sui 5 sottosistemi di Beer (S1=Worker, S2=Redis, S3=Orchestration, S4=Council, S5=Human)
+- Nessuna Flyway migration — tutti in-memory, Redis, o metriche runtime
 
 ---
 

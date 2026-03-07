@@ -326,6 +326,14 @@ gp:
   budget:
     alpha: 1.0  # dynamic budget modulation: effectiveLimit = base × (1 + alpha × sigma²) × clip(mu, 0.3, 1.0)
 
+# Self-Organized Criticality (Sandpile Model)
+# Monitors system-level load per WorkerType and detects failure cascades.
+# C < 0.5 = stable, 0.5-0.8 = warning, >= 0.8 = alert (publishes SYSTEM_CRITICALITY event).
+criticality:
+  enabled: true
+  interval-ms: 120000          # every 2 minutes
+  target-inventory: 5          # per WorkerType (threshold = target * 3 = 15)
+
 logging:
   level:
     com.agentframework: INFO
