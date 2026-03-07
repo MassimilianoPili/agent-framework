@@ -16,6 +16,10 @@ spostate da PIANO.md per mantenere il piano di evoluzione snello e focalizzato s
 - [#11 GP per Worker Selection](#11-gp-per-worker-selection-) (S6)
 - [#14 DPO con GP Residual](#14-dpo-con-gp-residual-) (S7)
 - [#16 Ralph-Loop (Quality Gate Feedback Loop)](#16-ralph-loop-quality-gate-feedback-loop-) (S5)
+- [#12 Serendipita' Context Manager](#12-serendipita-nel-context-manager-) (S8)
+- [#15 Active Token Budget](#15-active-learning-per-token-budget-) (S9)
+- [#17 SDK Scaffold Worker](#17-sdk-scaffold-worker-) (S5)
+- [#18 ADR-005: GP + Serendipita'](#18-adr-005-gp--serendipita--motivazioni-architetturali-) (S5)
 
 ### RAG Pipeline — Piano Dettagliato
 - [Contesto e Decisioni Architetturali](#contesto-rag)
@@ -31,6 +35,11 @@ spostate da PIANO.md per mantenere il piano di evoluzione snello e focalizzato s
 - [S5 — Ralph-Loop + Roadmap GP/Serendipita'](#sessione-5--ralph-loop--roadmap-gpserendipita--completata)
 - [S6 — GP Engine Module + Worker Selection](#sessione-6--gp-engine-module--worker-selection-11--completata)
 - [S7 — DPO con GP Residual](#sessione-7--dpo-con-gp-residual-14--completata)
+- [S8 — Serendipita' Context Manager (#12)](#sessione-8--serendipita-context-manager-12--completata)
+- [S8-bugfix — Fix bug critici + resilienza](#sessione-8-bugfix--fix-bug-critici--resilienza--completata)
+- [S8-workers — 26 Nuovi Workers + build.sh](#sessione-8-workers--26-nuovi-workers--buildsh--completata)
+- [S8-research — Fasi 8a/8b/8d Research Domains](#sessione-8-research--fasi-8a8b8d-research-domains--completata)
+- [S9 — Active Token Budget (#15)](#sessione-9--active-token-budget-15--completata)
 - [Riepilogo File per Sessione](#riepilogo-file-per-sessione)
 
 ---
@@ -270,6 +279,123 @@ Semantiche diverse, contatori diversi → configurazione cap indipendenti.
 Flyway V7 (nuove colonne).
 
 **Sforzo**: 1.5g. **Dipendenze**: nessuna. **Dati minimi**: nessuno (funziona dal primo piano).
+
+---
+
+### 12. Serendipita' nel Context Manager ✅
+
+**Problema**: il context-manager trova solo file semanticamente simili (RAG search coseno + BM25 via
+`HybridSearchService`). Non scopre file "sorprendenti" che storicamente si sono rivelati utili
+per task simili ma che la ricerca semantica non intercetta.
+
+**Soluzione**: GP residual per file discovery — `residual(file, task) = actual_usefulness - predicted_usefulness`.
+Se `residual >> 0`: il file era inaspettatamente utile → pattern latente da sfruttare.
+
+**Perche' non e' random exploration**: usa il residual positivo del GP, non randomicita'.
+E' **informed surprise** — file che hanno *sorpreso* il modello in task passati simili.
+Un file `SecurityConfig.java` inaspettatamente utile per un task "build CRUD API" suggerisce
+che quel progetto ha vincoli di sicurezza impliciti.
+
+**Perche' nel context-manager e non nel RAG_MANAGER**: CM opera *prima* del RAG nel DAG dei task.
+La serendipita' arricchisce il contesto iniziale; il RAG puo' poi cercare anche sui file sorpresa.
+Layering: serendipita' (storica) → RAG (semantica). Se fosse nel RAG, il CM non ne beneficerebbe.
+
+**Come si compone con RRF**: `HybridSearchService` fa RRF con k=60 su 2 ranked list
+(coseno + BM25). La serendipita' aggiunge una terza list (residual storico).
+RRF esteso a 3 sorgenti: `score(d) = 1/(k+r_cosine) + 1/(k+r_bm25) + 1/(k+r_serendipity)`.
+
+**Dati necessari**: collegamento `(task_embedding, suggested_files[], final_reward)` —
+ricavabile join-ando `plan_items` (reward) con risultati CONTEXT_MANAGER (lista file).
+Richiede `task_outcomes` di #11.
+
+**File nuovi**: `shared/gp-engine/SerendipityAnalyzer.java`.
+Modifica `context-manager-worker`, estensione `HybridSearchService` per terza sorgente RRF.
+
+**Sforzo**: 2g. **Dipendenze**: #11 (GP engine + task_outcomes). **Dati minimi**: ~100 task con file context.
+
+---
+
+### 15. Active Learning per Token Budget ✅
+
+**Problema**: `TokenBudgetService.checkBudget()` (riga 53) confronta `used >= limit` statico.
+Task facili sprecano budget (limite troppo alto), task difficili lo esauriscono (limite troppo basso).
+
+**Soluzione**: modulare il budget con le predizioni GP — `mu` per la qualita' attesa,
+`sigma^2` per l'incertezza.
+
+**Formula**: `dynamic_budget = base × (1 + alpha × sigma^2) × clip(mu, 0.3, 1.0)`.
+- `sigma^2` alto (incertezza) → piu' budget (active learning: lascia esplorare)
+- `mu` basso (qualita' attesa bassa) → riduce budget (non sprecare su task destinato a fallire)
+- `clip(mu, 0.3, 1.0)` impedisce di azzerare il budget
+
+**Perche' `sigma^2` come modulatore e non solo `mu`**: solo `mu` = "se predico fallimento,
+riduci budget" (miope). Aggiungere `sigma^2` = "se incerto, dai piu' budget" (active learning).
+L'incertezza e' informazione: un task incerto potrebbe rivelare pattern nuovi per il GP.
+
+**Perche' in `checkBudget` e non in `recordUsage`**: `checkBudget` opera *prima* del dispatch
+(riga 465 di `OrchestrationService`). `recordUsage` opera *dopo* (riga 280). Il budget dinamico
+deve modulare il limite *prima* che il task parta.
+
+**Enforcement mode invariato**: il budget dinamico modifica solo il limite numerico, non la policy
+(`FAIL_FAST`/`NO_NEW_DISPATCH`/`SOFT_LIMIT`). Single Responsibility Principle: la policy dice
+*cosa fare* quando il budget e' superato, il GP dice *quanto* budget dare.
+
+**File mod**: `TokenBudgetService.java` (`checkBudget` accetta `Optional<GPPrediction>`).
+
+**Sforzo**: 1g. **Dipendenze**: #11 (GP engine). **Dati minimi**: ~50 task con budget history.
+
+---
+
+### 17. SDK Scaffold Worker ✅
+
+**Problema**: creare un progetto Agent SDK (Claude Code SDK, Python o TypeScript) richiede
+boilerplate ripetitivo: setup environment, installazione SDK, configurazione, gitignore,
+entry point, tool definitions, deployment config.
+
+**Soluzione**: worker con `workerType: AI_TASK` e `workerProfile: sdk-scaffold` che genera
+un progetto completo e verificato, guidato da skill files.
+
+**Perche' workerType `AI_TASK` e non un nuovo type**: lo scaffolding non ha semantica
+diversa da un generic AI task. Creare un WorkerType dedicato inquinerebbe l'enum
+(gia' 15 valori). Un `workerProfile: sdk-scaffold` basta per il routing nel
+`WorkerProfileRegistry`, coerente con il pattern esistente.
+
+**Perche' skill files e non codice Java**: lo scaffolding e' un task LLM-driven.
+Il worker generato dall'agent-compiler esegue le istruzioni della skill.
+Le skill sono modificabili senza rebuild — aggiornare un template e' un file edit.
+Pattern identico a `be-java`, `fe-react`, etc.
+
+**Perche' ralph-loop inline nella skill**: il verifier (type check + syntax) e'
+parte delle istruzioni della skill, non un servizio separato. Il worker esegue il loop
+autonomamente come parte dell'`execute()`. Il ralph-loop orchestratore (#16)
+e' a livello piano; qui e' a livello task (complementari, non duplicati).
+
+**File nuovi**: `agents/manifests/sdk-scaffold.agent.yml`, `skills/sdk-scaffold/SKILL.md`,
+`skills/sdk-scaffold/python-template.md`, `skills/sdk-scaffold/typescript-template.md`.
+
+**Sforzo**: 0.5g. **Dipendenze**: nessuna.
+
+---
+
+### 18. ADR-005: GP + Serendipita' — Motivazioni Architetturali ✅
+
+**Problema**: le scelte architetturali per #11-#15 hanno motivazioni profonde
+che non entrano in una roadmap item. Servono in un ADR dedicato con alternative
+scartate e ancoraggi al codice.
+
+**Perche' ADR e non commenti nel codice**: le motivazioni riguardano *perche'*
+una scelta e' stata fatta, non *come* funziona il codice. I commenti nel codice
+spiegano il come; gli ADR spiegano il perche' e le alternative scartate.
+
+**Contenuto**: per ogni feature #11-#15, il *perche'* di ogni scelta ancorato
+a righe specifiche del codice esistente. Include: schema `task_outcomes`,
+formula `processScore` in `RewardComputationService`, flusso dispatch in
+`OrchestrationService` (righe 449-540), Bradley-Terry in `EloRatingService`,
+delta filter in `PreferencePairGenerator` (riga 113).
+
+**File**: `docs/adr/ADR-005-gp-serendipity-evolution.md`.
+
+**Sforzo**: 0.5g. **Dipendenze**: nessuna (documenta #11-#15, non le implementa).
 
 ---
 ---
@@ -699,6 +825,175 @@ nuovi piuttosto che da coppie ovvie.
 
 ---
 
+## Sessione 8 — Serendipita' Context Manager (#12) ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-02. Feature #12 implementata: GP residual per file discovery
+> nel context-manager. Aggiunge terza sorgente RRF (serendipita') a `HybridSearchService`.
+> Commit: `069b101` — `feat: Sessione 8 — Serendipità Context Manager (#12)`
+
+### S8-serendipity. Implementazione
+
+- `shared/gp-engine/SerendipityAnalyzer.java` (NEW) — analizza residual GP per file discovery
+- Modifica `context-manager-worker` — integrazione serendipita' nel flusso CM
+- Estensione `HybridSearchService` — terza sorgente RRF (residual storico)
+- RRF esteso: `score(d) = 1/(k+r_cosine) + 1/(k+r_bm25) + 1/(k+r_serendipity)`
+
+---
+
+## Sessione 8-bugfix — Fix bug critici + resilienza ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-03. Fix critici B1-B7, B9, B13-B16 per la catena
+> task bloccato / risultato perso / piano mai completo. Centralizzazione nomi tool (#27).
+> Commit: `f0c3fc2` — `fix: critical bug fixes + resilience for task completion pipeline (S8)`
+
+### S8-A. ACK after commit (B1)
+
+`TransactionSynchronization.afterCommit()` in `AgentResultConsumer` — XACK solo dopo commit.
+Se rollback → no ACK → Redis ri-consegna il messaggio.
+
+**File**: `AgentResultConsumer.java`, `RedisStreamListenerContainer.java`
+
+### S8-B. Side-effect isolation (B2)
+
+Separazione path critico (transizione stato nella transazione) da side-effect non critici
+(reward, GP, serendipity) via `@TransactionalEventListener(AFTER_COMMIT)`.
+
+**File**: `OrchestrationService.java`, `TaskCompletedEventHandler.java` (NEW)
+
+### S8-C. Stale task detector (B3)
+
+`@Scheduled` che marca come FAILED task DISPATCHED da piu' di N minuti senza risultato.
+
+**File**: `StaleTaskDetectorScheduler.java` (NEW), `application.yml`
+
+### S8-D. AutoRetryScheduler fix (B4)
+
+Transazione separata per item (`REQUIRES_NEW`) — un retry fallito non causa rollback di tutti.
+
+**File**: `AutoRetryScheduler.java`, `RetryTransactionService.java` (NEW)
+
+### S8-E. Missing context propagation (B5)
+
+Se CM task creato per context retry fallisce → propagare FAILED al task padre.
+
+**File**: `OrchestrationService.java`
+
+### S8-F. LazyInitializationException fix (B6)
+
+`JOIN FETCH plan` nella query repository per evitare lazy init fuori transazione.
+
+**File**: `PlanItemRepository.java`, `OrchestrationService.java`
+
+### S8-G. Optimistic locking (B7)
+
+`@Version` su PlanItem e Plan entities. Flyway V10 (colonna `version`).
+
+**File**: `PlanItem.java`, `Plan.java`
+
+### S8-H. Consumer group resilience (B9)
+
+`XAUTOCLAIM` all'avvio per reclamare messaggi pending oltre idle timeout.
+
+**File**: `AgentResultConsumer.java`, `RedisStreamListenerContainer.java`
+
+### S8-J. Fix Mustache template write-tool-names (B14)
+
+Rimozione `write-tool-names` hardcoded dal template, delegato a `PolicyProperties` default.
+
+**File**: `application.yml.mustache`, `PolicyProperties.java`
+
+### S8-K. Project path dinamico in ownsPaths (B15)
+
+`AgentTask.dynamicOwnsPaths` + merge con `ownsPaths` statici in `PathOwnershipEnforcer`.
+
+**File**: `AgentTask.java`, `AgentTaskProducer.java`, `WorkerTaskConsumer.java`, `PathOwnershipEnforcer.java`
+
+### S8-L. Centralizzazione nomi tool — ToolNames registry (#27, B13, B16)
+
+Classe `ToolNames` nel `worker-sdk` come unica source of truth. Costanti `FS_LIST`, `FS_READ`,
+`FS_WRITE`, `FS_SEARCH`, `FS_GREP`. Categorie `WRITE_TOOLS`, `READ_TOOLS`, `ALL_FS_TOOLS`.
+Aggiornamento 5 consumatori: `HookPolicyResolver`, `PolicyProperties`, `PathOwnershipEnforcer`,
+`hook-manager.agent.yml`, `application.yml.mustache`.
+
+**File**: `ToolNames.java` (NEW), + 5 file aggiornati
+
+### S8-M. Test (~28)
+
+ACK after commit (3), side-effect isolation (4), stale detection (2), retry per-item (3),
+optimistic locking (2), pending reclaim (3), CM failure propagation (3),
+dynamic ownsPaths (3), write-tool-names (2), ToolNames (3).
+
+---
+
+## Sessione 8-workers — 26 Nuovi Workers + build.sh ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-03. Aggiunta di 26 nuovi worker domain (BE, FE, DBA, MOBILE),
+> 3 council specialist, e script `build.sh` per compilazione rapida.
+> Commit: `90c2521` — `feat: add 26 new workers (BE+FE+DBA+MOBILE), 3 council specialists, build.sh`
+
+### Contenuto
+
+- 26 nuovi worker domain con manifest `.agent.yml` e skill files
+- 3 council specialist (architettura, security, performance)
+- `build.sh` — script di build rapido per l'intero progetto
+- SDK Scaffold Worker (#17): `agents/manifests/sdk-scaffold.agent.yml`,
+  `skills/sdk-scaffold/SKILL.md`, `skills/sdk-scaffold/python-template.md`,
+  `skills/sdk-scaffold/typescript-template.md`
+
+---
+
+## Sessione 8-research — Fasi 8a/8b/8d Research Domains ✅ COMPLETATA
+
+> **Stato**: completate tra il 2026-03-04 e 2026-03-06. Implementazione di 3 fasi di ricerca
+> dal dominio Research Domains Extended (items #50-#61).
+
+### Fase 8a — Replicator Dynamics + Worker Greeks
+
+Commit: `5fd4f0c` — `feat: Fase 8a completion — replicator dynamics, worker Greeks, GP risk penalty`
+
+- Replicator dynamics per popolazione worker
+- Worker Greeks (sensitivita' al rischio)
+- GP risk penalty
+
+### Fase 8b — Spectral Graph + Submodular + ACO
+
+Commit: `078583d` — `feat: Fase 8b — spectral graph theory, submodular optimization, ACO pheromone`
+
+- Spectral graph theory per analisi DAG
+- Submodular optimization per selezione task
+- ACO (Ant Colony Optimization) pheromone trails
+
+### Fase 8d — Causal Inference + Optimal Transport
+
+Commit: `57117ad` — `Fase 8d: Causal Inference (#54) + Optimal Transport (#60) — 22 new tests`
+
+- Causal inference per analisi causa-effetto nelle performance worker
+- Optimal transport per allineamento distribuzioni reward
+- 22 nuovi test
+
+---
+
+## Sessione 9 — Active Token Budget (#15) ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-02. Feature #15 implementata: budget token dinamico
+> modulato da predizioni GP (`mu` per qualita' attesa, `sigma^2` per incertezza).
+> Commit: `1d1cb01` — `feat: Sessione 9 — Active Token Budget con GP (#15)`
+
+### S9-A. Implementazione
+
+- `TokenBudgetService.checkBudget()` accetta `Optional<GPPrediction>`
+- Formula: `dynamic_budget = base × (1 + alpha × sigma^2) × clip(mu, 0.3, 1.0)`
+- `sigma^2` alto → piu' budget (active learning)
+- `mu` basso → meno budget (non sprecare su task destinato a fallire)
+- Enforcement mode invariato (FAIL_FAST/NO_NEW_DISPATCH/SOFT_LIMIT)
+
+### S9-B. Invarianti
+
+1. `gp.enabled: false` → budget statico come prima (zero behavioral change)
+2. Cold start (0 training data) → GP prior → budget = base (nessuna modulazione)
+
+---
+
 ## Riepilogo File per Sessione
 
 | Sessione | File nuovi | File mod | Test nuovi | Test totali |
@@ -710,6 +1005,11 @@ nuovi piuttosto che da coppie ovvie.
 | **S5** (Ralph-Loop + Roadmap #11-#18) ✅ | 8 | 6 | 8 | 372 |
 | **S6** (GP Engine + Worker Selection #11) ✅ | 21 | 7 | 52 | 394 |
 | **S7** (DPO con GP Residual #14) ✅ | 2 | 4 | 11 | 416 |
+| **S8** (Serendipita' #12) ✅ | ~5 | ~3 | — | — |
+| **S8-bugfix** (B1-B7, B9, B13-B16) ✅ | ~8 | ~12 | ~28 | — |
+| **S8-workers** (26 workers + build.sh) ✅ | ~30 | ~2 | — | — |
+| **S8-research** (Fasi 8a/8b/8d) ✅ | ~15 | ~5 | 22 | — |
+| **S9** (Active Token Budget #15) ✅ | ~2 | ~3 | — | — |
 
 ---
 

@@ -172,6 +172,35 @@ public interface TaskOutcomeRepository extends JpaRepository<TaskOutcome, UUID> 
     List<String> findDistinctProfiles();
 
     /**
+     * Loads GP predictions and actual outcomes for calibration audit.
+     * Returns rows where both gp_mu and actual_reward are available.
+     */
+    @Query(value = """
+            SELECT gp_mu, actual_reward, worker_type
+            FROM task_outcomes
+            WHERE gp_mu IS NOT NULL
+              AND actual_reward IS NOT NULL
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findCalibrationData(@Param("limit") int limit);
+
+    /**
+     * Loads GP predictions and actual outcomes filtered by worker type (calibration audit).
+     */
+    @Query(value = """
+            SELECT gp_mu, actual_reward
+            FROM task_outcomes
+            WHERE gp_mu IS NOT NULL
+              AND actual_reward IS NOT NULL
+              AND worker_type = :workerType
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findCalibrationDataByWorkerType(@Param("workerType") String workerType,
+                                                    @Param("limit") int limit);
+
+    /**
      * Finds the task outcome for a specific plan item (for serendipity collection).
      */
     @Query(value = """

@@ -2,6 +2,8 @@ package com.agentframework.orchestrator.gp;
 
 import com.agentframework.gp.engine.GaussianProcessEngine;
 import com.agentframework.gp.model.GpPrediction;
+import com.agentframework.orchestrator.analytics.HedgeAlgorithmService;
+import com.agentframework.orchestrator.analytics.ProspectTheoryService;
 import com.agentframework.orchestrator.analytics.WorkerDriftMonitor;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.orchestration.WorkerProfileRegistry;
@@ -35,15 +37,21 @@ public class GpWorkerSelectionService {
     private final WorkerProfileRegistry profileRegistry;
     private final Optional<WorkerGreeksService> greeksService;
     private final Optional<WorkerDriftMonitor> driftMonitor;
+    private final Optional<ProspectTheoryService> prospectTheoryService;
+    private final Optional<HedgeAlgorithmService> hedgeAlgorithmService;
 
     public GpWorkerSelectionService(TaskOutcomeService outcomeService,
                                      WorkerProfileRegistry profileRegistry,
                                      Optional<WorkerGreeksService> greeksService,
-                                     Optional<WorkerDriftMonitor> driftMonitor) {
+                                     Optional<WorkerDriftMonitor> driftMonitor,
+                                     Optional<ProspectTheoryService> prospectTheoryService,
+                                     Optional<HedgeAlgorithmService> hedgeAlgorithmService) {
         this.outcomeService = outcomeService;
         this.profileRegistry = profileRegistry;
         this.greeksService = greeksService;
         this.driftMonitor = driftMonitor;
+        this.prospectTheoryService = prospectTheoryService;
+        this.hedgeAlgorithmService = hedgeAlgorithmService;
     }
 
     /**
@@ -140,6 +148,52 @@ public class GpWorkerSelectionService {
                         break;
                     }
                 }
+            }
+        }
+
+        // Prospect theory: behavioral bias adjustment (loss aversion)
+        if (prospectTheoryService.isPresent()) {
+            try {
+                double ptAdjustment = prospectTheoryService.get().adjustmentFactor(bestProfile);
+                if (ptAdjustment < -0.1) {
+                    double penalizedMu = bestMu + ptAdjustment;
+                    for (var entry : predictions.entrySet()) {
+                        if (entry.getKey().equals(bestProfile)) continue;
+                        double altAdj = prospectTheoryService.get().adjustmentFactor(entry.getKey());
+                        if (entry.getValue().mu() + altAdj > penalizedMu) {
+                            log.info("Prospect theory: switching from '{}' (adj={}) to '{}'",
+                                    bestProfile, String.format("%.3f", ptAdjustment), entry.getKey());
+                            bestProfile = entry.getKey();
+                            bestMu = entry.getValue().mu();
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Prospect theory failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
+        // Hedge: exploration bonus from multiplicative weights
+        if (hedgeAlgorithmService.isPresent()) {
+            try {
+                double bonus = hedgeAlgorithmService.get().explorationBonus(workerType, bestProfile);
+                if (bonus < 0.5) {
+                    for (var entry : predictions.entrySet()) {
+                        if (entry.getKey().equals(bestProfile)) continue;
+                        double altBonus = hedgeAlgorithmService.get().explorationBonus(workerType, entry.getKey());
+                        if (altBonus > bonus && entry.getValue().mu() >= bestMu * 0.95) {
+                            log.info("Hedge bonus: switching from '{}' (bonus={}) to '{}' (bonus={})",
+                                    bestProfile, String.format("%.2f", bonus),
+                                    entry.getKey(), String.format("%.2f", altBonus));
+                            bestProfile = entry.getKey();
+                            bestMu = entry.getValue().mu();
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Hedge bonus failed (non-blocking): {}", e.getMessage());
             }
         }
 
