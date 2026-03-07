@@ -41,7 +41,8 @@ public class DbaMysqlWorker extends AbstractWorker {
         "db_tables",
         "db_list_schemas",
         "db_count",
-        "db_list_databases"
+        "db_list_databases",
+        "bash_execute"
     );
 
     private static final List<String> SKILL_PATHS = List.of(

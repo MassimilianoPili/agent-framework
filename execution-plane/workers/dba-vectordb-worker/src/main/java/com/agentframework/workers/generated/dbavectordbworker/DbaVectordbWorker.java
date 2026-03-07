@@ -41,7 +41,8 @@ public class DbaVectordbWorker extends AbstractWorker {
         "embeddings_stats",
         "embeddings_reindex",
         "db_query",
-        "db_tables"
+        "db_tables",
+        "bash_execute"
     );
 
     private static final List<String> SKILL_PATHS = List.of(

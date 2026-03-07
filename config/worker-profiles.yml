@@ -10,6 +10,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -25,6 +26,7 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -40,6 +42,7 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -55,6 +58,7 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -70,6 +74,7 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -85,6 +90,7 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -98,6 +104,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -113,6 +120,7 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -128,6 +136,7 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -143,6 +152,8 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
+      - python
     ownsPaths:
       - backend/
       - templates/be/
@@ -158,6 +169,7 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -173,6 +185,7 @@ worker-profiles:
       - repo-fs
       - openapi
       - test
+      - bash
     ownsPaths:
       - backend/
       - templates/be/
@@ -186,6 +199,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -199,6 +213,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -212,6 +227,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -225,6 +241,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -238,6 +255,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -251,6 +269,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -264,6 +283,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -277,6 +297,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -290,6 +311,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -303,6 +325,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - database/
       - templates/dba/
@@ -316,6 +339,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - frontend/
       - templates/fe/
@@ -330,6 +354,7 @@ worker-profiles:
       - git
       - repo-fs
       - openapi
+      - bash
     ownsPaths:
       - frontend/
       - templates/fe/
@@ -344,6 +369,7 @@ worker-profiles:
       - git
       - repo-fs
       - openapi
+      - bash
     ownsPaths:
       - frontend/
       - templates/fe/
@@ -357,6 +383,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - frontend/
       - templates/fe/
@@ -370,6 +397,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - cps4/
       - execution-plane/workers/fe-vanillajs-worker/
@@ -383,6 +411,7 @@ worker-profiles:
       - git
       - repo-fs
       - openapi
+      - bash
     ownsPaths:
       - frontend/
       - templates/fe/
@@ -396,6 +425,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - android/
       - mobile/
@@ -410,6 +440,7 @@ worker-profiles:
     mcpServers:
       - git
       - repo-fs
+      - bash
     ownsPaths:
       - ios/
       - mobile/

@@ -41,7 +41,8 @@ public class DbaMongoWorker extends AbstractWorker {
         "mongo_count",
         "mongo_list_collections",
         "mongo_aggregate",
-        "mongo_list_databases"
+        "mongo_list_databases",
+        "bash_execute"
     );
 
     private static final List<String> SKILL_PATHS = List.of(

@@ -39,7 +39,8 @@ public class DbaSqliteWorker extends AbstractWorker {
         "fs_grep",
         "db_query",
         "db_tables",
-        "db_count"
+        "db_count",
+        "bash_execute"
     );
 
     private static final List<String> SKILL_PATHS = List.of(

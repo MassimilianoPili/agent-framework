@@ -16,6 +16,8 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
+      - python_execute
     maxConcurrentCalls: 5
     skillPaths:
       - skills/crosscutting/
@@ -55,6 +57,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -76,6 +79,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/dotnet-workflow-skills/
@@ -98,6 +102,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/elixir-workflow-skills/
@@ -120,6 +125,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/go-workflow-skills/
@@ -142,6 +148,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/springboot-workflow-skills/
@@ -164,6 +171,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/kotlin-workflow-skills/
@@ -186,6 +194,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -207,6 +216,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/node-workflow-skills/
@@ -229,6 +239,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/ocaml-workflow-skills/
@@ -251,6 +262,8 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
+      - python_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/python-workflow-skills/
@@ -273,6 +286,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -294,6 +308,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 2
     skillPaths:
       - skills/rust-workflow-skills/
@@ -368,6 +383,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -395,6 +411,7 @@ workers:
       - graph_stats
       - graph_list_backends
       - db_query
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -421,6 +438,7 @@ workers:
       - mongo_list_collections
       - mongo_aggregate
       - mongo_list_databases
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -447,6 +465,7 @@ workers:
       - db_list_schemas
       - db_count
       - db_list_databases
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -473,6 +492,7 @@ workers:
       - db_list_schemas
       - db_count
       - db_list_databases
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -499,6 +519,7 @@ workers:
       - db_list_schemas
       - db_count
       - db_list_databases
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -525,6 +546,7 @@ workers:
       - db_list_schemas
       - db_count
       - db_list_databases
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -546,6 +568,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -570,6 +593,7 @@ workers:
       - db_query
       - db_tables
       - db_count
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -596,6 +620,7 @@ workers:
       - embeddings_reindex
       - db_query
       - db_tables
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -631,6 +656,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -652,6 +678,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/nextjs-workflow-skills/
@@ -674,6 +701,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/react-workflow-skills/
@@ -696,6 +724,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -717,6 +746,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -737,6 +767,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/vue-workflow-skills/
@@ -775,6 +806,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
@@ -797,6 +829,7 @@ workers:
       - fs_write
       - fs_search
       - fs_grep
+      - bash_execute
     maxConcurrentCalls: 3
     skillPaths:
       - skills/crosscutting/
