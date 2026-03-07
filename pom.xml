@@ -53,6 +53,12 @@
         <module>execution-plane/agent-compiler-maven-plugin</module>
         <module>execution-plane/worker-sdk</module>
         <!-- Generated workers (from agents/manifests/*.agent.yml via agent-compiler-maven-plugin) -->
+        <module>execution-plane/workers/context-manager-worker</module>
+        <module>execution-plane/workers/schema-manager-worker</module>
+        <module>execution-plane/workers/event-manager-worker</module>
+        <module>execution-plane/workers/audit-manager-worker</module>
+        <module>execution-plane/workers/hook-manager-worker</module>
+        <module>execution-plane/workers/sdk-scaffold-worker</module>
         <module>execution-plane/workers/be-java-worker</module>
         <module>execution-plane/workers/be-go-worker</module>
         <module>execution-plane/workers/be-rust-worker</module>
