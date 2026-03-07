@@ -87,6 +87,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- EJML — Efficient Java Matrix Library (eigenvalue decomposition for spectral analysis) -->
+        <dependency>
+            <groupId>org.ejml</groupId>
+            <artifactId>ejml-simple</artifactId>
+            <version>0.43.1</version>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

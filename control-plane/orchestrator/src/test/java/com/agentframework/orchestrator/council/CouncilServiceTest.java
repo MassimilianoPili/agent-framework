@@ -40,7 +40,7 @@ class CouncilServiceTest {
     private ChatClient.CallResponseSpec callResponse;
 
     private static final CouncilProperties DEFAULT_PROPS =
-        new CouncilProperties(true, 3, true, true);
+        new CouncilProperties(true, 3, true, true, false);
 
     @BeforeEach
     void setUp() {
@@ -276,7 +276,7 @@ class CouncilServiceTest {
 
     @Test
     void selectMembers_respectsMaxMembers_passesMaxToPrompt() {
-        CouncilProperties smallProps = new CouncilProperties(true, 2, true, true);
+        CouncilProperties smallProps = new CouncilProperties(true, 2, true, true, false);
         CouncilService smallService = new CouncilService(chatClient, promptLoader, smallProps, objectMapper, Optional.empty());
 
         stubPromptLoader();
@@ -443,21 +443,21 @@ class CouncilServiceTest {
 
     @Test
     void councilProperties_maxMembersZero_throwsException() {
-        assertThatThrownBy(() -> new CouncilProperties(true, 0, true, true))
+        assertThatThrownBy(() -> new CouncilProperties(true, 0, true, true, false))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("max-members must be > 0");
     }
 
     @Test
     void councilProperties_maxMembersNegative_throwsException() {
-        assertThatThrownBy(() -> new CouncilProperties(true, -5, true, true))
+        assertThatThrownBy(() -> new CouncilProperties(true, -5, true, true, false))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("max-members must be > 0");
     }
 
     @Test
     void councilProperties_validProperties_created() {
-        CouncilProperties props = new CouncilProperties(false, 7, false, true);
+        CouncilProperties props = new CouncilProperties(false, 7, false, true, false);
 
         assertThat(props.enabled()).isFalse();
         assertThat(props.maxMembers()).isEqualTo(7);

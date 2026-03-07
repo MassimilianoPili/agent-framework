@@ -152,6 +152,10 @@ public class CouncilService {
      * e.g. {@code ["be-manager", "security-specialist", "database-specialist"]}.</p>
      */
     private List<String> selectMembers(String spec, int maxMembers) {
+        if (properties.submodularSelectionEnabled()) {
+            return selectMembersSubmodular(maxMembers);
+        }
+
         String selectorPrompt = promptLoader.loadSelectorPrompt();
         String userMessage = "Specification:\n" + spec
             + "\n\nSelect up to " + maxMembers + " members from the available roster.";
@@ -169,6 +173,10 @@ public class CouncilService {
      * Variant of {@link #selectMembers} scoped to a specific task context.
      */
     private List<String> selectMembersForTask(String taskTitle, String context, int maxMembers) {
+        if (properties.submodularSelectionEnabled()) {
+            return selectMembersSubmodular(maxMembers);
+        }
+
         String selectorPrompt = promptLoader.loadSelectorPrompt();
         String userMessage = "Task: " + taskTitle
             + "\n\nContext:\n" + context
@@ -181,6 +189,19 @@ public class CouncilService {
             .content();
 
         return parseStringList(raw, "council-selector-task");
+    }
+
+    /**
+     * Selects council members using submodular optimisation (CELF greedy).
+     * Maximises topic coverage diversity with a (1 - 1/e) ≈ 63% optimality guarantee.
+     */
+    private List<String> selectMembersSubmodular(int maxMembers) {
+        Map<String, java.util.Set<String>> profileTopics = TopicCoverageFunction.defaultProfileTopics();
+        TopicCoverageFunction fn = new TopicCoverageFunction(profileTopics);
+        SubmodularSelector<String> selector = new SubmodularSelector<>();
+        List<String> selected = selector.select(profileTopics.keySet(), maxMembers, fn);
+        log.info("Submodular selection: {} members selected for max topic coverage", selected.size());
+        return selected;
     }
 
     /**

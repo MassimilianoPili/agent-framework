@@ -3,6 +3,7 @@ package com.agentframework.orchestrator.planner;
 import com.agentframework.orchestrator.domain.Plan;
 import com.agentframework.orchestrator.domain.PlanItem;
 import com.agentframework.orchestrator.domain.WorkerType;
+import com.agentframework.orchestrator.orchestration.PheromoneService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,10 +35,13 @@ public class PlannerService {
 
     private final ChatClient chatClient;
     private final PromptLoader promptLoader;
+    private final Optional<PheromoneService> pheromoneService;
 
-    public PlannerService(ChatClient chatClient, PromptLoader promptLoader) {
+    public PlannerService(ChatClient chatClient, PromptLoader promptLoader,
+                          Optional<PheromoneService> pheromoneService) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
+        this.pheromoneService = pheromoneService;
     }
 
     /**
@@ -48,6 +53,14 @@ public class PlannerService {
 
         String systemPrompt = promptLoader.load("prompts/planner.agent.md");
         String userPrompt = promptLoader.renderPlanTasksPrompt(plan.getSpec(), plan.getCouncilReport());
+
+        // Append pheromone-based workflow hints when ACO is enabled
+        String pheromoneHints = pheromoneService
+                .map(PheromoneService::formatHintsForPlanner)
+                .orElse("");
+        if (!pheromoneHints.isEmpty()) {
+            userPrompt += "\n\n## Learned Workflow Patterns\n" + pheromoneHints;
+        }
 
         BeanOutputConverter<PlanSchema> converter = new BeanOutputConverter<>(PlanSchema.class);
 

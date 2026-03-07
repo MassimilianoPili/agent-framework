@@ -41,10 +41,17 @@ public record CouncilProperties(
      * Whether to handle COUNCIL_MANAGER tasks in-plan via {@code CouncilService.conductTaskSession()}.
      * When false, COUNCIL_MANAGER tasks are skipped (marked DONE immediately with empty result).
      */
-    boolean taskSessionEnabled
+    boolean taskSessionEnabled,
+
+    /**
+     * When true, uses {@code SubmodularSelector} (CELF greedy algorithm) instead of the LLM
+     * for council member selection. The submodular approach maximises topic coverage diversity
+     * with a provable (1 - 1/e) ≈ 63% optimality guarantee.
+     */
+    boolean submodularSelectionEnabled
 
 ) {
-    /** Defaults: enabled=true, maxMembers=5, prePlanningEnabled=true, taskSessionEnabled=true. */
+    /** Defaults: enabled=true, maxMembers=5, prePlanningEnabled=true, taskSessionEnabled=true, submodularSelectionEnabled=false. */
     public CouncilProperties {
         if (maxMembers <= 0) {
             throw new IllegalArgumentException("council.max-members must be > 0, got: " + maxMembers);

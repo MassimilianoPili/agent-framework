@@ -268,6 +268,7 @@ council:
   max-members: 5
   pre-planning-enabled: true    # Run council before PlannerService.decompose()
   task-session-enabled: true    # Handle COUNCIL_MANAGER tasks in-process
+  submodular-selection-enabled: false  # Use CELF greedy (SubmodularSelector) instead of LLM for member selection
 
 # Ralph-Loop — quality gate feedback loop.
 # When the quality gate fails, implicated items are re-queued with feedback.
@@ -333,6 +334,15 @@ criticality:
   enabled: true
   interval-ms: 120000          # every 2 minutes
   target-inventory: 5          # per WorkerType (threshold = target * 3 = 15)
+
+# Swarm Intelligence — ACO Pheromone Matrix
+# Tracks successful workflow patterns (workerType transitions) and provides hints to the planner.
+pheromone:
+  enabled: true
+  evaporation-rate: 0.1          # rho: tau(t+1) = (1 - rho) * tau(t)
+  initial-pheromone: 1.0         # tau_0
+  alpha: 1.0                    # exponent in transition probability
+  evaporation-interval-ms: 3600000  # every hour
 
 logging:
   level:
