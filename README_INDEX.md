@@ -26,7 +26,7 @@ dover rileggere i README completi.
 |-----------|------|---------|
 | Mermaid sequence diagram | README.md | `## Architecture` |
 | Pipeline overview (ASCII) | README.md | `### Pipeline Overview` |
-| Worker profiles (41 manifest, 48 moduli) | README.md | `## Active Worker Profiles` |
+| Worker profiles (41 manifest, 53 moduli) | README.md | `## Active Worker Profiles` |
 | Agent manifest format | README.md | `## Agent Manifest Format` |
 | Polyglot header (SKILL.md) | README.md | `## Claude Code Subagents — Polyglot Header` |
 | Diagrammi dettagliati (8) | [docs/architecture/architecture-diagram.md](docs/architecture/architecture-diagram.md) | - |
@@ -133,6 +133,15 @@ Dettagli: [orchestrator/README.md](control-plane/orchestrator/README.md) → `##
 | Council System | README.md | `### Council System (Advisory Pre-Planning)` |
 | Ralph-Loop | PIANO.md | `## Sessione 5` |
 
+### CI/CD
+
+| Argomento | File | Sezione |
+|-----------|------|---------|
+| 8 GitHub Actions workflows | README.md | `## CI/CD` |
+| Build pipeline (bootstrap + reactor) | README.md | `### Build Pipeline` |
+| 18 Docker images (ghcr.io) | README.md | `### Container Images` |
+| Worker Dockerfiles | [execution-plane/workers/README.md](execution-plane/workers/README.md) | `## Struttura generata` |
+
 ### Compiler Plugin
 
 | Argomento | File | Sezione |
@@ -184,7 +193,7 @@ Dettagli: PIANO.md → `## Tabella priorità`
 | File | Contenuto |
 |------|-----------|
 | [execution-plane/worker-sdk/README.md](execution-plane/worker-sdk/README.md) | AbstractWorker API, interceptor, policy |
-| [execution-plane/workers/README.md](execution-plane/workers/README.md) | 48 moduli worker (41 generati + 7 manuali), build con `build.sh` |
+| [execution-plane/workers/README.md](execution-plane/workers/README.md) | 53 moduli Maven (43 worker + 10 shared/infra), 18 Docker images, build con `build.sh` |
 | [contracts/README.md](contracts/README.md) | JSON Schema, OpenAPI, AsyncAPI |
 | [config/README.md](config/README.md) | File YAML: profili, quality gate, policy |
 | [mcp/README.md](mcp/README.md) | Server MCP, allowlist, sandbox |

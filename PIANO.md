@@ -2408,10 +2408,22 @@ Dipendenze INTERNE (tra #45-#49):
 
   Tutti #45, #46, #48 ─────────────► HashUtil (agent-common dopo #30)
 
+Dipendenze INTERNE (tra #50-#61):
+
+  #50 Portfolio ~~~~~~~~~~~~► #53 Bayesian (covarianza come input)
+  #51 Market Making ────────► #36 Queueing Theory (throughput)
+  #51 Market Making ~~~~~~~~► #56 Criticality (inventory → load)
+  #54 Causal ~~~~~~~~~~~~~~~► #53 (probabilita' come input)
+  #59 Tropical ─────────────► #36/#42 (CriticalPathCalculator refactor)
+  #60 Wasserstein ~~~~~~~~~~► #55 Replicator (distribuzione profili)
+
 Dipendenze ESTERNE (da roadmap items precedenti):
 
   #23 Enrichment Pipeline ──► #32, #35, #41
-  #15 GP Engine ────────────► #35, #41, #42, #47
+  #15 GP Engine ────────────► #35, #41, #42, #47, #50, #52, #53
+  #36 Queueing Theory ──────► #51
+  #36/#42 CriticalPath ─────► #51, #59
+  EmbeddingModel ───────────► #61
 
 Legenda: ──► dipendenza, ~~~► sinergia (non bloccante)
 ```
@@ -2478,6 +2490,19 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 | 0 | **48** | Crittografia | Content-Addressable Storage | 2.0g | — | HashUtil | Medio-Alto |
 | 1 | **46** | Crittografia | Verifiable Council | 1.5g | — | HashUtil | Medio-Alto |
 | 2 | **49** | Mechanism Design | Quadratic Voting (Buterin) | 2.5g | #46 (compl.) | — | Alto |
+| — | | | | | | | |
+| 0 | **52** | Finanza | Worker Greeks (B-S) | 1.5g | — | GP engine | Medio-Alto |
+| 0 | **55** | Complessi | Replicator Dynamics | 1.5g | — | ELO data | Medio |
+| 0 | **56** | Complessi | Criticality Monitor (Sandpile) | 1.5g | — | — | Alto |
+| 0 | **58** | Matematica | Spectral DAG Decomposition | 2.0g | — | EJML lib | Alto |
+| 0 | **59** | Matematica | Tropical Scheduler | 1.5g | — | — | Medio-Alto |
+| 0 | **61** | Matematica | Submodular Council Selection | 2.0g | — | EmbeddingModel | Alto |
+| 1 | **50** | Finanza | Portfolio Theory (Markowitz) | 2.0g | — | GP engine (#15) | Alto |
+| 1 | **51** | Finanza | Market Making (Avellaneda) | 2.0g | — | #36 Queueing | Alto |
+| 1 | **53** | Finanza | Bayesian Success Prediction | 2.0g | — | GP engine (#15) | Alto |
+| 1 | **57** | Complessi | Swarm Intelligence (ACO) | 2.0g | — | Reward data | Medio-Alto |
+| 2 | **54** | Finanza | Causal Inference (Pearl) | 2.5g | — | task_outcomes | Alto |
+| 2 | **60** | Matematica | Wasserstein Distance (OT) | 2.0g | — | task_outcomes | Alto |
 
 ### Note sulle dipendenze critiche
 
@@ -2516,18 +2541,35 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 10. **#47 (Reputation Staking) potenzia #40 (Shapley)**: lo stake pre-dispatch rende la distribuzione
     Shapley piu' significativa — i profili che rischiano di piu' ricevono reward proporzionalmente.
 
+11. **GP Engine (#15) prerequisito per #50, #52, #53**: leggono `task_outcomes` e usano predizioni GP
+    per calcoli derivati (covarianze, Greeks, probabilita').
+
+12. **#59 (Tropical) refactora #36/#42**: `CriticalPathCalculator` riscritto su algebra tropicale,
+    backward compatible. Fare #59 dopo #36 per semplificare il refactor.
+
+13. **#56 (Criticality) indipendente**: piu' alto rapporto valore/sforzo tra #50-#61, partenza immediata.
+
+14. **#61 e #49 complementari**: #61 seleziona *chi* partecipa al council, #49 pesa *quanto*.
+    Insieme formano un sistema completo di composizione del council.
+
+15. **Flyway V15 solo per #53**: gli altri items #50-#61 operano su dati esistenti o in-memory/Redis.
+
 ### Ordine consigliato di implementazione
 
 ```
-Fase 1 (fondazioni, ~3.5g):  #30 → #38 → #39
-Fase 2 (pratico, ~5g):       #36 → #33 → #40
-Fase 3 (trust, ~4g):         #31 → #32 → #37
-Fase 4 (avanzato, ~7g):      #34 → #35 → #42 → #41 → #43
-Fase 5 (advanced, ~5.5g):    #45 → #47 → #48  (parallelo)
-Fase 6 (~1.5g):              #46
-Fase 7 (~2.5g):              #49
-                              ─────────────────────
-                              Totale: ~29.5g (#30-#49)
+Fase 1 (fondazioni, ~3.5g):      #30 → #38 → #39
+Fase 2 (pratico, ~5g):           #36 → #33 → #40
+Fase 3 (trust, ~4g):             #31 → #32 → #37
+Fase 4 (avanzato, ~7g):          #34 → #35 → #42 → #41 → #43
+Fase 5 (advanced, ~5.5g):        #45 → #47 → #48  (parallelo)
+Fase 6 (~1.5g):                  #46
+Fase 7 (~2.5g):                  #49
+Fase 8a (fondazioni, ~6.5g):     #56 → #59 → #55 → #52
+Fase 8b (strutturale, ~6.0g):    #58 → #61 → #57
+Fase 8c (economico, ~6.0g):      #50 → #51 → #53
+Fase 8d (avanzato, ~4.5g):       #54 → #60
+                                   ─────────────────────
+                                   Totale: ~52g (#30-#61)
 ```
 
 ### Codice condiviso tra items
@@ -2535,13 +2577,19 @@ Fase 7 (~2.5g):              #49
 | Classe | Usata da | Modulo |
 |--------|----------|--------|
 | `HashUtil.java` (promossa) | #30, #31, #32, #45, #46, #48 | agent-common |
-| `CriticalPathCalculator.java` | #36, #42 | orchestrator |
+| `CriticalPathCalculator.java` | #36, #42, #51, #59 | orchestrator/graph |
 | `PolicyLattice.java` | #39, #32 (canonical JSON) | agent-common |
-| `WorkerEloStats.java` | #47 | orchestrator/reward |
-| `CouncilService.java` | #46, #49 | orchestrator/council |
+| `WorkerEloStats.java` | #47, #55 | orchestrator/reward |
+| `CouncilService.java` | #46, #49, #61 | orchestrator/council |
+| `TropicalSemiring.java` | #59 | orchestrator/graph |
+| `CovarianceMatrix.java` | #50 | orchestrator/budget |
+| `TaskOutcomeService.java` | #50, #52, #53, #54, #55, #60 | orchestrator/gp |
+| `GpWorkerSelectionService.java` | #50, #52, #53, #60 | orchestrator/gp |
+| `PlanGraphService.java` | #58, #59 | orchestrator/graph |
+| `AnalyticsController.java` | #55, #60 | orchestrator/api |
 
-**Totale complessivo (#30-#49)**: ~29.5 giorni di lavoro
-(Mathematical Foundations ~19.5g + Advanced Mechanisms ~10g con prerequisito #30).
+**Totale complessivo (#30-#61)**: ~52 giorni di lavoro
+(Mathematical Foundations ~19.5g + Advanced Mechanisms ~10g + Research Domains ~22.5g).
 
 ---
 
@@ -3584,7 +3632,64 @@ Fase 8d (avanzato, ~4.5g):     #54 → #60
 | `GpWorkerSelectionService.java` (existing) | #50, #52, #53, #60 | orchestrator/gp |
 | `AnalyticsController.java` (NEW) | #55, #60 | orchestrator/api |
 
-**Totale Research Domains**: ~22.5 giorni di lavoro.
+**Totale Research Domains Fase 8**: ~22.5 giorni di lavoro.
+
+Documentazione completa: [`docs/agent-framework/research-domains.md`](../docs/agent-framework/research-domains.md)
+
+---
+
+## Research Domains Extended — Fase 9 (#62-#76)
+
+15 nuovi concetti avanzati. Documentazione completa: [`docs/agent-framework/research-domains-new.md`](../docs/agent-framework/research-domains-new.md)
+
+### Tabella items Fase 9
+
+| Tier | # | Dominio | Titolo | Sforzo | Valore |
+|------|---|---------|--------|--------|--------|
+| 0 | **64** | Behavioral | Prospect Theory (Kahneman-Tversky) | 1.5g | Alto |
+| 0 | **65** | Online Learning | Hedge Algorithm (regret bounds) | 1.5g | Alto |
+| 0 | **69** | Finance | Kelly Criterion (budget sizing) | 1.5g | Medio-Alto |
+| 0 | **71** | Decision | Optimal Stopping (Secretary Problem) | 2.0g | Medio-Alto |
+| 0 | **75** | Rationality | Calibration Audit (Dutch Book) | 1.5g | Alto |
+| 1 | **62** | Game Theory | VCG Mechanism Design (task pricing) | 2.5g | Alto |
+| 1 | **63** | Control | Model Predictive Control (scheduling) | 3.0g | Alto |
+| 1 | **67** | Game Theory | Shapley Value (credit attribution) | 2.5g | Alto |
+| 1 | **68** | Information | Fisher Information Metric (uncertainty) | 3.0g | Medio-Alto |
+| 1 | **73** | Rationality | Value of Information (exploration) | 2.0g | Alto |
+| 1 | **74** | Rationality | Goodhart's Law Mitigation (metric safety) | 2.0g | Alto |
+| 1 | **76** | Rationality | Superrationality (multi-worker cooperation) | 2.5g | Medio-Alto |
+| 2 | **66** | Finance | Real Options Theory (task deferral) | 2.0g | Medio-Alto |
+| 2 | **70** | Contract | Contract Theory (SLA worker) | 2.5g | Medio |
+| 2 | **72** | Decision | TDT/FDT Reflective Dispatch | 3.0g | Alto |
+| | | | **Totale Fase 9** | **33.0g** | |
+
+### Ordine implementazione Fase 9
+
+```
+Fase 9a (fondazioni, ~8.0g):      #64 → #65 → #69 → #71 → #75
+Fase 9b (game theory, ~5.0g):     #62 → #67
+Fase 9c (controllo+info, ~10.5g): #63 → #68 → #73 → #74
+Fase 9d (avanzato, ~5.0g):        #66 → #70
+Fase 9e (agent found., ~5.5g):    #76 → #72
+                                   ─────────────────────
+                                   Totale: ~33.0g (#62-#76)
+```
+
+### Dipendenze critiche Fase 9
+
+- **GP Engine (#15)** prerequisito per 9 items su 15
+- **#72 TDT e' la "meta-teoria"**: principio unificante per #63 (MPC), #73 (VoI), #76 (Superrationality)
+- **#74 Goodhart + #75 Calibration**: coppia difensiva per robustezza metriche
+- Nessuna Flyway migration — tutti in-memory o Redis DB 4
+
+### Riepilogo sforzo complessivo Research Domains
+
+```
+Fase 8 (#50-#61): 12 items, ~22.5g  [research-domains.md]
+Fase 9 (#62-#76): 15 items, ~33.0g  [research-domains-new.md]
+─────────────────────────────────────
+Totale:           27 items, ~55.5g
+```
 
 ---
 
