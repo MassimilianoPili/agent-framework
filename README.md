@@ -12,13 +12,13 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 - **Polyglot Header (SKILL.md)**: every worker has a single `.claude/agents/<name>/SKILL.md` file with YAML frontmatter (read by Claude Code CLI/IDE for subagent discovery) and a Markdown body (read by `SkillLoader.java` after stripping the frontmatter). Zero duality: one file, two runtimes.
 - Dynamic `HookPolicy`: `HookManagerService` stores the HM worker output and injects the per-task policy into `AgentTask` at dispatch time; `HookPolicyResolver` provides a static fallback by `WorkerType` when HM has not yet run.
 - Two built-in worker interceptors: `WorkerMetricsInterceptor` (MDC structured logging + `TASK_START`/`TASK_SUCCESS`/`TASK_FAILURE`, `HIGHEST_PRECEDENCE`) and `ResultSchemaValidationInterceptor` (JSON output validation, fail-open, `LOWEST_PRECEDENCE`).
-- Tool access controlled by sealed `ToolAllowlist` interface (`All` | `Explicit`).
+- Tool access controlled by sealed `ToolAllowlist` interface (`All` | `Explicit`); at runtime `AbstractWorker.resolveToolAllowlist()` resolves the effective allowlist: planner `toolHints` (highest priority) → worker static config → `All` (default).
 - Policy enforcement layer active at runtime: path ownership, context-aware read access, audit logging, tool filtering, tool usage tracking.
 - Orchestrator routes by `workerType + workerProfile` using `WorkerProfileRegistry`.
 - Messaging is pluggable (`redis` default, `jms`, `servicebus`).
 - Structured execution provenance (`Provenance` record) attached to every `AgentResult`: token usage, tools used, prompt/skills hashes, trace correlation, timing.
 - Dispatch metadata (`attemptNumber`, `dispatchAttemptId`, `traceId`, `dispatchedAt`) propagated from orchestrator to worker via `AgentTask`.
-- REST API with 20+ endpoints: plan CRUD, quality gate, retry, dispatch attempts, snapshots, restore, SSE event streaming, resume, human approval, compensation, council report, issue snapshots, rewards, ELO stats, DPO pairs.
+- REST API with 20+ endpoints: plan CRUD, quality gate, retry, redispatch, dispatch attempts, snapshots, restore, SSE event streaming, resume, human approval, compensation, council report, issue snapshots, rewards, ELO stats, DPO pairs, cost breakdown.
 - **Token Budget**: per-plan token ceiling via `PlanRequest.Budget` (onExceeded: `FAIL_FAST` | `NO_NEW_DISPATCH` | `SOFT_LIMIT`); PostgreSQL tracking via `plan_token_usage` table.
 - **SSE Event Streaming**: `GET /api/v1/plans/{id}/events` — Server-Sent Events with late-join replay via `Last-Event-ID`; backed by append-only `PlanEvent` log (hybrid event sourcing).
 - **Human Approval (AWAITING_APPROVAL)**: tasks with `riskLevel=CRITICAL` are held before dispatch; released via `POST .../items/{itemId}/approve` or failed via `POST .../items/{itemId}/reject`.
@@ -31,6 +31,10 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 - **Council System**: pre-planning advisory sessions with dynamic member selection (`MANAGER` + `SPECIALIST` workers via `COUNCIL_MANAGER`); `CouncilReport` (8-field record) injected into `PlannerService` to guide task decomposition.
 - **Missing-Context Feedback Loop**: workers signal `missing_context` in `AgentResult` → orchestrator auto-creates a `CONTEXT_MANAGER` task for the missing files → original item re-dispatched with enriched context.
 - **Auto-Retry with Backoff**: `AutoRetryScheduler` polls for failed items with `nextRetryAt` in the past; exponential backoff (`baseDelay × 2^(attempt-1)`); auto-pauses plan after `attemptsBeforePause` failures.
+- **Manual Redispatch (TO_DISPATCH)**: operator-initiated retry that bypasses dependency resolution. `POST .../items/{itemId}/redispatch` transitions `FAILED/DONE → TO_DISPATCH → DISPATCHED` directly. `RedispatchPollerService` picks up items stuck in `TO_DISPATCH` (crash recovery, DB-level manual retry). Plan is automatically reopened if COMPLETED/FAILED/PAUSED.
+- **Tool Hints (toolHints)**: planner specifies MCP tool names per task (e.g. `fs_read`, `fs_write`, `bash_execute`). Stored in `plan_item_tool_hints` join table (Flyway V14, `@ElementCollection`). Propagated end-to-end: `PlanItemSchema` → `PlanItem` → `AgentTask` → `AbstractWorker.resolveToolAllowlist()`, where non-empty hints become `ToolAllowlist.Explicit` — the highest-priority override for tool access.
+- **Cost Tracking**: per-task token breakdown (`inputTokens`, `outputTokens`, `estimatedCostUsd`) on `PlanItem` (Flyway V13). `CostEstimationService` computes USD cost from configurable model pricing (`cost.models.*`). `GET /api/v1/plans/{planId}/cost` returns plan-level cost summary with per-item breakdown.
+- **Analytics Modules**: `RealOptions` (Black-Scholes task deferral) and `ContractTheory` (mechanism design incentives) for advanced dispatch strategies. REST endpoints in `AnalyticsController`.
 - **TrackerSyncService**: external issue tracker synchronization, controlled by `tracker.sync.enabled` feature-flag (`@ConditionalOnProperty`, disabled by default).
 - **RAG Engine** (`shared/rag-engine`): full search pipeline with hybrid search (pgvector + BM25 + RRF fusion), HyDE query transformation, cascade reranking (cosine → LLM), Apache AGE graph services (knowledge_graph + code_graph), parallel enrichment via Java 21 virtual threads; ingestion pipeline with recursive code chunking + proposition chunking; contextual enrichment (Anthropic pattern); pgvector (1024 dim, HNSW); Redis DB 5 embedding cache. Docker: `sol/postgres:pg16-age` + Ollama (`mxbai-embed-large`).
 
@@ -188,12 +192,13 @@ sequenceDiagram
    - `workerProfile` present -> profile topic/subscription.
    - `workerProfile` absent -> default profile for type, or fallback to `workerType.topicName()`.
 5. Workers receive tasks via `WorkerTaskConsumer` and invoke `AbstractWorker.process()`.
-6. `WorkerChatClientFactory` builds a `ChatClient` with two-layer tool pipeline:
+6. `resolveToolAllowlist(task)` determines effective tool set: planner `toolHints` → worker static config → `All`.
+7. `WorkerChatClientFactory` builds a `ChatClient` with two-layer tool pipeline:
    - **Allowlist filter** — removes unauthorized tools (LLM never sees them).
    - **Policy decorator** — wraps surviving tools with `PolicyEnforcingToolCallback` for path ownership checks, audit logging, and tool usage tracking.
-7. Worker executes task context with Claude + MCP tools, captures `ChatResponse` metadata (token usage), and builds a `Provenance` record with execution details.
-8. Worker publishes `AgentResult` (with embedded `Provenance`) back to orchestrator.
-9. Orchestrator updates dependencies and triggers quality gate report when terminal.
+8. Worker executes task context with Claude + MCP tools, captures `ChatResponse` metadata (token usage), and builds a `Provenance` record with execution details.
+9. Worker publishes `AgentResult` (with embedded `Provenance`) back to orchestrator.
+10. Orchestrator updates dependencies, records per-task cost (`CostEstimationService`), and triggers quality gate report when terminal.
 
 ## Repository Layout
 
@@ -600,7 +605,8 @@ curl -N http://localhost:8080/api/v1/plans/{planId}/events
 curl -N -H "Last-Event-ID: 5" http://localhost:8080/api/v1/plans/{planId}/events
 ```
 
-Event types: `PLAN_STARTED`, `PLAN_PAUSED`, `PLAN_RESUMED`, `TASK_DISPATCHED`,
+Event types: `PLAN_STARTED`, `PLAN_PAUSED`, `PLAN_RESUMED`, `TASK_DISPATCHED`
+(includes `"redispatch":true` metadata for operator-initiated redispatch),
 `TASK_COMPLETED`, `TASK_FAILED`, `PLAN_COMPLETED`.
 
 ### Token Budget
@@ -659,6 +665,35 @@ for items in `FAILED` status whose `nextRetryAt` timestamp has passed:
 
 The scheduler runs on a fixed interval (default: 30s) and processes all eligible items across
 all active plans in a single sweep.
+
+### Manual Redispatch (TO_DISPATCH)
+
+Operator-initiated retry that **bypasses dependency resolution**. Unlike `/retry` (which goes
+`FAILED → WAITING → dependency check → dispatch`), `/redispatch` dispatches directly:
+
+```
+FAILED ─┐
+        ├──→ TO_DISPATCH ──→ DISPATCHED (direct, no dep check)
+DONE ───┘
+```
+
+Use cases:
+- **Operator override**: force a task to re-execute regardless of dependency state.
+- **Re-run after fix**: re-dispatch a DONE task after fixing an upstream issue.
+- **DB-level retry**: `UPDATE plan_items SET status = 'TO_DISPATCH'` for ops tooling.
+
+```bash
+POST /api/v1/plans/{planId}/items/{itemId}/redispatch
+# → 202 Accepted {"status":"redispatching","itemId":"...","previousStatus":"FAILED"}
+```
+
+**Safety-net poller**: `RedispatchPollerService` runs every 10s (configurable via
+`redispatch.poller-interval-ms`), picking up items stuck in `TO_DISPATCH` from crash recovery
+or direct DB updates. Each item is processed in an independent transaction via
+`RedispatchTransactionService` (`REQUIRES_NEW`) to isolate failures.
+
+**Plan reopening**: if the plan is COMPLETED, FAILED, or PAUSED, redispatch automatically
+reopens it to RUNNING.
 
 ### Human Approval (AWAITING_APPROVAL)
 
@@ -868,7 +903,8 @@ curl -X POST http://localhost:8080/api/v1/plans \
 | `POST` | `/api/v1/plans/{planId}/resume` | Resume a PAUSED plan |
 | `GET`  | `/api/v1/plans/{planId}/events` | SSE stream of plan events (late-join replay via `Last-Event-ID`) |
 | `GET`  | `/api/v1/plans/{planId}/graph` | Visual DAG (`?format=mermaid\|json`) |
-| `POST` | `/api/v1/plans/{planId}/items/{itemId}/retry` | Retry a failed plan item |
+| `POST` | `/api/v1/plans/{planId}/items/{itemId}/retry` | Retry a failed plan item (FAILED → WAITING → dep check → dispatch) |
+| `POST` | `/api/v1/plans/{planId}/items/{itemId}/redispatch` | Redispatch FAILED/DONE item directly (→ TO_DISPATCH → DISPATCHED, bypasses deps) |
 | `POST` | `/api/v1/plans/{planId}/items/{itemId}/approve` | Approve AWAITING_APPROVAL item (→ WAITING) |
 | `POST` | `/api/v1/plans/{planId}/items/{itemId}/reject` | Reject AWAITING_APPROVAL item (→ FAILED) |
 | `POST` | `/api/v1/plans/{planId}/items/{itemId}/compensate` | Start compensating transaction via COMPENSATOR_MANAGER |
@@ -885,6 +921,8 @@ curl -X POST http://localhost:8080/api/v1/plans \
 | `GET` | `/api/v1/rewards/preference-pairs` | DPO preference pairs, NDJSON (`?minDelta=0.3&limit=500`) |
 | `GET` | `/api/v1/plans/{planId}/council-report` | Get pre-planning council advisory report |
 | `PUT` | `/api/v1/plans/{planId}/items/{itemId}/issue-snapshot` | Store issue snapshot from TASK_MANAGER |
+| `GET` | `/api/v1/plans/{planId}/cost` | Plan cost summary: total tokens, estimated USD, per-item breakdown |
+| `GET` | `/api/v1/analytics/*` | Analytics: real-options, contract-theory, population, drift, calibration, etc. (16 endpoints) |
 
 Attempts and snapshots endpoints return DTOs (`DispatchAttemptResponse`, `PlanSnapshotResponse`), not JPA entities.
 
@@ -963,28 +1001,65 @@ hooks:
 
 ## Test Coverage
 
-416 unit tests across 35 test classes (JUnit 5 + Mockito):
+719 unit tests across the three modules (JUnit 5 + Mockito):
 
-### Orchestrator (255 tests, 17 classes)
+### Orchestrator (576 tests, 85 classes incl. inner)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
 | `RewardComputationServiceTest` | 45 | processScore, reviewScore, qualityGate, Bayesian aggregation |
-| `OrchestrationServiceTest` | 29 | createAndStart, onTaskCompleted, missing-context, SUB_PLAN, approval, compensation |
+| `OrchestrationServiceTest` | 36 | createAndStart, onTaskCompleted, missing-context, SUB_PLAN, approval, compensation, redispatch |
 | `CouncilServiceTest` | 23 | pre-planning, task sessions, member selection, synthesis, feature flags, executor bounds |
-| `WorkerProfileRegistryTest` | 18 | profile lookup, multi-profile types, fallback routing |
+| `TokenBudgetServiceTest` | 22 | FAIL_FAST, NO_NEW_DISPATCH, SOFT_LIMIT, dynamic budget |
+| `WorkerProfileRegistryTest` | 20 | profile lookup, multi-profile types, fallback routing |
+| `ContractTheoryTest` | 19 | mechanism design, incentive compatibility |
+| `RealOptionsTest` | 17 | Black-Scholes deferral, volatility, urgency |
 | `PlanGraphServiceTest` | 17 | Mermaid/JSON DAG, edge labels, duration formatting |
-| `TokenBudgetServiceTest` | 15 | FAIL_FAST, NO_NEW_DISPATCH, SOFT_LIMIT enforcement |
 | `SseEmitterRegistryTest` | 15 | subscribe, late-join replay, broadcast, dead emitter cleanup |
-| `QualityGateServiceTest` | 10 | async annotations, report generation, reward signals, error handling |
+| `ItemStatusTest` | 13 | TO_DISPATCH transitions, state machine validation |
+| `SerendipityServiceTest` | 13 | collect, parse, hint tests |
+| `GoodhartDetectorTest` | 12 | metric gaming detection |
+| `TaskOutcomeServiceTest` | 12 | embedding, prediction, reward update |
+| `FisherInformationTest` | 11 | uncertainty quantification |
+| `EnrichmentInjectorServiceTest` | 11 | timestamp-gated enrichment, score filters |
+| `PreferencePairGeneratorTest` | 11 | cross-profile, retry, gp_residual_surprise, integration |
+| `QualityGateServiceTest` | 11 | async annotations, report generation, reward signals |
+| `ValueOfInformationTest` | 10 | exploration vs exploitation |
 | `EloRatingServiceTest` | 10 | pairwise ELO, multi-type, new profile bootstrap |
-| `PreferencePairGeneratorTest` | 11 | cross-profile, retry, gp_residual_surprise, integration (3 strategies combined) |
-| `PlanSnapshotServiceTest` | 9 | restore COMPLETED→RUNNING, mixed states, forceStatus validation |
-| `PlanEventStoreTest` | 7 | sequence numbering, payload serialization, error fallback |
-| `PromptLoaderTest` | 5 | classpath loading, caching, missing resource validation |
-| `AutoRetrySchedulerTest` | 5 | eligibility, retry timing, error isolation |
-| `RalphLoopServiceTest` | 8 | quality gate feedback loop, retry tracking |
+| `CausalDagTest` | 9 | causal inference DAG |
+| `RalphLoopServiceTest` | 9 | quality gate feedback loop, retry tracking |
+| `PlanSnapshotServiceTest` | 9 | restore COMPLETED→RUNNING, mixed states |
+| `SpectralAnalyzerTest` | 8 | spectral graph analysis |
+| `PheromoneMatrixTest` | 8 | ant colony pheromone trails |
+| `ShapleyValueTest` | 8 | cooperative game theory attribution |
 | `CouncilRagEnricherTest` | 8 | RAG enrichment for council sessions |
+| `ModelPredictiveControlTest` | 7 | MPC scheduling |
+| `VCGMechanismTest` | 7 | Vickrey-Clarke-Groves auction |
+| `PlanEventStoreTest` | 7 | sequence numbering, payload serialization |
+| `BayesianSuccessPredictorTest` | 6 | posterior probability |
+| `WorkerGreeksServiceTest` | 6 | financial-style risk greeks |
+| `GpWorkerSelectionServiceTest` | 6 | UCB exploration-exploitation |
+| `ReplicatorDynamicsServiceTest` | 6 | evolutionary game theory |
+| `InventoryTrackerTest` | 6 | resource inventory tracking |
+| `CriticalityMonitorTest` | 6 | task criticality monitoring |
+| `CriticalPathCalculatorTest` | 5 | DAG critical path |
+| `PortfolioOptimizerTest` | 5 | Markowitz portfolio optimization |
+| `WassersteinDistanceTest` | 5 | distribution distance metric |
+| `ProspectTheoryTest` | 5 | Kahneman-Tversky prospect evaluation |
+| `TaskCompletedEventHandlerTest` | 5 | event-driven task completion |
+| `SubmodularSelectorTest` | 5 | submodular council member selection |
+| `PromptLoaderTest` | 5 | classpath loading, caching |
+| `AutoRetrySchedulerTest` | 4 | eligibility, retry timing, error isolation |
+| `PheromoneServiceTest` | 4 | ant colony dispatch heuristic |
+| `SandpileSimulatorTest` | 4 | self-organized criticality |
+| `OptimalStoppingTest` | 4 | secretary problem dispatch |
+| `KellyCriterionTest` | 4 | optimal bet sizing |
+| `RedispatchPollerServiceTest` | 3 | TO_DISPATCH polling, failure isolation |
+| `TropicalSemiringTest` | 3 | tropical algebra for DAGs |
+| `MissingContextPropagationTest` | 3 | context enrichment loop |
+| `MarketMakingDispatcherTest` | 2 | market-based dispatch |
+| `StaleTaskDetectorSchedulerTest` | 2 | stale task cleanup |
+| _+ 34 more service/analytics test classes_ | | _analytics endpoints, budget, council, etc._ |
 
 ### GP Engine (30 tests, 5 classes)
 

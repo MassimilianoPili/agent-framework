@@ -5,10 +5,10 @@ version: '3.8'
 # Uses shared Docker infrastructure already running on the SOL server:
 #   - redis (redis:7-alpine) on the 'shared' network  → DB 3 messaging, DB 4 cache, DB 5 RAG cache
 #   - ollama (ollama/ollama:latest) on the 'shared' network → embedding + reranking models
-#   - agentfw-postgres (pgvector/pgvector:pg16) defined here, on the 'shared' network
+#   - agentfw-postgres (sol/postgres:pg16-age) defined here, on the 'shared' network
 #
 # Required env file: docker/sol.env (not in VCS)
-#   ANTHROPIC_API_KEY=sk-ant-...
+#   ANTHROPIC_API_KEY=claude_client   # client_id per proxy-ai (non API key standard)
 #   DB_PASSWORD=...
 #
 # Start:   docker compose -f docker/docker-compose.sol.yml --env-file docker/sol.env up -d
@@ -23,7 +23,7 @@ services:
 
   # ── Database ─────────────────────────────────────────────────────────────────
   agentfw-postgres:
-    image: pgvector/pgvector:pg16
+    image: sol/postgres:pg16-age
     container_name: agentfw-postgres
     networks: [shared]
     environment:
@@ -42,8 +42,8 @@ services:
   # ── Control Plane ────────────────────────────────────────────────────────────
   orchestrator:
     build:
-      context: ..
-      dockerfile: control-plane/orchestrator/Dockerfile
+      context: ../control-plane/orchestrator
+      dockerfile: Dockerfile
     container_name: agentfw-orchestrator
     networks: [shared]
     environment:
@@ -54,6 +54,7 @@ services:
       REDIS_HOST: redis       # container già in esecuzione su shared
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       OLLAMA_BASE_URL: http://ollama:11434
     depends_on:
       agentfw-postgres:
@@ -63,8 +64,8 @@ services:
   # ── Domain Workers ───────────────────────────────────────────────────────────
   be-java-worker:
     build:
-      context: ..
-      dockerfile: execution-plane/workers/be-java-worker/Dockerfile
+      context: ../execution-plane/workers/be-java-worker
+      dockerfile: Dockerfile
     container_name: agentfw-be-java-worker
     networks: [shared]
     environment:
@@ -72,12 +73,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
     restart: unless-stopped
 
   fe-react-worker:
     build:
-      context: ..
-      dockerfile: execution-plane/workers/fe-react-worker/Dockerfile
+      context: ../execution-plane/workers/fe-react-worker
+      dockerfile: Dockerfile
     container_name: agentfw-fe-react-worker
     networks: [shared]
     environment:
@@ -85,12 +87,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
     restart: unless-stopped
 
   contract-worker:
     build:
-      context: ..
-      dockerfile: execution-plane/workers/contract-worker/Dockerfile
+      context: ../execution-plane/workers/contract-worker
+      dockerfile: Dockerfile
     container_name: agentfw-contract-worker
     networks: [shared]
     environment:
@@ -98,12 +101,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
     restart: unless-stopped
 
   review-worker:
     build:
-      context: ..
-      dockerfile: execution-plane/workers/review-worker/Dockerfile
+      context: ../execution-plane/workers/review-worker
+      dockerfile: Dockerfile
     container_name: agentfw-review-worker
     networks: [shared]
     environment:
@@ -111,13 +115,14 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
     restart: unless-stopped
 
   # ── Middle-layer Workers ─────────────────────────────────────────────────────
   context-manager-worker:
     build:
-      context: ..
-      dockerfile: execution-plane/workers/context-manager-worker/Dockerfile
+      context: ../execution-plane/workers/context-manager-worker
+      dockerfile: Dockerfile
     container_name: agentfw-context-manager-worker
     networks: [shared]
     environment:
@@ -125,12 +130,13 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
     restart: unless-stopped
 
   schema-manager-worker:
     build:
-      context: ..
-      dockerfile: execution-plane/workers/schema-manager-worker/Dockerfile
+      context: ../execution-plane/workers/schema-manager-worker
+      dockerfile: Dockerfile
     container_name: agentfw-schema-manager-worker
     networks: [shared]
     environment:
@@ -138,13 +144,14 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
     restart: unless-stopped
 
   # ── Mobile Workers ─────────────────────────────────────────────────────────
   mobile-kotlin-worker:
     build:
-      context: ..
-      dockerfile: execution-plane/workers/mobile-kotlin-worker/Dockerfile
+      context: ../execution-plane/workers/mobile-kotlin-worker
+      dockerfile: Dockerfile
     container_name: agentfw-mobile-kotlin-worker
     networks: [shared]
     environment:
@@ -152,6 +159,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
     restart: unless-stopped
 
   # ── Ollama ─────────────────────────────────────────────────────────────────
