@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 # Cascades changes from main → develop → test
 # following the vertical-horizontal branching strategy.
 # Creates branches from main if they don't exist yet.
