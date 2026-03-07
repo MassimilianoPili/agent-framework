@@ -110,6 +110,68 @@ public interface TaskOutcomeRepository extends JpaRepository<TaskOutcome, UUID> 
                                         @Param("limit") int limit);
 
     /**
+     * Returns all actual rewards grouped by worker_type (for portfolio covariance estimation).
+     * Each row: [worker_type(String), actual_reward(Double)], ordered by worker_type then created_at.
+     */
+    @Query(value = """
+            SELECT worker_type, actual_reward
+            FROM task_outcomes
+            WHERE actual_reward IS NOT NULL
+            ORDER BY worker_type, created_at
+            """, nativeQuery = true)
+    List<Object[]> findRewardsByWorkerType();
+
+    /**
+     * Loads single outcome for a plan+taskKey (root cause target).
+     */
+    @Query(value = """
+            SELECT elo_at_dispatch, gp_mu, gp_sigma2, actual_reward,
+                   task_embedding::text as embedding_text, worker_type
+            FROM task_outcomes
+            WHERE plan_id = :planId AND task_key = :taskKey
+            LIMIT 1
+            """, nativeQuery = true)
+    List<Object[]> findByPlanIdAndTaskKey(@Param("planId") UUID planId,
+                                           @Param("taskKey") String taskKey);
+
+    /**
+     * Loads background population for a worker type (causal analysis).
+     */
+    @Query(value = """
+            SELECT elo_at_dispatch, gp_mu, gp_sigma2, actual_reward,
+                   task_embedding::text as embedding_text
+            FROM task_outcomes
+            WHERE worker_type = :workerType
+              AND actual_reward IS NOT NULL
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findCausalDataByWorkerType(@Param("workerType") String workerType,
+                                                @Param("limit") int limit);
+
+    /**
+     * Loads reward timeseries for a worker profile (drift detection).
+     */
+    @Query(value = """
+            SELECT actual_reward, created_at
+            FROM task_outcomes
+            WHERE worker_profile = :profile
+              AND actual_reward IS NOT NULL
+            ORDER BY created_at ASC
+            """, nativeQuery = true)
+    List<Object[]> findRewardTimeseriesByProfile(@Param("profile") String profile);
+
+    /**
+     * Returns all distinct worker profiles that have recorded outcomes (for drift detection).
+     */
+    @Query(value = """
+            SELECT DISTINCT worker_profile
+            FROM task_outcomes
+            WHERE actual_reward IS NOT NULL
+            """, nativeQuery = true)
+    List<String> findDistinctProfiles();
+
+    /**
      * Finds the task outcome for a specific plan item (for serendipity collection).
      */
     @Query(value = """

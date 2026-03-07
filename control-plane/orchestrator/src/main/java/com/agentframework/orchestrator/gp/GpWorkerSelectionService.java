@@ -2,6 +2,7 @@ package com.agentframework.orchestrator.gp;
 
 import com.agentframework.gp.engine.GaussianProcessEngine;
 import com.agentframework.gp.model.GpPrediction;
+import com.agentframework.orchestrator.analytics.WorkerDriftMonitor;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.orchestration.WorkerProfileRegistry;
 import org.slf4j.Logger;
@@ -33,13 +34,16 @@ public class GpWorkerSelectionService {
     private final TaskOutcomeService outcomeService;
     private final WorkerProfileRegistry profileRegistry;
     private final Optional<WorkerGreeksService> greeksService;
+    private final Optional<WorkerDriftMonitor> driftMonitor;
 
     public GpWorkerSelectionService(TaskOutcomeService outcomeService,
                                      WorkerProfileRegistry profileRegistry,
-                                     Optional<WorkerGreeksService> greeksService) {
+                                     Optional<WorkerGreeksService> greeksService,
+                                     Optional<WorkerDriftMonitor> driftMonitor) {
         this.outcomeService = outcomeService;
         this.profileRegistry = profileRegistry;
         this.greeksService = greeksService;
+        this.driftMonitor = driftMonitor;
     }
 
     /**
@@ -117,6 +121,25 @@ public class GpWorkerSelectionService {
                 }
             } catch (Exception e) {
                 log.debug("Greeks computation failed during selection, proceeding without risk check: {}", e.getMessage());
+            }
+        }
+
+        // Drift penalty: penalize profiles with distribution shift
+        if (driftMonitor.isPresent()) {
+            double penalty = driftMonitor.get().penaltyFor(bestProfile);
+            if (penalty > 0) {
+                double penalizedMu = bestMu - penalty;
+                for (var entry : predictions.entrySet()) {
+                    if (entry.getKey().equals(bestProfile)) continue;
+                    double altPenalty = driftMonitor.get().penaltyFor(entry.getKey());
+                    if (entry.getValue().mu() - altPenalty > penalizedMu) {
+                        log.info("Drift penalty: switching from '{}' (W1={}) to '{}'",
+                                bestProfile, String.format("%.3f", penalty), entry.getKey());
+                        bestProfile = entry.getKey();
+                        bestMu = entry.getValue().mu();
+                        break;
+                    }
+                }
             }
         }
 

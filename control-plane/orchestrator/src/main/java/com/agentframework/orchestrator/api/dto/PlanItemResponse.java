@@ -35,7 +35,12 @@ public record PlanItemResponse(
      * Example: {"review":0.8,"process":0.6,"quality_gate":null,"weights":{"review":0.625,...}}
      * Null if no reward has been computed yet.
      */
-    String rewardSources
+    String rewardSources,
+    /**
+     * Predicted success probability from Bayesian logistic regression.
+     * Range [0.0, 1.0]. Null if Bayesian prediction is not enabled or has not run.
+     */
+    Float predictedSuccessProbability
 ) {
 
     public static PlanItemResponse from(PlanItem item) {
@@ -54,7 +59,8 @@ public record PlanItemResponse(
             item.getFailureReason(),
             item.getIssueSnapshot(),
             item.getAggregatedReward(),
-            item.getRewardSources()
+            item.getRewardSources(),
+            item.getPredictedSuccessProbability()
         );
     }
 }

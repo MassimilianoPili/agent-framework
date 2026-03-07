@@ -21,7 +21,13 @@ public record PlanRequest(
      * A plan at depth {@code maxDepth} cannot spawn further sub-plans.
      * Defaults to 3 if not specified.
      */
-    Integer maxDepth
+    Integer maxDepth,
+
+    /** Portfolio risk tolerance [0.0, 1.0]. 0=min variance, 1=max return. Null=default 0.5. */
+    Double riskTolerance,
+
+    /** Minimum success probability for dispatch admission control. Null=disabled. */
+    Double admissionControl
 ) {
     /**
      * Per-workerType token limits and the enforcement policy when limits are exceeded.

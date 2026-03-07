@@ -1,0 +1,990 @@
+
+
+I'll start by reading all the remaining HTML pages and the CSS file to complete my audit.
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/corsi.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/corsi.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corsi - CPS San Sperate</title>
+    <meta name="description" content="Scopri tutti i corsi sportivi del CPS San Sperate: nuoto, fitness, yoga, pilates, spinning, zumba e molto altro.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/corsi.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link active">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/corsi/corsi-hero.jpg" alt="Corsi CPS San Sperate" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>I Nostri Corsi</h1>
+            <p>Attività per tutte le età e tutti i livelli</p>
+        </div>
+    </section>
+
+    <!-- Corsi Grid -->
+    <section class="corsi-section">
+        <div class="container">
+            <!-- Corsi Nuoto -->
+            <div class="corsi-category">
+                <h2>Corsi di Nuoto</h2>
+                <div class="corsi-grid">
+                    <div class="corso-card">
+                        <img src="img/piscina/corso-bambini.jpg" alt="Nuoto bambini" loading="lazy">
+                        <h3>Nuoto Bambini (3-6 anni)</h3>
+                        <p>Approccio ludico all'acqua. Ambientamento e prime bracciate.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Lun-Mer-Ven 16:00-17:00</span>
+                            <span class="corso-prezzo">€40/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/piscina/corso-ragazzi.jpg" alt="Nuoto ragazzi" loading="lazy">
+                        <h3>Nuoto Ragazzi (7-14 anni)</h3>
+                        <p>Perfezionamento tecnico e preparazione agonistica.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Mar-Gio 16:00-17:30</span>
+                            <span class="corso-prezzo">€50/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/piscina/corso-adulti.jpg" alt="Nuoto adulti" loading="lazy">
+                        <h3>Nuoto Adulti</h3>
+                        <p>Per principianti e nuotatori che vogliono migliorare.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Lun-Mer-Ven 19:00-20:00</span>
+                            <span class="corso-prezzo">€45/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/piscina/corso-agonistico.jpg" alt="Nuoto agonistico" loading="lazy">
+                        <h3>Nuoto Agonistico</h3>
+                        <p>Preparazione per competizioni regionali e nazionali.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Lun-Sab 6:00-8:00</span>
+                            <span class="corso-prezzo">€80/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/piscina/acquagym.jpg" alt="Acquagym" loading="lazy">
+                        <h3>Acquagym</h3>
+                        <p>Ginnastica in acqua per tonificare e rilassarsi.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Mar-Gio-Sab 10:00-11:00</span>
+                            <span class="corso-prezzo">€35/mese</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Corsi Fitness -->
+            <div class="corsi-category">
+                <h2>Corsi Fitness</h2>
+                <div class="corsi-grid">
+                    <div class="corso-card">
+                        <img src="img/palestra/corso-yoga.jpg" alt="Yoga" loading="lazy">
+                        <h3>Yoga</h3>
+                        <p>Equilibrio tra corpo e mente. Tutti i livelli.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Mar-Gio 18:00-19:00</span>
+                            <span class="corso-prezzo">€35/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/palestra/corso-pilates.jpg" alt="Pilates" loading="lazy">
+                        <h3>Pilates</h3>
+                        <p>Rinforzo del core e miglioramento della postura.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Lun-Mer 10:00-11:00</span>
+                            <span class="corso-prezzo">€35/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/palestra/corso-spinning.jpg" alt="Spinning" loading="lazy">
+                        <h3>Spinning</h3>
+                        <p>Allenamento cardio intenso su bici stazionaria.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Lun-Mer-Ven 20:00-21:00</span>
+                            <span class="corso-prezzo">€40/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/palestra/corso-zumba.jpg" alt="Zumba" loading="lazy">
+                        <h3>Zumba</h3>
+                        <p>Danza e fitness in un'unica esperienza divertente.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Mar-Gio 20:00-21:00</span>
+                            <span class="corso-prezzo">€35/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/palestra/corso-crossfit.jpg" alt="CrossFit" loading="lazy">
+                        <h3>CrossFit</h3>
+                        <p>Allenamento funzionale ad alta intensità.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Lun-Mer-Ven 7:00-8:00</span>
+                            <span class="corso-prezzo">€50/mese</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Corsi Sport -->
+            <div class="corsi-category">
+                <h2>Corsi Sport</h2>
+                <div class="corsi-grid">
+                    <div class="corso-card">
+                        <img src="img/strutture/corso-tennis.jpg" alt="Tennis" loading="lazy">
+                        <h3>Tennis</h3>
+                        <p>Lezioni individuali e di gruppo per tutti i livelli.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Lun-Sab orari flessibili</span>
+                            <span class="corso-prezzo">€60/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/strutture/corso-basket.jpg" alt="Basket" loading="lazy">
+                        <h3>Basket</h3>
+                        <p>Scuola basket per ragazzi e adulti.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Mar-Gio-Sab 17:00-18:30</span>
+                            <span class="corso-prezzo">€45/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/strutture/corso-volley.jpg" alt="Pallavolo" loading="lazy">
+                        <h3>Pallavolo</h3>
+                        <p>Corsi e squadre per tutte le categorie.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Lun-Mer 17:00-18:30</span>
+                            <span class="corso-prezzo">€45/mese</span>
+                        </div>
+                    </div>
+                    <div class="corso-card">
+                        <img src="img/strutture/corso-arti-marziali.jpg" alt="Arti Marziali" loading="lazy">
+                        <h3>Arti Marziali</h3>
+                        <p>Karate, Judo e Taekwondo per bambini e adulti.</p>
+                        <div class="corso-details">
+                            <span class="corso-orario">Mar-Gio 18:00-19:30</span>
+                            <span class="corso-prezzo">€50/mese</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <h2>Vuoi provare un corso?</h2>
+            <p>La prima lezione è sempre gratuita! Prenota la tua prova oggi stesso.</p>
+            <a href="prenotazioni.html" class="btn btn-primary btn-large">Prenota Prova Gratuita</a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il benessere.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="strutture.html">Strutture</a></li>
+                        <li><a href="corsi.html">Corsi</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="prenotazioni.html">Prenotazioni</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>Via dello Sport, 1<br>09010 San Sperate (CA)</p>
+                    <p>Tel: <a href="tel:+390701234567">070 123 4567</a></p>
+                    <p>Email: <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.min.js"></script>
+</body>
+</html>
+</content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/news.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/news.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News - CPS San Sperate</title>
+    <meta name="description" content="Ultime notizie dal CPS San Sperate: aggiornamenti, comunicati e novità dal centro sportivo.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/news.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link active">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/news/news-hero.jpg" alt="News CPS San Sperate" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>News</h1>
+            <p>Aggiornamenti e novità dal CPS San Sperate</p>
+        </div>
+    </section>
+
+    <!-- News Grid -->
+    <section class="news-section">
+        <div class="container">
+            <div class="news-grid-full">
+
+                <article class="news-card-full">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-1.jpg" alt="Apertura nuova area fitness" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">15 Gennaio 2025</span>
+                        <h2>Apertura nuova area fitness</h2>
+                        <p>Siamo lieti di annunciare l'apertura della nuova area fitness del CPS San Sperate. Oltre 200mq di spazio dedicato al fitness funzionale con attrezzature all'avanguardia...</p>
+                        <a href="#" class="btn btn-outline">Leggi tutto</a>
+                    </div>
+                </article>
+
+                <article class="news-card-full">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-2.jpg" alt="Campionato regionale nuoto" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">10 Gennaio 2025</span>
+                        <h2>I nostri atleti brillano al regionale</h2>
+                        <p>Grande successo per gli atleti del CPS San Sperate al campionato regionale di nuoto. Tre ori, due argenti e un bronzo per la nostra squadra...</p>
+                        <a href="#" class="btn btn-outline">Leggi tutto</a>
+                    </div>
+                </article>
+
+                <article class="news-card-full">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-3.jpg" alt="Nuovi corsi primaverili" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">5 Gennaio 2025</span>
+                        <h2>Nuovi corsi primaverili</h2>
+                        <p>Scopri i nuovi corsi disponibili per la stagione primaverile: CrossFit, Acquagym avanzato, Tennis per principianti e molto altro...</p>
+                        <a href="#" class="btn btn-outline">Leggi tutto</a>
+                    </div>
+                </article>
+
+                <article class="news-card-full">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-4.jpg" alt="Manutenzione piscina completata" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">20 Dicembre 2024</span>
+                        <h2>Manutenzione piscina completata</h2>
+                        <p>I lavori di manutenzione straordinaria della piscina olimpionica sono stati completati. Nuovo sistema di filtrazione e illuminazione LED...</p>
+                        <a href="#" class="btn btn-outline">Leggi tutto</a>
+                    </div>
+                </article>
+
+                <article class="news-card-full">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-5.jpg" alt="Torneo di Natale" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">15 Dicembre 2024</span>
+                        <h2>Successo per il Torneo di Natale</h2>
+                        <p>Grande partecipazione al tradizionale Torneo di Natale del CPS. Oltre 200 partecipanti tra calcio a 5, tennis e nuoto...</p>
+                        <a href="#" class="btn btn-outline">Leggi tutto</a>
+                    </div>
+                </article>
+
+                <article class="news-card-full">
+                    <div class="news-img-wrapper">
+                        <img src="img/news/news-6.jpg" alt="Convenzione con le scuole" loading="lazy">
+                    </div>
+                    <div class="news-content">
+                        <span class="news-date">1 Dicembre 2024</span>
+                        <h2>Nuova convenzione con le scuole</h2>
+                        <p>Il CPS San Sperate ha siglato una convenzione con le scuole del territorio per promuovere l'attività sportiva tra i giovani...</p>
+                        <a href="#" class="btn btn-outline">Leggi tutto</a>
+                    </div>
+                </article>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il benessere.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="strutture.html">Strutture</a></li>
+                        <li><a href="corsi.html">Corsi</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="prenotazioni.html">Prenotazioni</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>Via dello Sport, 1<br>09010 San Sperate (CA)</p>
+                    <p>Tel: <a href="tel:+390701234567">070 123 4567</a></p>
+                    <p>Email: <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.min.js"></script>
+</body>
+</html>
+</content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/servizi.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/servizi.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Servizi - CPS San Sperate</title>
+    <meta name="description" content="I servizi del CPS San Sperate: personal training, fisioterapia, nutrizione sportiva, spogliatoi, parcheggio e molto altro.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/servizi.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="servizi.html" class="nav-link active">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/servizi/servizi-hero.jpg" alt="Servizi CPS San Sperate" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>I Nostri Servizi</h1>
+            <p>Tutto ciò di cui hai bisogno per il tuo benessere sportivo</p>
+        </div>
+    </section>
+
+    <!-- Servizi Grid -->
+    <section class="servizi-section">
+        <div class="container">
+            <div class="servizi-grid">
+
+                <div class="servizio-card">
+                    <div class="servizio-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#0077B6" opacity="0.1"/><path d="M32 16c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 20c-8.8 0-16 4-16 9v3h32v-3c0-5-7.2-9-16-9z" fill="#0077B6"/></svg>
+                    </div>
+                    <h3>Personal Training</h3>
+                    <p>Allenamenti personalizzati con i nostri trainer certificati. Programmi su misura per raggiungere i tuoi obiettivi.</p>
+                    <ul class="servizio-features">
+                        <li>Valutazione iniziale gratuita</li>
+                        <li>Programma personalizzato</li>
+                        <li>Monitoraggio progressi</li>
+                    </ul>
+                </div>
+
+                <div class="servizio-card">
+                    <div class="servizio-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#0077B6" opacity="0.1"/><path d="M32 12l-2 6h-6l5 4-2 6 5-4 5 4-2-6 5-4h-6l-2-6zm-12 20v20h24V32H20zm4 4h16v12H24V36z" fill="#0077B6"/></svg>
+                    </div>
+                    <h3>Fisioterapia Sportiva</h3>
+                    <p>Centro di fisioterapia interno con professionisti specializzati in riabilitazione sportiva.</p>
+                    <ul class="servizio-features">
+                        <li>Riabilitazione post-infortunio</li>
+                        <li>Terapia manuale</li>
+                        <li>Prevenzione infortuni</li>
+                    </ul>
+                </div>
+
+                <div class="servizio-card">
+                    <div class="servizio-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#0077B6" opacity="0.1"/><path d="M20 16v32h24V16H20zm4 4h16v6H24v-6zm0 10h16v6H24v-6zm0 10h16v6H24v-6z" fill="#0077B6"/></svg>
+                    </div>
+                    <h3>Nutrizione Sportiva</h3>
+                    <p>Consulenze nutrizionali personalizzate per ottimizzare le prestazioni sportive.</p>
+                    <ul class="servizio-features">
+                        <li>Piano alimentare personalizzato</li>
+                        <li>Analisi composizione corporea</li>
+                        <li>Integrazione sportiva</li>
+                    </ul>
+                </div>
+
+                <div class="servizio-card">
+                    <div class="servizio-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#0077B6" opacity="0.1"/><path d="M16 20h32v4H16v-4zm0 8h32v4H16v-4zm0 8h32v4H16v-4zm0 8h32v4H16v-4z" fill="#0077B6"/></svg>
+                    </div>
+                    <h3>Spogliatoi e Sauna</h3>
+                    <p>Spogliatoi moderni con armadietti, docce e sauna finlandese per il relax post-allenamento.</p>
+                    <ul class="servizio-features">
+                        <li>Armadietti con chiave</li>
+                        <li>Docce con acqua calda</li>
+                        <li>Sauna finlandese</li>
+                    </ul>
+                </div>
+
+                <div class="servizio-card">
+                    <div class="servizio-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#0077B6" opacity="0.1"/><path d="M32 12c-11 0-20 9-20 20s9 20 20 20 20-9 20-20-9-20-20-20zm0 4c8.8 0 16 7.2 16 16s-7.2 16-16 16-16-7.2-16-16 7.2-16 16-16zm-2 8v10l8 5-1.5 2.5L27 42V24h3z" fill="#0077B6"/></svg>
+                    </div>
+                    <h3>Orari Flessibili</h3>
+                    <p>Aperti 7 giorni su 7 con orari estesi per adattarci alle tue esigenze.</p>
+                    <ul class="servizio-features">
+                        <li>Lun-Ven: 6:00-22:00</li>
+                        <li>Sabato: 8:00-20:00</li>
+                        <li>Domenica: 9:00-13:00</li>
+                    </ul>
+                </div>
+
+                <div class="servizio-card">
+                    <div class="servizio-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#0077B6" opacity="0.1"/><path d="M16 44h32v4H16v-4zm4-8h8v8h-8v-8zm12 0h8v8h-8v-8zm-12-12h8v8h-8v-8zm12 0h8v8h-8v-8z" fill="#0077B6"/></svg>
+                    </div>
+                    <h3>Parcheggio Gratuito</h3>
+                    <p>Ampio parcheggio gratuito per tutti i visitatori del centro sportivo.</p>
+                    <ul class="servizio-features">
+                        <li>200 posti auto</li>
+                        <li>Posti disabili dedicati</li>
+                        <li>Rastrelliera biciclette</li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Abbonamenti -->
+    <section class="abbonamenti-section">
+        <div class="container">
+            <h2 class="section-title">Abbonamenti</h2>
+            <p class="section-subtitle">Scegli il piano più adatto alle tue esigenze</p>
+            <div class="abbonamenti-grid">
+                <div class="abbonamento-card">
+                    <h3>Base</h3>
+                    <div class="abbonamento-prezzo">
+                        <span class="prezzo">€29</span>
+                        <span class="periodo">/mese</span>
+                    </div>
+                    <ul class="abbonamento-features">
+                        <li>Accesso palestra</li>
+                        <li>Spogliatoi</li>
+                        <li>1 corso a scelta</li>
+                    </ul>
+                    <a href="prenotazioni.html" class="btn btn-outline">Scegli Base</a>
+                </div>
+                <div class="abbonamento-card featured">
+                    <span class="abbonamento-badge">Più Popolare</span>
+                    <h3>Premium</h3>
+                    <div class="abbonamento-prezzo">
+                        <span class="prezzo">€49</span>
+                        <span class="periodo">/mese</span>
+                    </div>
+                    <ul class="abbonamento-features">
+                        <li>Accesso palestra + piscina</li>
+                        <li>Tutti i corsi inclusi</li>
+                        <li>Sauna</li>
+                        <li>1 seduta PT/mese</li>
+                    </ul>
+                    <a href="prenotazioni.html" class="btn btn-primary">Scegli Premium</a>
+                </div>
+                <div class="abbonamento-card">
+                    <h3>Gold</h3>
+                    <div class="abbonamento-prezzo">
+                        <span class="prezzo">€79</span>
+                        <span class="periodo">/mese</span>
+                    </div>
+                    <ul class="abbonamento-features">
+                        <li>Accesso illimitato</li>
+                        <li>Tutti i corsi + sport</li>
+                        <li>4 sedute PT/mese</li>
+                        <li>Consulenza nutrizionale</li>
+                    </ul>
+                    <a href="prenotazioni.html" class="btn btn-outline">Scegli Gold</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il benessere.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="strutture.html">Strutture</a></li>
+                        <li><a href="corsi.html">Corsi</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="prenotazioni.html">Prenotazioni</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>Via dello Sport, 1<br>09010 San Sperate (CA)</p>
+                    <p>Tel: <a href="tel:+390701234567">070 123 4567</a></p>
+                    <p>Email: <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.min.js"></script>
+</body>
+</html>
+</content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/chi-siamo.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/chi-siamo.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi Siamo - CPS San Sperate</title>
+    <meta name="description" content="Scopri la storia e la missione del CPS San Sperate: dal 2010 al servizio dello sport e del benessere della comunità.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/chi-siamo.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link active">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/chi-siamo/chi-siamo-hero.jpg" alt="Il team CPS San Sperate" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>Chi Siamo</h1>
+            <p>La nostra storia, la nostra passione</p>
+        </div>
+    </section>
+
+    <!-- Storia -->
+    <section class="storia-section">
+        <div class="container">
+            <div class="storia-grid">
+                <div class="storia-content">
+                    <h2>La Nostra Storia</h2>
+                    <p>Il Centro Sportivo Polivalente di San Sperate nasce nel 2010 dalla passione di un gruppo di sportivi locali che sognavano di creare un punto di riferimento per lo sport nella comunità.</p>
+                    <p>In 15 anni di attività, il CPS è cresciuto fino a diventare il più grande centro sportivo della zona, con strutture all'avanguardia e un'offerta sportiva completa per tutte le età.</p>
+                    <p>Oggi il CPS San Sperate conta oltre 500 iscritti, 20 corsi attivi e un team di 30 professionisti dedicati al benessere dei nostri utenti.</p>
+                </div>
+                <div class="storia-img">
+                    <img src="img/chi-siamo/storia.jpg" alt="La storia del CPS San Sperate" loading="lazy">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Valori -->
+    <section class="valori-section">
+        <div class="container">
+            <h2 class="section-title">I Nostri Valori</h2>
+            <div class="valori-grid">
+                <div class="valore-card">
+                    <div class="valore-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#0077B6" opacity="0.1"/><path d="M32 16l-12 20h24L32 16zm-2 24v8h4v-8h-4z" fill="#0077B6"/></svg>
+                    </div>
+                    <h3>Eccellenza</h3>
+                    <p>Puntiamo sempre al massimo della qualità in ogni aspetto del nostro servizio.</p>
+                </div>
+                <div class="valore-card">
+                    <div class="valore-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#0077B6" opacity="0.1"/><path d="M22 24c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6-2.7-6-6-6zm20 0c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6-2.7-6-6-6zm-10 8c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6-2.7-6-6-6z" fill="#0077B6"/></svg>
+                    </div>
+                    <h3>Comunità</h3>
+                    <p>Crediamo nel potere dello sport di unire le persone e creare legami.</p>
+                </div>
+                <div class="valore-card">
+                    <div class="valore-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#0077B6" opacity="0.1"/><path d="M32 12c-11 0-20 9-20 20s9 20 20 20 20-9 20-20-9-20-20-20zm-4 28l-8-8 2.8-2.8L28 34.4l13.2-13.2L44 24 28 40z" fill="#0077B6"/></svg>
+                    </div>
+                    <h3>Inclusione</h3>
+                    <p>Lo sport è per tutti. Offriamo programmi accessibili a ogni età e livello.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Team -->
+    <section class="team-section">
+        <div class="container">
+            <h2 class="section-title">Il Nostro Team</h2>
+            <p class="section-subtitle">Professionisti appassionati al tuo servizio</p>
+            <div class="team-grid">
+                <div class="team-card">
+                    <img src="img/chi-siamo/team-1.jpg" alt="Marco Rossi - Direttore" loading="lazy">
+                    <h3>Marco Rossi</h3>
+                    <p class="team-role">Direttore</p>
+                </div>
+                <div class="team-card">
+                    <img src="img/chi-siamo/team-2.jpg" alt="Laura Bianchi - Resp. Piscina" loading="lazy">
+                    <h3>Laura Bianchi</h3>
+                    <p class="team-role">Responsabile Piscina</p>
+                </div>
+                <div class="team-card">
+                    <img src="img/chi-siamo/team-3.jpg" alt="Giuseppe Melis - Head Coach" loading="lazy">
+                    <h3>Giuseppe Melis</h3>
+                    <p class="team-role">Head Coach</p>
+                </div>
+                <div class="team-card">
+                    <img src="img/chi-siamo/team-4.jpg" alt="Sara Piras - Fisioterapista" loading="lazy">
+                    <h3>Sara Piras</h3>
+                    <p class="team-role">Fisioterapista</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il benessere.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Link Rapidi</h4>
+                    <ul>
+                        <li><a href="strutture.html">Strutture</a></li>
+                        <li><a href="corsi.html">Corsi</a></li>
+                        <li><a href="eventi.html">Eventi</a></li>
+                        <li><a href="prenotazioni.html">Prenotazioni</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contatti</h4>
+                    <p>Via dello Sport, 1<br>09010 San Sperate (CA)</p>
+                    <p>Tel: <a href="tel:+390701234567">070 123 4567</a></p>
+                    <p>Email: <a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 CPS San Sperate. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.min.js"></script>
+</body>
+</html>
+</content>
+</tool_response>
+
+<tool_call>
+{"name": "Read", "arguments": {"path": "/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/contatti.html"}}
+</tool_call>
+<tool_response>
+  <path>/data/massimiliano/Vari/MassimilianoPili.github.io/cps4/contatti.html</path>
+  <content>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contatti - CPS San Sperate</title>
+    <meta name="description" content="Contatta il CPS San Sperate: indirizzo, telefono, email e modulo di contatto. Vieni a trovarci a San Sperate.">
+    <link rel="canonical" href="https://massimilianopili.github.io/cps4/contatti.html">
+    <link rel="stylesheet" href="css/style.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <a href="index.html">
+                    <img src="img/logo.svg" alt="CPS Logo" class="logo-img" loading="lazy">
+                    <span class="logo-text">CPS San Sperate</span>
+                </a>
+            </div>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="strutture.html" class="nav-link">Strutture</a></li>
+                <li><a href="corsi.html" class="nav-link">Corsi</a></li>
+                <li><a href="eventi.html" class="nav-link">Eventi</a></li>
+                <li><a href="news.html" class="nav-link">News</a></li>
+                <li><a href="servizi.html" class="nav-link">Servizi</a></li>
+                <li><a href="chi-siamo.html" class="nav-link">Chi Siamo</a></li>
+                <li><a href="contatti.html" class="nav-link active">Contatti</a></li>
+                <li><a href="prenotazioni.html" class="nav-link btn-prenota">Prenota</a></li>
+            </ul>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-bg">
+            <img src="img/contatti/contatti-hero.jpg" alt="Contatti CPS San Sperate" class="page-header-img" loading="lazy">
+        </div>
+        <div class="page-header-content">
+            <h1>Contatti</h1>
+            <p>Siamo qui per te</p>
+        </div>
+    </section>
+
+    <!-- Contatti Content -->
+    <section class="contatti-section">
+        <div class="container">
+            <div class="contatti-grid">
+                <div class="contatti-info">
+                    <h2>Come Raggiungerci</h2>
+                    <div class="contatto-item">
+                        <div class="contatto-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#0077B6"/></svg>
+                        </div>
+                        <div>
+                            <h3>Indirizzo</h3>
+                            <p>Via dello Sport, 1<br>09010 San Sperate (CA)<br>Sardegna, Italia</p>
+                        </div>
+                    </div>
+                    <div class="contatto-item">
+                        <div class="contatto-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" fill="#0077B6"/></svg>
+                        </div>
+                        <div>
+                            <h3>Telefono</h3>
+                            <p><a href="tel:+390701234567">070 123 4567</a></p>
+                        </div>
+                    </div>
+                    <div class="contatto-item">
+                        <div class="contatto-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" fill="#0077B6"/></svg>
+                        </div>
+                        <div>
+                            <h3>Email</h3>
+                            <p><a href="mailto:info@cpssansperate.it">info@cpssansperate.it</a></p>
+                        </div>
+                    </div>
+                    <div class="contatto-item">
+                        <div class="contatto-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" fill="#0077B6"/></svg>
+                        </div>
+                        <div>
+                            <h3>Orari</h3>
+                            <p>Lun-Ven: 6:00-22:00<br>Sabato: 8:00-20:00<br>Domenica: 9:00-13:00</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Form -->
+                <div class="contatti-form">
+                    <h2>Scrivici</h2>
+                    <form id="contactForm" novalidate>
+                        <div class="form-group">
+                            <label for="nome">Nome *</label>
+                            <input type="text" id="nome" name="nome" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email *</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="telefono">Telefono</label>
+                            <input type="tel" id="telefono" name="telefono">
+                        </div>
+                        <div class="form-group">
+                            <label for="oggetto">Oggetto *</label>
+                            <select id="oggetto" name="oggetto" required>
+                                <option value="">Seleziona...</option>
+                                <option value="info">Informazioni generali</option>
+                                <option value="iscrizione">Iscrizione</option>
+                                <option value="corsi">Corsi</option>
+                                <option value="eventi">Eventi</option>
+                                <option value="altro">Altro</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="messaggio">Messaggio *</label>
+                            <textarea id="messaggio" name="messaggio" rows="5" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Invia Messaggio</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Map -->
+    <section class="map-section">
+        <div class="container">
+            <h2 class="section-title">Dove Siamo</h2>
+            <div class="map-wrapper">
+                <img src="img/contatti/mappa.jpg" alt="Mappa della posizione del CPS San Sperate in Via dello Sport 1" class="map-img" loading="lazy">
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="img/logo.svg" alt="CPS Logo" class="footer-logo" loading="lazy">
+                    <p>Centro Sportivo Polivalente di San Sperate. Il tuo partner per lo sport e il

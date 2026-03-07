@@ -259,6 +259,21 @@ public class PlanItem {
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ── Bayesian Success Prediction fields ────────────────────────────────────
+
+    /**
+     * Predicted probability of success from Bayesian logistic regression.
+     * Set by {@link com.agentframework.orchestrator.gp.BayesianSuccessPredictorService}
+     * before dispatch admission control. Range [0.0, 1.0]. Null if not predicted.
+     */
+    @Column(name = "predicted_success_probability")
+    private Float predictedSuccessProbability;
+
+    public Float getPredictedSuccessProbability() { return predictedSuccessProbability; }
+    public void setPredictedSuccessProbability(Float p) { this.predictedSuccessProbability = p; }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     public Long getVersion() { return version; }
 
     /** Dynamically adds a dependency (used by the missing_context feedback loop). */

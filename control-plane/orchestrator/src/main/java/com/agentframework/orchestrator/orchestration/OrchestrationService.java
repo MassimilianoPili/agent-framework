@@ -22,8 +22,10 @@ import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
 import com.agentframework.gp.model.GpPrediction;
+import com.agentframework.orchestrator.gp.BayesianSuccessPredictorService;
 import com.agentframework.orchestrator.gp.GpWorkerSelectionService;
 import com.agentframework.orchestrator.gp.SerendipityService;
+import com.agentframework.orchestrator.gp.SuccessPrediction;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
 import com.agentframework.orchestrator.specification.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -89,6 +91,8 @@ public class OrchestrationService {
     private final GpWorkerSelectionService gpSelectionService;
     private final TaskOutcomeService gpTaskOutcomeService;
     private final SerendipityService serendipityService;
+    private final BayesianSuccessPredictorService bayesianPredictor;
+    private final MarketMakingDispatcher marketMakingDispatcher;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -106,7 +110,9 @@ public class OrchestrationService {
                                 RewardComputationService rewardComputationService,
                                 Optional<GpWorkerSelectionService> gpSelectionService,
                                 Optional<TaskOutcomeService> gpTaskOutcomeService,
-                                Optional<SerendipityService> serendipityService) {
+                                Optional<SerendipityService> serendipityService,
+                                Optional<BayesianSuccessPredictorService> bayesianPredictor,
+                                Optional<MarketMakingDispatcher> marketMakingDispatcher) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -124,6 +130,8 @@ public class OrchestrationService {
         this.gpSelectionService = gpSelectionService.orElse(null);
         this.gpTaskOutcomeService = gpTaskOutcomeService.orElse(null);
         this.serendipityService = serendipityService.orElse(null);
+        this.bayesianPredictor = bayesianPredictor.orElse(null);
+        this.marketMakingDispatcher = marketMakingDispatcher.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -466,8 +474,18 @@ public class OrchestrationService {
             return;
         }
 
-        Map<String, String> completedResults = loadCompletedResults(planId);
+        // Market making: sort by priority (inventory risk model) before dispatching.
+        // Re-orders items so high-priority tasks (critical path, underserved worker types) go first.
         Plan plan = planRepository.findById(planId).orElseThrow();
+        if (marketMakingDispatcher != null) {
+            try {
+                dispatchable = marketMakingDispatcher.prioritize(dispatchable, plan);
+            } catch (Exception e) {
+                log.debug("Market making prioritization failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
+        Map<String, String> completedResults = loadCompletedResults(planId);
         String planSpec = plan.getSpec();
         PlanRequest.Budget budget = deserializeBudget(plan.getBudgetJson());
 
@@ -583,6 +601,25 @@ public class OrchestrationService {
                     continue; // item stays WAITING
                 }
                 // ALLOW or WARN — proceed with dispatch
+            }
+
+            // Bayesian admission control: predict success probability and skip low-probability tasks.
+            // Only active when the BayesianSuccessPredictorService bean exists (gp.enabled=true)
+            // and the plan requested admission control (admissionControl != null in PlanRequest).
+            if (bayesianPredictor != null) {
+                try {
+                    SuccessPrediction prediction = bayesianPredictor.predictForItem(
+                            item, gpPrediction, budget, planId);
+                    item.setPredictedSuccessProbability((float) prediction.probability());
+                    if (!prediction.shouldDispatch()) {
+                        log.info("Bayesian admission: task {} below threshold (P={})",
+                                 item.getTaskKey(), String.format("%.3f", prediction.probability()));
+                        planItemRepository.save(item);
+                        continue; // item stays WAITING
+                    }
+                } catch (Exception e) {
+                    log.debug("Bayesian prediction failed (non-blocking): {}", e.getMessage());
+                }
             }
 
             // Create attempt entity first so its ID can be embedded in the task message for tracing

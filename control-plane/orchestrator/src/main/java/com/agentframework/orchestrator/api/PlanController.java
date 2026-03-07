@@ -5,6 +5,10 @@ import com.agentframework.orchestrator.api.dto.PlanRequest;
 import com.agentframework.orchestrator.api.dto.PlanResponse;
 import com.agentframework.orchestrator.api.dto.PlanSnapshotResponse;
 import com.agentframework.orchestrator.api.dto.QualityGateReportResponse;
+import com.agentframework.orchestrator.analytics.RootCauseAnalyzer;
+import com.agentframework.orchestrator.budget.CovarianceMatrix;
+import com.agentframework.orchestrator.budget.PortfolioOptimizer;
+import com.agentframework.orchestrator.gp.TaskOutcomeRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.domain.IllegalStateTransitionException;
 import com.agentframework.orchestrator.domain.ItemStatus;
@@ -27,9 +31,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/plans")
@@ -45,6 +48,8 @@ public class PlanController {
     private final SpectralAnalyzer spectralAnalyzer;
     private final SseEmitterRegistry sseEmitterRegistry;
     private final PlanItemRepository planItemRepository;
+    private final Optional<TaskOutcomeRepository> taskOutcomeRepository;
+    private final Optional<RootCauseAnalyzer> rootCauseAnalyzer;
 
     public PlanController(OrchestrationService orchestrationService,
                           PlanSnapshotService snapshotService,
@@ -53,7 +58,9 @@ public class PlanController {
                           CriticalPathCalculator criticalPathCalculator,
                           SpectralAnalyzer spectralAnalyzer,
                           SseEmitterRegistry sseEmitterRegistry,
-                          PlanItemRepository planItemRepository) {
+                          PlanItemRepository planItemRepository,
+                          Optional<TaskOutcomeRepository> taskOutcomeRepository,
+                          Optional<RootCauseAnalyzer> rootCauseAnalyzer) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
@@ -62,6 +69,8 @@ public class PlanController {
         this.spectralAnalyzer = spectralAnalyzer;
         this.sseEmitterRegistry = sseEmitterRegistry;
         this.planItemRepository = planItemRepository;
+        this.taskOutcomeRepository = taskOutcomeRepository;
+        this.rootCauseAnalyzer = rootCauseAnalyzer;
     }
 
     /**
@@ -379,5 +388,84 @@ public class PlanController {
         return ResponseEntity.ok()
             .contentType(MediaType.APPLICATION_JSON)
             .body(report);
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/portfolio-analysis
+     *
+     * <p>Performs Markowitz Mean-Variance portfolio optimization on the historical
+     * reward data of worker types used in this plan. Returns optimal budget allocation
+     * weights, expected return, volatility, and Sharpe ratio.</p>
+     *
+     * <p>Read-only analysis endpoint — does not modify plan state.</p>
+     */
+    @GetMapping("/{id}/portfolio-analysis")
+    public ResponseEntity<PortfolioOptimizer.PortfolioResult> getPortfolioAnalysis(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0.5") double riskTolerance) {
+
+        if (taskOutcomeRepository.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+
+        return orchestrationService.getPlan(id)
+            .map(plan -> {
+                // Collect worker types used in this plan
+                Set<String> planWorkerTypes = plan.getItems().stream()
+                        .map(item -> item.getWorkerType().name())
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                if (planWorkerTypes.isEmpty()) {
+                    return ResponseEntity.ok(new PortfolioOptimizer.PortfolioResult(
+                            Map.of(), 0, 0, 0, true));
+                }
+
+                // Load historical rewards per worker type
+                List<Object[]> rows = taskOutcomeRepository.get().findRewardsByWorkerType();
+
+                // Group rewards by worker type, filtering to only types used in this plan
+                Map<String, List<Double>> rewardMap = new LinkedHashMap<>();
+                for (String wt : planWorkerTypes) {
+                    rewardMap.put(wt, new ArrayList<>());
+                }
+                for (Object[] row : rows) {
+                    String wt = (String) row[0];
+                    if (rewardMap.containsKey(wt)) {
+                        rewardMap.get(wt).add(((Number) row[1]).doubleValue());
+                    }
+                }
+
+                String[] types = rewardMap.keySet().toArray(new String[0]);
+                double[][] history = new double[types.length][];
+                for (int i = 0; i < types.length; i++) {
+                    List<Double> rewards = rewardMap.get(types[i]);
+                    history[i] = rewards.stream().mapToDouble(Double::doubleValue).toArray();
+                }
+
+                CovarianceMatrix cov = new CovarianceMatrix(types, history);
+                PortfolioOptimizer optimizer = new PortfolioOptimizer(cov, riskTolerance);
+                return ResponseEntity.ok(optimizer.optimize());
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/items/{taskKey}/root-cause
+     *
+     * <p>Runs causal inference (Pearl's do-calculus) on a task outcome to identify
+     * the root cause of success or failure. Requires the causal inference module.</p>
+     */
+    @GetMapping("/{id}/items/{taskKey}/root-cause")
+    public ResponseEntity<RootCauseAnalyzer.RootCauseReport> getRootCause(
+            @PathVariable UUID id,
+            @PathVariable String taskKey) {
+        if (rootCauseAnalyzer.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        try {
+            return ResponseEntity.ok(rootCauseAnalyzer.get().analyseTask(id, taskKey));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

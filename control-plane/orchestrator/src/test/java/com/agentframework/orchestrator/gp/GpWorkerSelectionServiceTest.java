@@ -33,7 +33,7 @@ class GpWorkerSelectionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new GpWorkerSelectionService(outcomeService, profileRegistry, Optional.empty());
+        service = new GpWorkerSelectionService(outcomeService, profileRegistry, Optional.empty(), Optional.empty());
     }
 
     // ── Single profile (skip GP) ────────────────────────────────────────────
