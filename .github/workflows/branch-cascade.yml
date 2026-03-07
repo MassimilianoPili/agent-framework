@@ -6,6 +6,7 @@ on:
 
 # Cascades changes from main → develop → test
 # following the vertical-horizontal branching strategy.
+# Creates branches from main if they don't exist yet.
 
 jobs:
   cascade-to-develop:
@@ -21,13 +22,18 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout develop
-          git merge origin/main --no-edit || {
-            echo "Merge conflict detected. Creating PR instead."
-            # TODO: Create PR from main to develop when conflicts arise
-            # gh pr create --base develop --head main --title "Cascade: main → develop (conflict)"
-            exit 1
-          }
+
+          if git rev-parse --verify origin/develop >/dev/null 2>&1; then
+            git checkout develop
+            git merge origin/main --no-edit || {
+              echo "::warning::Merge conflict main → develop. Manual resolution required."
+              exit 1
+            }
+          else
+            echo "Branch 'develop' does not exist. Creating from main."
+            git checkout -b develop
+          fi
+
           git push origin develop
 
   cascade-to-test:
@@ -44,9 +50,19 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout test
-          git merge origin/develop --no-edit || {
-            echo "Merge conflict detected. Creating PR instead."
-            exit 1
-          }
+
+          # Fetch latest (develop was just updated)
+          git fetch origin
+
+          if git rev-parse --verify origin/test >/dev/null 2>&1; then
+            git checkout test
+            git merge origin/develop --no-edit || {
+              echo "::warning::Merge conflict develop → test. Manual resolution required."
+              exit 1
+            }
+          else
+            echo "Branch 'test' does not exist. Creating from develop."
+            git checkout -b test origin/develop
+          fi
+
           git push origin test

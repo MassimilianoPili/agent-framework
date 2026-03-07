@@ -32,7 +32,11 @@ jobs:
 
       - name: Deploy Workers
         run: |
-          for worker in be-worker fe-worker ai-task-worker contract-worker review-worker; do
+          for worker in be-java-worker fe-react-worker ai-task-worker contract-worker review-worker \
+                       task-manager-worker compensator-manager-worker context-manager-worker \
+                       event-manager-worker hook-manager-worker schema-manager-worker \
+                       audit-manager-worker rag-manager-worker advisory-worker \
+                       dba-postgres-worker mobile-swift-worker sdk-scaffold-worker; do
             echo "Deploying $worker to ${{ env.AZURE_RESOURCE_GROUP }}"
             # az containerapp job update --name $worker --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             #   --image ${{ env.IMAGE_PREFIX }}/$worker:${{ inputs.image_tag }}

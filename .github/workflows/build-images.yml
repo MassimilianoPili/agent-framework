@@ -13,21 +13,48 @@ env:
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/agent-framework
 
 jobs:
-  build-orchestrator:
-    name: Build Orchestrator Image
+  build-jars:
+    name: Build all JARs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: "17"
+          java-version: "21"
           distribution: temurin
           cache: maven
 
-      - name: Build JAR
-        run: mvn clean package -B -q -DskipTests -pl control-plane/orchestrator -am
+      - name: Build reactor
+        run: ./build.sh -B -DskipTests
+
+      - name: Upload orchestrator JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-orchestrator
+          path: control-plane/orchestrator/target/orchestrator-*.jar
+          retention-days: 1
+
+      - name: Upload worker JARs
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-workers
+          path: execution-plane/workers/*/target/*.jar
+          retention-days: 1
+
+  build-orchestrator:
+    name: Build Orchestrator Image
+    runs-on: ubuntu-latest
+    needs: build-jars
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: jar-orchestrator
+          path: control-plane/orchestrator/target/
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -40,7 +67,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: control-plane/orchestrator
-          file: control-plane/orchestrator/docker/Dockerfile
+          file: control-plane/orchestrator/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/orchestrator:latest
@@ -49,21 +76,38 @@ jobs:
   build-workers:
     name: Build ${{ matrix.worker }} Image
     runs-on: ubuntu-latest
+    needs: build-jars
     strategy:
       matrix:
-        worker: [be-worker, fe-worker, ai-task-worker, contract-worker, review-worker]
+        worker:
+          # Infrastructure workers (always needed)
+          - task-manager-worker
+          - compensator-manager-worker
+          - context-manager-worker
+          - event-manager-worker
+          - hook-manager-worker
+          - schema-manager-worker
+          - audit-manager-worker
+          - rag-manager-worker
+          - advisory-worker
+          # Domain workers (one default per type)
+          - be-java-worker
+          - fe-react-worker
+          - dba-postgres-worker
+          - mobile-swift-worker
+          # Other domain workers
+          - ai-task-worker
+          - contract-worker
+          - review-worker
+          - sdk-scaffold-worker
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Download JARs
+        uses: actions/download-artifact@v4
         with:
-          java-version: "17"
-          distribution: temurin
-          cache: maven
-
-      - name: Build JAR
-        run: mvn clean package -B -q -DskipTests -pl execution-plane/workers/${{ matrix.worker }} -am
+          name: jar-workers
+          path: execution-plane/workers/
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -76,7 +120,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: execution-plane/workers/${{ matrix.worker }}
-          file: execution-plane/workers/${{ matrix.worker }}/docker/Dockerfile
+          file: execution-plane/workers/${{ matrix.worker }}/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/${{ matrix.worker }}:latest
