@@ -218,7 +218,7 @@ sequenceDiagram
 
 ## Active Worker Profiles
 
-41 manifests generating 48 Maven modules (41 generated + 7 manual/special).
+41 manifests generating 53 Maven modules (43 worker modules + 10 shared/infra).
 
 ### Domain Workers (32 profiles)
 
@@ -1036,6 +1036,45 @@ cd shared/rag-engine && mvn test
 ## Known Gaps
 
 - `Provenance.model` field is populated as `null` — requires extracting model identifier from `ChatResponse` metadata (Spring AI does not expose it uniformly across providers yet).
+
+## CI/CD (GitHub Actions)
+
+8 workflows in `.github/workflows/`, triggered on push to `main` or manually.
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| `build-images.yml` | push `main` | Build all JARs via `build.sh`, push 18 Docker images to `ghcr.io` |
+| `branch-cascade.yml` | push `main` | Cascade `main → develop → test` (creates branches if missing) |
+| `pr-gates.yml` | PR to `main`/`develop` | Build + unit/integration tests + OpenAPI lint + schema validation |
+| `nightly-eval.yml` | cron 02:00 UTC | Run evaluation scenarios against planner and schema validation |
+| `deploy-develop.yml` | manual | Deploy to Azure Container Apps (dev) |
+| `deploy-test.yml` | manual | Deploy to Azure Container Apps (test) |
+| `deploy-collaudo.yml` | manual | Deploy to Azure Container Apps (collaudo/UAT) |
+| `deploy-prod.yml` | manual | Deploy to Azure Container Apps (production, requires approval) |
+
+### Build Images Pipeline
+
+```
+build-jars (mvn bootstrap plugin + build.sh)
+    |
+    +-- build-orchestrator (Dockerfile → ghcr.io/.../orchestrator)
+    +-- build-workers ×17 (matrix, fail-fast: false)
+            → ghcr.io/.../be-java-worker
+            → ghcr.io/.../fe-react-worker
+            → ghcr.io/.../dba-postgres-worker
+            → ghcr.io/.../task-manager-worker
+            → ... (17 images total)
+```
+
+**Bootstrap step**: the `agent-compiler-maven-plugin` is a reactor module (not published). In CI,
+it must be installed first via `mvn install -f execution-plane/agent-compiler-maven-plugin/pom.xml`
+before `build.sh` can invoke it.
+
+**Image tags**: lowercase via `tr '[:upper:]' '[:lower:]'` (GHCR requires lowercase).
+
+### Gitea Mirror
+
+`.gitea/workflows/mirror.yml` pushes `main` + tags to GitHub on every Gitea push.
 
 ## Tech Stack
 

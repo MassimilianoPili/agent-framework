@@ -12,7 +12,7 @@ Ogni modulo worker e' un'applicazione Spring Boot autonoma che estende `Abstract
 
 ## Worker List
 
-41 manifest, 48 moduli Maven (41 generati + 7 manuali/speciali).
+41 manifest, 53 moduli Maven (43 worker + 10 shared/infra). 18 Docker images pubblicate su `ghcr.io`.
 
 ### Infrastructure Workers
 
