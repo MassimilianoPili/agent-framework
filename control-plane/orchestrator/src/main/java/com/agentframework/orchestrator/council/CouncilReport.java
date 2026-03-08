@@ -63,6 +63,28 @@ public record CouncilReport(
      * Raw output from each consulted member, keyed by profile name.
      * Useful for debugging and for COUNCIL_MANAGER task-level sessions.
      */
-    Map<String, String> memberInsights
+    Map<String, String> memberInsights,
+
+    // ── Council Taste Profile (#13) ───────────────────────────────────────
+
+    /**
+     * GP-predicted mean reward for a plan with this structural profile.
+     * Null on cold start (fewer than 5 historical plans available).
+     */
+    Double predictedReward,
+
+    /**
+     * GP posterior variance (sigma²) for the prediction.
+     * Higher values indicate lower confidence (e.g. novel plan structures).
+     * Null when {@code predictedReward} is null.
+     */
+    Double predictionUncertainty,
+
+    /**
+     * Human-readable hint summarising the GP prediction for the planner.
+     * Example: "GP: predicted reward 0.72 ± 0.15 for a 5-task plan (based on 42 past plans)".
+     * Null when GP is in cold-start mode.
+     */
+    String decompositionHint
 
 ) {}

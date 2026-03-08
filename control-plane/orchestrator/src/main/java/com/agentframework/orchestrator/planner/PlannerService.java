@@ -133,6 +133,7 @@ public class PlannerService {
                 s.dependsOn() != null ? s.dependsOn() : List.of(),
                 s.toolHints()
             );
+            item.setModelId(s.modelId());   // optional LLM model override (#20)
             result.add(item);
         }
 

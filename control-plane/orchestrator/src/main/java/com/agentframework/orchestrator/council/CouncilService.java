@@ -9,6 +9,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Service;
 
+import com.agentframework.gp.model.GpPrediction;
+import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import jakarta.annotation.PreDestroy;
 
 import java.util.ArrayList;
@@ -56,17 +58,20 @@ public class CouncilService {
     private final CouncilProperties properties;
     private final ObjectMapper objectMapper;
     private final Optional<CouncilRagEnricher> ragEnricher;
+    private final Optional<PlanDecompositionPredictor> decompositionPredictor;
 
     public CouncilService(ChatClient chatClient,
                           CouncilPromptLoader promptLoader,
                           CouncilProperties properties,
                           ObjectMapper objectMapper,
-                          Optional<CouncilRagEnricher> ragEnricher) {
+                          Optional<CouncilRagEnricher> ragEnricher,
+                          Optional<PlanDecompositionPredictor> decompositionPredictor) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.ragEnricher = ragEnricher;
+        this.decompositionPredictor = decompositionPredictor;
     }
 
     @PreDestroy
@@ -105,6 +110,9 @@ public class CouncilService {
 
         Map<String, String> memberViews = consultMembersParallel(enrichedSpec, selected);
         CouncilReport report = synthesize(enrichedSpec, memberViews);
+
+        // Enrich with GP taste-profile prediction (informational, does not alter LLM decisions)
+        report = enrichWithGpPrediction(report, selected.size());
 
         log.info("Pre-planning council session complete. Decisions: {}", report.architectureDecisions());
         return report;
@@ -294,10 +302,47 @@ public class CouncilService {
             return new CouncilReport(
                 new ArrayList<>(memberViews.keySet()),
                 List.of(), null, List.of(), null, null, null,
-                memberViews
+                memberViews,
+                null, null, null  // taste-profile: null on fallback
             );
         }
         return report;
+    }
+
+    /**
+     * Enriches a synthesised {@link CouncilReport} with GP taste-profile prediction.
+     *
+     * <p>Uses default structural estimates for the pre-planning stage (the exact plan
+     * structure is not yet known). If the predictor is absent or in cold-start mode,
+     * returns the report unmodified.</p>
+     *
+     * @param report      report from LLM synthesis
+     * @param nMembers    number of council members selected (used as proxy for nTasks estimate)
+     */
+    private CouncilReport enrichWithGpPrediction(CouncilReport report, int nMembers) {
+        if (decompositionPredictor.isEmpty()) return report;
+
+        // Estimate plan structure at pre-planning time: use member count as nTasks proxy,
+        // assume context and review tasks are likely for non-trivial specs.
+        int estimatedTasks = Math.max(3, nMembers + 2);
+
+        return decompositionPredictor.get()
+                .predict(estimatedTasks, true, true, nMembers / 2, Math.max(0, nMembers / 4))
+                .map(pred -> {
+                    double mu     = pred.mu();
+                    double sigma  = Math.sqrt(Math.max(0.0, pred.sigma2()));
+                    String hint   = String.format(
+                            "GP: predicted reward %.2f ± %.2f for a %d-task plan",
+                            mu, sigma, estimatedTasks);
+                    log.debug("GP taste-profile: {}", hint);
+                    return new CouncilReport(
+                            report.selectedMembers(), report.architectureDecisions(),
+                            report.techStackRationale(), report.securityConsiderations(),
+                            report.dataModelingGuidelines(), report.apiDesignGuidelines(),
+                            report.testingStrategy(), report.memberInsights(),
+                            mu, pred.sigma2(), hint);
+                })
+                .orElse(report);  // cold start: return original report unchanged
     }
 
     /**

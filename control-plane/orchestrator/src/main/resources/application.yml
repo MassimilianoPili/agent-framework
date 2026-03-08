@@ -269,6 +269,11 @@ council:
   pre-planning-enabled: true    # Run council before PlannerService.decompose()
   task-session-enabled: true    # Handle COUNCIL_MANAGER tasks in-process
   submodular-selection-enabled: false  # Use CELF greedy (SubmodularSelector) instead of LLM for member selection
+  taste-profile:
+    enabled: true               # GP predictor for plan decomposition quality (#13)
+    max-training-points: 200    # Max historical plans used for GP fit
+    noise-variance: 0.1         # GP noise variance (observation noise)
+    length-scale: 2.0           # RBF kernel length scale (feature space units)
 
 # Enrichment Pipeline — auto-injection of CONTEXT_MANAGER, RAG_MANAGER, SCHEMA_MANAGER
 # tasks as dependencies of domain workers after planner decomposition.
@@ -536,6 +541,26 @@ functorial-semantics:
   enabled: true
   compositionality-check: true
   compositionality-threshold: 0.3   # L∞ error threshold to declare compositional
+
+# Petri Nets (Peterson) — reachability, deadlock, liveness of plan DAG
+petri-nets:
+  enabled: true
+
+# CSP Channel Verifier (Hoare) — protocol adherence + deadlock freedom of task event traces
+csp-verifier:
+  enabled: true
+  max-events-per-plan: 500          # cap to avoid OOM on very long plans
+
+# PAC-Bayes (McAllester) — GP convergence bounds and required sample size
+pac-bayes:
+  enabled: true
+  default-epsilon: 0.05             # desired generalisation error tolerance
+  default-delta: 0.05               # acceptable failure probability (→ 95% confidence)
+
+# Social Choice (Arrow/Schulze) — voting protocol for council preference aggregation
+social-choice:
+  enabled: true
+  default-method: SCHULZE           # PLURALITY | BORDA | SCHULZE | APPROVAL
 
 logging:
   level:

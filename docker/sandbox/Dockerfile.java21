@@ -1,0 +1,11 @@
+# Sandbox image for Java 21 compilation/testing
+# Security: runs as non-root (UID 1000), no network, read-only root filesystem
+FROM eclipse-temurin:21-jdk-alpine
+
+RUN apk add --no-cache maven=3.9.9-r0 && \
+    adduser -D -u 1000 sandbox && \
+    mkdir -p /code /out && \
+    chown 1000:1000 /code /out
+
+USER 1000:1000
+WORKDIR /code

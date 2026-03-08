@@ -3,12 +3,14 @@ package com.agentframework.orchestrator.orchestration;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
 import com.agentframework.orchestrator.artifact.ArtifactStore;
 import com.agentframework.orchestrator.budget.CostEstimationService;
+import com.agentframework.orchestrator.cache.ContextCacheService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.domain.*;
 import com.agentframework.orchestrator.eventsourcing.PlanEventStore;
 import com.agentframework.orchestrator.event.*;
 import com.agentframework.orchestrator.event.SpringPlanEvent;
 import com.agentframework.common.policy.ApprovalMode;
+import com.agentframework.common.policy.CompensationMode;
 import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.common.policy.HookPolicy;
 import com.agentframework.common.policy.RiskLevel;
@@ -27,6 +29,7 @@ import com.agentframework.orchestrator.reward.RewardComputationService;
 import com.agentframework.gp.model.GpPrediction;
 import com.agentframework.orchestrator.gp.BayesianSuccessPredictorService;
 import com.agentframework.orchestrator.gp.GpWorkerSelectionService;
+import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.SuccessPrediction;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
@@ -102,6 +105,8 @@ public class OrchestrationService {
     private final WorkspaceManager workspaceManager;
     private final EnrichmentInjectorService enrichmentInjectorService;
     private final EnrichmentProperties enrichmentProperties;
+    private final ContextCacheService contextCacheService;
+    private final PlanDecompositionPredictor decompositionPredictor;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -126,7 +131,9 @@ public class OrchestrationService {
                                 ArtifactStore artifactStore,
                                 WorkspaceManager workspaceManager,
                                 EnrichmentInjectorService enrichmentInjectorService,
-                                EnrichmentProperties enrichmentProperties) {
+                                EnrichmentProperties enrichmentProperties,
+                                ContextCacheService contextCacheService,
+                                Optional<PlanDecompositionPredictor> decompositionPredictor) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -151,6 +158,8 @@ public class OrchestrationService {
         this.workspaceManager = workspaceManager;
         this.enrichmentInjectorService = enrichmentInjectorService;
         this.enrichmentProperties = enrichmentProperties;
+        this.contextCacheService = contextCacheService;
+        this.decompositionPredictor = decompositionPredictor.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -279,6 +288,13 @@ public class OrchestrationService {
                 } catch (Exception e) {
                     log.warn("Failed to store artifact for {}: {}", result.taskKey(), e.getMessage());
                 }
+            }
+
+            // Cache CONTEXT_MANAGER results so downstream tasks can retrieve context
+            // without re-running the expensive file-scan + embedding pipeline.
+            if (item.getWorkerType() == WorkerType.CONTEXT_MANAGER
+                    && result.resultJson() != null && !result.resultJson().isBlank()) {
+                contextCacheService.put(result.planId(), item.getTaskKey(), result.resultJson());
             }
 
             log.info("Task {} completed successfully (plan={}, profile={}, duration={}ms)",
@@ -450,9 +466,17 @@ public class OrchestrationService {
 
         // Reopen plan if needed
         Plan plan = item.getPlan();
-        if (plan.getStatus() == PlanStatus.COMPLETED
-                || plan.getStatus() == PlanStatus.FAILED
-                || plan.getStatus() == PlanStatus.PAUSED) {
+        if (plan.getStatus() == PlanStatus.COMPLETED) {
+            // Compensation path: plan was already complete; operator is forcing a task redo.
+            // Preserve completedAt for audit — do NOT null it out.
+            plan.transitionTo(PlanStatus.RUNNING);
+            plan.setPausedAt(null);
+            planRepository.save(plan);
+            log.warn("Reopening COMPLETED plan {} for item redispatch — compensation operation (task={})",
+                     plan.getId(), item.getTaskKey());
+            eventStore.append(plan.getId(), item.getId(), "PLAN_COMPENSATION_STARTED",
+                    Map.of("taskKey", item.getTaskKey(), "triggeredBy", "redispatch"));
+        } else if (plan.getStatus() == PlanStatus.FAILED || plan.getStatus() == PlanStatus.PAUSED) {
             plan.transitionTo(PlanStatus.RUNNING);
             plan.setCompletedAt(null);
             plan.setPausedAt(null);
@@ -503,7 +527,8 @@ public class OrchestrationService {
             plan.getCouncilReport(),
             buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile()),
             item.getToolHints(),
-            resolveWorkspacePath(plan)
+            resolveWorkspacePath(plan),
+            item.getModelId()
         );
 
         try {
@@ -558,9 +583,150 @@ public class OrchestrationService {
         }
 
         int maxOrdinal = planItemRepository.findByPlanId(plan.getId()).stream()
-                .mapToInt(PlanItem::getOrdinal)
-                .max().orElse(0);
+                .mapToInt(PlanItem::getOrdinal).max().orElse(0);
 
+        PlanItem compensationItem = buildCompensationItem(originalItem, compensationReason, maxOrdinal + 1);
+        plan.addItem(compensationItem);
+        planRepository.save(plan);
+
+        log.info("Compensation task {} created for original item {} (plan={})",
+                 compensationItem.getTaskKey(), itemId, plan.getId());
+
+        eventStore.append(plan.getId(), compensationItem.getId(), "COMPENSATION_REQUESTED",
+                Map.of("originalItemId", itemId.toString(),
+                       "compensationKey", compensationItem.getTaskKey(),
+                       "reason", compensationReason));
+
+        dispatchReadyItems(plan.getId());
+        return compensationItem;
+    }
+
+    /**
+     * Summary returned by {@link #compensatePlan}.
+     *
+     * @param mode           the compensation mode applied
+     * @param affectedItems  number of items involved (DONE→UNDO, FAILED→RETRY)
+     * @param createdTaskIds IDs of newly created COMPENSATOR_MANAGER tasks (UNDO only)
+     */
+    public record CompensationSummary(CompensationMode mode, int affectedItems, List<UUID> createdTaskIds) {}
+
+    /**
+     * Plan-level compensation with explicit semantic intent.
+     *
+     * <p>Unlike the item-level {@link #createCompensationTask(UUID, String)}, this method
+     * operates on the whole plan with a declared {@link CompensationMode}:</p>
+     * <ul>
+     *   <li>{@code UNDO} — creates a COMPENSATOR_MANAGER task for every DONE item (saga rollback)</li>
+     *   <li>{@code RETRY} — resets every FAILED item to WAITING and re-enters the dispatch loop</li>
+     *   <li>{@code AMENDMENT} — reopens a terminal plan so the operator can add new tasks</li>
+     * </ul>
+     *
+     * @param planId the plan to compensate
+     * @param mode   the compensation intent
+     * @param reason human-readable explanation (persisted in the event log)
+     * @return a summary of what was done
+     */
+    @Transactional
+    public CompensationSummary compensatePlan(UUID planId, CompensationMode mode, String reason) {
+        Plan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new IllegalStateException("Unknown plan: " + planId));
+
+        String effectiveReason = (reason != null && !reason.isBlank())
+                ? reason
+                : "Operator-initiated " + mode.name().toLowerCase();
+
+        return switch (mode) {
+            case UNDO      -> executeUndo(plan, effectiveReason);
+            case RETRY     -> executeRetry(plan, effectiveReason);
+            case AMENDMENT -> executeAmendment(plan, effectiveReason);
+        };
+    }
+
+    private CompensationSummary executeUndo(Plan plan, String reason) {
+        List<PlanItem> allItems = planItemRepository.findByPlanId(plan.getId());
+        List<PlanItem> doneItems = allItems.stream()
+                .filter(i -> i.getStatus() == ItemStatus.DONE)
+                .toList();
+
+        if (doneItems.isEmpty()) {
+            throw new IllegalStateException(
+                    "Plan " + plan.getId() + " has no DONE items to undo");
+        }
+
+        reopenPlanForCompensation(plan, CompensationMode.UNDO);
+
+        int maxOrdinal = allItems.stream().mapToInt(PlanItem::getOrdinal).max().orElse(0);
+        List<UUID> createdIds = new ArrayList<>();
+        for (PlanItem item : doneItems) {
+            PlanItem ct = buildCompensationItem(item, reason, ++maxOrdinal);
+            plan.addItem(ct);
+            createdIds.add(ct.getId());
+        }
+        planRepository.save(plan);
+
+        eventStore.append(plan.getId(), null, "PLAN_UNDO_REQUESTED",
+                Map.of("mode", "UNDO", "reason", reason,
+                       "doneItemCount", doneItems.size(),
+                       "compensationTaskCount", createdIds.size()));
+        dispatchReadyItems(plan.getId());
+        log.info("Plan UNDO: created {} compensation tasks for plan {}", createdIds.size(), plan.getId());
+        return new CompensationSummary(CompensationMode.UNDO, doneItems.size(), createdIds);
+    }
+
+    private CompensationSummary executeRetry(Plan plan, String reason) {
+        List<PlanItem> failedItems = planItemRepository.findByPlanId(plan.getId()).stream()
+                .filter(i -> i.getStatus() == ItemStatus.FAILED)
+                .toList();
+
+        if (failedItems.isEmpty()) {
+            throw new IllegalStateException(
+                    "Plan " + plan.getId() + " has no FAILED items to retry");
+        }
+
+        reopenPlanForCompensation(plan, CompensationMode.RETRY);
+
+        for (PlanItem item : failedItems) {
+            item.transitionTo(ItemStatus.WAITING);
+            item.setFailureReason(null);
+            planItemRepository.save(item);
+        }
+
+        eventStore.append(plan.getId(), null, "PLAN_RETRY_REQUESTED",
+                Map.of("mode", "RETRY", "reason", reason, "failedItemCount", failedItems.size()));
+        dispatchReadyItems(plan.getId());
+        log.info("Plan RETRY: reset {} FAILED items to WAITING for plan {}", failedItems.size(), plan.getId());
+        return new CompensationSummary(CompensationMode.RETRY, failedItems.size(), List.of());
+    }
+
+    private CompensationSummary executeAmendment(Plan plan, String reason) {
+        if (plan.getStatus() == PlanStatus.RUNNING || plan.getStatus() == PlanStatus.PENDING) {
+            throw new IllegalStateException(
+                    "Plan " + plan.getId() + " is already open — AMENDMENT requires a terminal plan (COMPLETED or FAILED)");
+        }
+
+        reopenPlanForCompensation(plan, CompensationMode.AMENDMENT);
+
+        eventStore.append(plan.getId(), null, "PLAN_AMENDMENT_REQUESTED",
+                Map.of("mode", "AMENDMENT", "reason", reason));
+        log.info("Plan AMENDMENT: plan {} reopened for operator to add new tasks", plan.getId());
+        return new CompensationSummary(CompensationMode.AMENDMENT, 0, List.of());
+    }
+
+    /** Transitions the plan to RUNNING (if not already) and records the compensation mode. */
+    private void reopenPlanForCompensation(Plan plan, CompensationMode mode) {
+        if (plan.getStatus() != PlanStatus.RUNNING) {
+            plan.transitionTo(PlanStatus.RUNNING);
+            plan.setCompletedAt(null);
+        }
+        plan.setCompensationMode(mode);
+        planRepository.save(plan);
+    }
+
+    /**
+     * Builds a COMPENSATOR_MANAGER item that will undo the effects of {@code originalItem}.
+     * Shared by {@link #createCompensationTask(UUID, String)} and {@link #compensatePlan}.
+     */
+    private PlanItem buildCompensationItem(PlanItem originalItem, String reason, int ordinal) {
         String compKey  = "COMP-" + originalItem.getTaskKey();
         String compDesc = String.format("""
                 {
@@ -573,31 +739,15 @@ public class OrchestrationService {
                 originalItem.getTitle().replace("\"", "\\\""),
                 (originalItem.getDescription() != null ? originalItem.getDescription() : "").replace("\"", "\\\""),
                 (originalItem.getResult() != null ? originalItem.getResult() : "null"),
-                compensationReason.replace("\"", "\\\""));
+                reason.replace("\"", "\\\""));
 
-        PlanItem compensationItem = new PlanItem(
-                UUID.randomUUID(), maxOrdinal + 1, compKey,
+        return new PlanItem(
+                UUID.randomUUID(), ordinal, compKey,
                 "Compensate: " + originalItem.getTitle(),
                 compDesc,
                 WorkerType.COMPENSATOR_MANAGER,
                 "compensator-manager",
-                List.of(),
-                List.of()
-        );
-
-        plan.addItem(compensationItem);
-        planRepository.save(plan);
-
-        log.info("Compensation task {} created for original item {} (plan={})",
-                 compKey, itemId, plan.getId());
-
-        eventStore.append(plan.getId(), compensationItem.getId(), "COMPENSATION_REQUESTED",
-                Map.of("originalItemId", itemId.toString(),
-                       "compensationKey", compKey,
-                       "reason", compensationReason));
-
-        dispatchReadyItems(plan.getId());
-        return compensationItem;
+                List.of(), List.of());
     }
 
     /**
@@ -703,6 +853,24 @@ public class OrchestrationService {
                 log.warn("Task {} requires human approval (riskLevel=CRITICAL, plan={})",
                          item.getTaskKey(), planId);
                 continue; // do not dispatch — awaiting approval
+            }
+
+            // Fast-path budget pre-check: if budget is hard-exceeded even without GP adjustment,
+            // skip expensive GP inference entirely. The full check with gpPrediction runs below.
+            if (budget != null) {
+                TokenBudgetService.BudgetDecision preCheck =
+                        tokenBudgetService.checkBudget(planId, item.getWorkerType().name(), budget, null);
+                if (preCheck.action() == TokenBudgetService.BudgetDecision.Action.FAIL) {
+                    log.warn("Token budget FAIL_FAST (pre-check) for task {} (workerType={}, used={}, effective={})",
+                             item.getTaskKey(), item.getWorkerType(), preCheck.used(), preCheck.effectiveLimit());
+                    item.transitionTo(ItemStatus.FAILED);
+                    item.setFailureReason("Token budget exceeded (used=" + preCheck.used()
+                            + ", effective=" + preCheck.effectiveLimit() + ")");
+                    item.setCompletedAt(Instant.now());
+                    planItemRepository.save(item);
+                    continue;
+                }
+                // ALLOW or WARN: GP prediction may further adjust the effective limit — proceed normally.
             }
 
             // Resolve worker profile for multi-stack types (BE, FE) when planner didn't assign one.
@@ -863,7 +1031,8 @@ public class OrchestrationService {
                 plan.getCouncilReport(),  // inject pre-planning council context into every task
                 buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile()),
                 item.getToolHints(),      // planner-suggested MCP tool allowlist (#24L1)
-                resolveWorkspacePath(plan)
+                resolveWorkspacePath(plan),
+                item.getModelId()         // optional LLM model override (#20)
             );
 
             try {
@@ -923,6 +1092,16 @@ public class OrchestrationService {
         plan.setCompletedAt(Instant.now());
         planRepository.save(plan);
 
+        // Record plan outcome for Council Taste Profile GP training (#13)
+        if (decompositionPredictor != null && !anyFailed) {
+            decompositionPredictor.recordOutcome(
+                    planId, allItems.size(),
+                    hasWorkerType(allItems, WorkerType.CONTEXT_MANAGER),
+                    hasWorkerType(allItems, WorkerType.REVIEW),
+                    (int) countWorkerType(allItems, WorkerType.BE),
+                    (int) countWorkerType(allItems, WorkerType.FE));
+        }
+
         long failedCount = allItems.stream().filter(i -> i.getStatus() == ItemStatus.FAILED).count();
         String profileSummary = allItems.stream()
             .filter(i -> i.getWorkerProfile() != null)
@@ -935,8 +1114,9 @@ public class OrchestrationService {
                  planId, plan.getStatus(), allItems.size(), failedCount,
                  profileSummary.isEmpty() ? "none" : profileSummary);
 
-        // Release per-plan HookPolicy cache to prevent unbounded memory growth.
+        // Release per-plan caches to prevent unbounded memory/Redis growth.
         hookManagerService.evictPlan(planId);
+        contextCacheService.evictPlan(planId);
 
         eventPublisher.publishEvent(new PlanCompletedEvent(
                 planId, plan.getStatus(), allItems.size(), failedCount));
@@ -945,6 +1125,14 @@ public class OrchestrationService {
                 Map.of("status", plan.getStatus().name(),
                        "totalItems", allItems.size(),
                        "failedItems", failedCount));
+    }
+
+    private boolean hasWorkerType(List<PlanItem> items, WorkerType type) {
+        return items.stream().anyMatch(i -> i.getWorkerType() == type);
+    }
+
+    private long countWorkerType(List<PlanItem> items, WorkerType type) {
+        return items.stream().filter(i -> i.getWorkerType() == type).count();
     }
 
     /**
@@ -978,17 +1166,29 @@ public class OrchestrationService {
         List<String> missing = new java.util.ArrayList<>();
         for (String depKey : item.getDependsOn()) {
             String result = completedResults.get(depKey);
+            if (result == null) {
+                // Cache fallback: covers race conditions where the CM result is cached in Redis
+                // but not yet visible in completedResults (e.g. during rapid retry dispatch).
+                result = contextCacheService.get(item.getPlan().getId(), depKey).orElse(null);
+            }
             deps.put(depKey, result != null ? result : "{}");
             if (result == null) {
                 missing.add(depKey);
             }
         }
-        // B8: diagnostic log to catch dependsOn/completedResults key mismatch
-        log.info("Context for task {}: dependsOn={}, resolvedKeys={}, missingKeys={}",
-                 item.getTaskKey(),
-                 item.getDependsOn(),
-                 completedResults.keySet(),
-                 missing);
+        // B8: diagnostic log to catch dependsOn/completedResults key mismatch.
+        // Shows resolved/expected ratio and only the missing keys (not the full completedResults pool).
+        int expected = item.getDependsOn().size();
+        int resolved = expected - missing.size();
+        if (missing.isEmpty()) {
+            log.debug("Context for task {}: resolved={}/{} dependency results",
+                      item.getTaskKey(), resolved, expected);
+        } else {
+            log.warn("Context for task {}: resolved={}/{} dependency results — missing keys={}. " +
+                     "Available in completedResults pool: {}",
+                     item.getTaskKey(), resolved, expected, missing,
+                     completedResults.keySet());
+        }
         try {
             return objectMapper.writeValueAsString(deps);
         } catch (Exception e) {

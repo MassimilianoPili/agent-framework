@@ -37,5 +37,12 @@ public record PlanItemSchema(
         "MCP tool names this task needs. Use real MCP names: "
         + "fs_read, fs_write, fs_search, fs_list, bash_execute, python_execute. "
         + "null or empty = no tools (text-only task like REVIEW or CONTRACT)")
-    List<String> toolHints
+    List<String> toolHints,
+
+    @JsonPropertyDescription(
+        "Optional LLM model ID override for this task. "
+        + "Use 'claude-haiku-4-5-20251001' for fast mechanical tasks (e.g. CONTEXT_MANAGER, HOOK_MANAGER). "
+        + "Use 'claude-opus-4-6' for complex reasoning tasks (e.g. AI_TASK, REVIEW). "
+        + "null = use worker default (claude-sonnet-4-6)")
+    String modelId
 ) {}

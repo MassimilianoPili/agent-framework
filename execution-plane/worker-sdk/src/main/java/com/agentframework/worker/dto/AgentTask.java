@@ -27,5 +27,6 @@ public record AgentTask(
     String councilContext,      // JSON CouncilReport from pre-planning session (null if council disabled)
     List<String> dynamicOwnsPaths, // project-path-resolved ownsPaths (merged with static in worker, null = none)
     List<String> toolHints,       // planner-suggested MCP tool names (null = no suggestion, use worker default)
-    String workspacePath          // plan-scoped workspace directory path (null = no workspace)
+    String workspacePath,         // plan-scoped workspace directory path (null = no workspace)
+    String modelId                // optional LLM model ID override (null = worker default)
 ) {}
