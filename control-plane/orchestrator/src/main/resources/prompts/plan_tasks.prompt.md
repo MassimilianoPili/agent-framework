@@ -32,6 +32,16 @@ You are a planning agent in a multi-agent orchestration framework. Your task is 
 | `MANAGER` | `MG-` | Domain architectural advisor (read-only codebase access). Use `workerProfile` to select area: `be-manager`, `fe-manager`, `security-manager`, `data-manager`. | Architectural decisions and constraints JSON |
 | `SPECIALIST` | `SP-` | Cross-cutting domain expert (read-only). Use `workerProfile` to select specialty: `database-specialist`, `auth-specialist`, `api-specialist`, `testing-specialist`, `seo-specialist`, `infra-specialist`, `network-specialist`. | Expert guidance JSON |
 
+**Enrichment Manager Types (auto-injected by the orchestrator — include explicitly only for custom ordering):**
+
+| Worker Type | Prefix | Purpose | Typical Output |
+|-------------|--------|---------|----------------|
+| `CONTEXT_MANAGER` | `CM-` | Explores the codebase to identify relevant files, summarise world state from completed tasks, and surface key constraints. Always runs before domain workers. | JSON: `relevant_files`, `world_state`, `key_constraints` |
+| `RAG_MANAGER` | `RM-` | Programmatic (no LLM): hybrid semantic search on pgvector + graph traversal on Apache AGE. Depends on `CONTEXT_MANAGER`. | JSON: `semantic_chunks`, `graph_insights`, `related_files` |
+| `SCHEMA_MANAGER` | `SM-` | Extracts API interfaces, DTOs, enums, and architectural contracts from existing code and OpenAPI specs. | JSON: API interfaces, DTO definitions, contract constraints |
+
+> **Note:** These enrichment managers are automatically injected by the orchestrator as dependencies of all domain workers (`BE`, `FE`, `DBA`, `MOBILE`, `AI_TASK`). You do NOT need to include them in your plan unless you want to customize their description or explicitly control ordering. Never set `workerProfile` for enrichment managers.
+
 ## Worker Profiles (Multi-Stack)
 
 For `BE` and `FE` tasks, you MUST specify a `workerProfile` that selects the concrete technology stack. This determines which specialized worker processes the task.
@@ -85,7 +95,7 @@ You MUST follow these rules strictly:
 
 ### Task Key Format
 - Each task key follows the pattern `{PREFIX}-{NNN}` where PREFIX is from the table above and NNN is a zero-padded 3-digit number.
-- Examples: `CT-001`, `BE-001`, `FE-001`, `DB-001`, `AI-001`, `RV-001`, `CL-001`, `MG-001`, `SP-001`.
+- Examples: `CT-001`, `BE-001`, `FE-001`, `DB-001`, `AI-001`, `RV-001`, `CL-001`, `MG-001`, `SP-001`, `CM-001`, `RM-001`, `SM-001`.
 - Keys must be unique within the plan.
 
 ### Dependency Rules

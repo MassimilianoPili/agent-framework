@@ -57,15 +57,25 @@ public class SseEmitterRegistry {
      * state transitions. The client receives the full history in sequence order,
      * then continues receiving live events.</p>
      *
+     * <p>Resume support: if {@code lastSeenSeqNum} is non-null, only events with a
+     * sequence number strictly greater than that value are replayed. This is used when
+     * a client reconnects with a {@code Last-Event-ID} header — the browser sends this
+     * automatically on reconnect, so the client receives only the events it missed.</p>
+     *
      * <p>The emitter is automatically removed on completion, timeout, or error.</p>
+     *
+     * @param planId         the plan to subscribe to
+     * @param lastSeenSeqNum last event sequence number received by the client, or null for full replay
      */
-    public SseEmitter subscribe(UUID planId) {
+    public SseEmitter subscribe(UUID planId, Long lastSeenSeqNum) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
 
-        // Late-join replay: send all past events before registering for live ones.
+        // Late-join replay: send past events before registering for live ones.
         // This must happen BEFORE adding the emitter to the live list to avoid
         // duplicate delivery if an event fires concurrently during replay.
-        List<PlanEvent> pastEvents = eventStore.findByPlanId(planId);
+        List<PlanEvent> pastEvents = lastSeenSeqNum != null
+                ? eventStore.findByPlanIdAfter(planId, lastSeenSeqNum)  // resume: only missed events
+                : eventStore.findByPlanId(planId);                       // fresh connect: full history
         for (PlanEvent pastEvent : pastEvents) {
             try {
                 emitter.send(SseEmitter.event()
@@ -95,9 +105,14 @@ public class SseEmitterRegistry {
         emitter.onTimeout(cleanup);
         emitter.onError(e -> cleanup.run());
 
-        log.debug("SSE client subscribed to plan {} ({} total for this plan)",
-                  planId, planEmitters.size());
+        log.debug("SSE client subscribed to plan {} (replayed {} past events, {} total live subscribers)",
+                  planId, pastEvents.size(), planEmitters.size());
         return emitter;
+    }
+
+    /** Returns the total number of currently active SSE connections across all plans. */
+    public int getActiveConnectionCount() {
+        return emitters.values().stream().mapToInt(List::size).sum();
     }
 
     /**

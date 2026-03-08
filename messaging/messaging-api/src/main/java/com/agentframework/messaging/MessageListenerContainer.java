@@ -24,4 +24,9 @@ public interface MessageListenerContainer {
      * Stop consuming messages and release resources.
      */
     void stop();
+
+    /**
+     * Returns {@code true} if the container is currently consuming messages.
+     */
+    boolean isRunning();
 }

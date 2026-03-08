@@ -1,0 +1,28 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: programmatic-test-worker
+  displayName: "Programmatic Test Worker"
+  description: "A programmatic worker with no LLM and no MCP tools (for testing)."
+
+spec:
+  workerType: RAG_MANAGER
+  topic: agent-tasks
+  subscription: programmatic-test-worker-sub
+  programmatic: true
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 1024
+    temperature: 0.0
+
+  prompts:
+    systemPromptFile: prompts/programmatic-test.agent.md
+    instructions: "Programmatic execution only — no LLM calls at runtime."
+
+  tools:
+    allowlist: []
+
+  concurrency:
+    maxConcurrentCalls: 3

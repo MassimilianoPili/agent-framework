@@ -14,6 +14,10 @@ public interface PlanRepository extends JpaRepository<Plan, UUID> {
 
     List<Plan> findByStatus(PlanStatus status);
 
+    List<Plan> findAllByOrderByCreatedAtDesc();
+
+    List<Plan> findByStatusOrderByCreatedAtDesc(PlanStatus status);
+
     @Query("SELECT p FROM Plan p WHERE p.workspaceVolume IS NOT NULL " +
            "AND p.status IN (com.agentframework.orchestrator.domain.PlanStatus.COMPLETED, " +
            "com.agentframework.orchestrator.domain.PlanStatus.FAILED) " +

@@ -114,4 +114,42 @@ class ManifestLoaderTest {
             .isInstanceOf(ManifestLoader.ManifestValidationException.class)
             .hasMessageContaining("Duplicate manifest names");
     }
+
+    @Test
+    void shouldAcceptProgrammaticWorkerWithEmptyAllowlist() throws IOException {
+        Path file = Path.of("src/test/resources/programmatic-manifest.agent.yml");
+
+        AgentManifest manifest = loader.load(file);
+
+        assertThat(manifest.getSpec().isProgrammatic()).isTrue();
+        assertThat(manifest.getSpec().getWorkerType()).isEqualTo("RAG_MANAGER");
+        assertThat(manifest.getSpec().getTools().getAllowlist()).isEmpty();
+    }
+
+    @Test
+    void shouldRejectNonProgrammaticWorkerWithEmptyAllowlist(@TempDir Path tempDir) throws IOException {
+        // A non-programmatic worker with no allowlist must be rejected
+        String yaml = """
+                apiVersion: agent-framework/v1
+                kind: AgentManifest
+                metadata:
+                  name: bad-worker
+                  displayName: "Bad Worker"
+                spec:
+                  workerType: BE
+                  topic: agent-tasks
+                  subscription: bad-worker-sub
+                  prompts:
+                    systemPromptFile: prompts/bad.agent.md
+                    instructions: "Some instructions"
+                  tools:
+                    allowlist: []
+                """;
+        Path file = tempDir.resolve("bad.agent.yml");
+        Files.writeString(file, yaml);
+
+        assertThatThrownBy(() -> loader.load(file))
+            .isInstanceOf(ManifestLoader.ManifestValidationException.class)
+            .hasMessageContaining("allowlist");
+    }
 }

@@ -12,6 +12,13 @@ public interface PlanEventRepository extends JpaRepository<PlanEvent, UUID> {
     /** Returns all events for a plan, ordered by sequence number (for SSE replay). */
     List<PlanEvent> findByPlanIdOrderBySequenceNumberAsc(UUID planId);
 
+    /**
+     * Returns events after a given sequence number (for SSE resume via Last-Event-ID).
+     * Allows reconnecting clients to receive only the events they missed.
+     */
+    List<PlanEvent> findByPlanIdAndSequenceNumberGreaterThanOrderBySequenceNumberAsc(
+            UUID planId, long afterSeqNum);
+
     /** Atomically computes the next sequence number using MAX (gap-safe, unlike COUNT). */
     @Query(value = "SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM plan_event WHERE plan_id = :planId",
            nativeQuery = true)

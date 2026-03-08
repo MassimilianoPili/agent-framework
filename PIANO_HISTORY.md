@@ -18,6 +18,8 @@ spostate da PIANO.md per mantenere il piano di evoluzione snello e focalizzato s
 - [#16 Ralph-Loop (Quality Gate Feedback Loop)](#16-ralph-loop-quality-gate-feedback-loop-) (S5)
 - [#12 Serendipita' Context Manager](#12-serendipita-nel-context-manager-) (S8)
 - [#15 Active Token Budget](#15-active-learning-per-token-budget-) (S9)
+- [#13 Council Taste Profile](#13-council-taste-profile-) (S11)
+- [#20 Modello LLM per Task](#20-modello-llm-per-task-) (S11)
 - [#17 SDK Scaffold Worker](#17-sdk-scaffold-worker-) (S5)
 - [#18 ADR-005: GP + Serendipita'](#18-adr-005-gp--serendipita--motivazioni-architetturali-) (S5)
 
@@ -40,6 +42,8 @@ spostate da PIANO.md per mantenere il piano di evoluzione snello e focalizzato s
 - [S8-workers — 26 Nuovi Workers + build.sh](#sessione-8-workers--26-nuovi-workers--buildsh--completata)
 - [S8-research — Fasi 8a/8b/8d Research Domains](#sessione-8-research--fasi-8a8b8d-research-domains--completata)
 - [S9 — Active Token Budget (#15)](#sessione-9--active-token-budget-15--completata)
+- [S10 — Research Domains Fase 9 + Fase 10](#sessione-10--research-domains-fase-9-completamento--fase-10-77-86--completata)
+- [S11 — Council Taste Profile (#13) + Modello LLM (#20)](#sessione-11--council-taste-profile-13--modello-llm-per-task-20--completata)
 - [Riepilogo File per Sessione](#riepilogo-file-per-sessione)
 
 ---
@@ -1031,6 +1035,62 @@ _(#63 MPC era già implementato come `MpcSchedulerService`)_
 
 ---
 
+## Sessione 11 — Council Taste Profile (#13) + Modello LLM per Task (#20) ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-08. Test: 632 → 888 (+256).
+> BUILD SUCCESS, 0 failures, 0 errors.
+
+### S11-A. Feature #13 — Council Taste Profile
+
+Gaussian Process sul Council: il sistema impara dagli esiti dei piani passati e arricchisce
+il `CouncilReport` con predizioni strutturali sulla qualità della decomposizione.
+
+| Componente | File | Note |
+|------------|------|------|
+| V17 Flyway | `V17__plan_outcomes.sql` | Tabella `plan_outcomes` (5-dim features + actual_reward) |
+| JPA Entity | `PlanOutcome.java` | Outcome storico per training GP |
+| Repository | `PlanOutcomeRepository.java` | `findTrainingData(Pageable)` con ORDER BY created_at |
+| Predictor | `PlanDecompositionPredictor.java` | GP self-contained (orchestrator.gp), `MIN_TRAINING_POINTS=5` |
+| CouncilReport | `CouncilReport.java` | +predictedReward, +predictionUncertainty, +decompositionHint |
+| CouncilService | `CouncilService.java` | inject `Optional<PlanDecompositionPredictor>`, `enrichWithGpPrediction()` |
+| OrchestrationService | `OrchestrationService.java` | `recordOutcome()` a plan completion, helper `hasWorkerType/countWorkerType` |
+| Config | `application.yml` | `council.taste-profile.*` (enabled, max-training-points, noise-variance, length-scale) |
+
+**Test**: `PlanDecompositionPredictorTest` (4 test) + `CouncilServiceTasteProfileTest` (2 test).
+
+**Scelta architetturale chiave**: `PlanDecompositionPredictor` è nel package orchestrator
+(non in `shared/gp-engine`) perché dipende da `PlanOutcomeRepository` (JPA entity orchestrator).
+Crea il suo `GaussianProcessEngine` internamente — indipendente dal flag `gp.enabled`.
+
+### S11-B. Feature #20 — Modello LLM per Task
+
+Campo `modelId` nullable in `PlanItem`, propagato attraverso tutto lo stack fino al worker.
+Il planner LLM può specificare quale modello usare per ogni task (es. haiku per task meccanici,
+opus per task AI-intensivi).
+
+| Componente | File | Note |
+|------------|------|------|
+| V18 Flyway | `V18__plan_item_model_id.sql` | `ALTER TABLE plan_items ADD COLUMN model_id VARCHAR(100)` |
+| PlanItem | `PlanItem.java` | +modelId field + getter/setter (no constructor param) |
+| AgentTask (orch.) | `AgentTask.java` (orchestrator dto) | +modelId come 19° campo del record |
+| AgentTask (sdk) | `AgentTask.java` (worker-sdk dto) | +modelId come 19° campo del record |
+| OrchestrationService | `OrchestrationService.java` | `item.getModelId()` nei 2 siti `new AgentTask(...)` |
+| WorkerChatClientFactory | `WorkerChatClientFactory.java` | refactor: `buildWithTools()` privato + overload `create(workerType, policy, modelId)` |
+| AbstractWorker | `AbstractWorker.java` | `chatClientFactory.create(..., task.modelId())` |
+| PlanItemSchema | `PlanItemSchema.java` | +modelId con `@JsonPropertyDescription` per guidance planner |
+| PlannerService | `PlannerService.java` | `item.setModelId(s.modelId())` in `mapSchemaToItems()` |
+| OpenAPI | `v1.components.yaml` | +modelId in PlanItemResponse |
+
+**Test**: `ModelRoutingTest` (3 test propagazione DTO) + `WorkerChatClientFactoryModelOverrideTest` (3 test factory).
+
+**Scelta architetturale chiave**: modelId propagato via `AnthropicChatOptions.builder().model(modelId).build()`
+come `defaultOptions()` sul `ChatClient` — trasparente ai worker generati senza modifiche.
+
+**Fix pre-esistente**: `PolicyEnforcingToolCallbackTest.call_allowed_whenToolInTaskAllowlist` —
+rimosso stub ridondante `checkReadOwnership` (UnnecessaryStubbingException con Mockito 5 strict stubs).
+
+---
+
 ## Riepilogo File per Sessione
 
 | Sessione | File nuovi | File mod | Test nuovi | Test totali |
@@ -1047,7 +1107,8 @@ _(#63 MPC era già implementato come `MpcSchedulerService`)_
 | **S8-workers** (26 workers + build.sh) ✅ | ~30 | ~2 | — | — |
 | **S8-research** (Fasi 8a/8b/8d) ✅ | ~15 | ~5 | 22 | — |
 | **S9** (Active Token Budget #15) ✅ | ~2 | ~3 | — | — |
-| **S10** (Fase 9 ✅ 100% + Fase 10 ✅ 100%) | 24 | 4 | ~50 | — |
+| **S10** (Fase 9 ✅ 100% + Fase 10 ✅ 100%) | 24 | 4 | ~50 | 632 |
+| **S11** (Council Taste Profile #13 + Modello LLM #20) ✅ | 8 | 11 | 9 | 888 |
 
 ---
 

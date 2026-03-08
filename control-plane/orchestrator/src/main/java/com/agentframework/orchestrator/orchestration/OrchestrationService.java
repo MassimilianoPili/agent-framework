@@ -33,6 +33,8 @@ import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.SuccessPrediction;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
+import com.agentframework.orchestrator.leader.LeaderElectionService;
+import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.specification.*;
 import com.agentframework.orchestrator.workspace.WorkspaceManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -107,6 +109,8 @@ public class OrchestrationService {
     private final EnrichmentProperties enrichmentProperties;
     private final ContextCacheService contextCacheService;
     private final PlanDecompositionPredictor decompositionPredictor;
+    private final OrchestratorMetrics metrics;
+    private final LeaderElectionService leaderElectionService;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -133,7 +137,9 @@ public class OrchestrationService {
                                 EnrichmentInjectorService enrichmentInjectorService,
                                 EnrichmentProperties enrichmentProperties,
                                 ContextCacheService contextCacheService,
-                                Optional<PlanDecompositionPredictor> decompositionPredictor) {
+                                Optional<PlanDecompositionPredictor> decompositionPredictor,
+                                OrchestratorMetrics metrics,
+                                Optional<LeaderElectionService> leaderElectionService) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -160,6 +166,8 @@ public class OrchestrationService {
         this.enrichmentProperties = enrichmentProperties;
         this.contextCacheService = contextCacheService;
         this.decompositionPredictor = decompositionPredictor.orElse(null);
+        this.metrics = metrics;
+        this.leaderElectionService = leaderElectionService.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -227,6 +235,7 @@ public class OrchestrationService {
 
         log.info("Plan {} created with {} items, dispatching first wave",
                  plan.getId(), plan.getItems().size());
+        metrics.recordPlanCreated();
 
         eventPublisher.publishEvent(new PlanCreatedEvent(
                 plan.getId(), plan.getSpec(), plan.getItems().size()));
@@ -279,6 +288,7 @@ public class OrchestrationService {
             item.transitionTo(ItemStatus.DONE);
             item.setResult(result.resultJson());
             item.setNextRetryAt(null);
+            metrics.recordItemCompleted(item.getWorkerType().name(), "DONE", result.durationMs());
 
             // CAS: deduplicate result content via content-addressable storage (#48)
             if (result.resultJson() != null && !result.resultJson().isBlank()) {
@@ -302,6 +312,7 @@ public class OrchestrationService {
         } else {
             item.transitionTo(ItemStatus.FAILED);
             item.setFailureReason(result.failureReason());
+            metrics.recordItemCompleted(item.getWorkerType().name(), "FAILED", result.durationMs());
 
             // Schedule automatic retry with exponential backoff if attempts remain.
             int attemptNum = attemptRepository.findMaxAttemptNumber(item.getId()).orElse(1);
@@ -794,9 +805,48 @@ public class OrchestrationService {
     }
 
     /**
+     * Cancels a plan and all non-terminal items (#28).
+     *
+     * <p>Items in WAITING, AWAITING_APPROVAL are immediately transitioned to CANCELLED.
+     * Items in DISPATCHED or RUNNING are left as-is — the worker will complete or fail naturally.
+     * The plan is transitioned to CANCELLED regardless.</p>
+     *
+     * @throws IllegalStateException if the plan is not found or cannot transition to CANCELLED
+     */
+    @Transactional
+    public void cancelPlan(UUID planId) {
+        Plan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new IllegalStateException("Unknown plan: " + planId));
+        plan.transitionTo(PlanStatus.CANCELLED);
+        planRepository.save(plan);
+
+        List<PlanItem> items = planItemRepository.findByPlanId(planId);
+        for (PlanItem item : items) {
+            if (item.getStatus().canTransitionTo(ItemStatus.CANCELLED)) {
+                item.transitionTo(ItemStatus.CANCELLED);
+                item.setCompletedAt(Instant.now());
+                planItemRepository.save(item);
+                eventPublisher.publishEvent(SpringPlanEvent.forItemStatus(
+                        planId, item.getId(), item.getTaskKey(), item.getWorkerProfile(), "CANCELLED"));
+            }
+        }
+
+        log.info("Plan {} cancelled ({} items cancelled)", planId,
+                items.stream().filter(i -> i.getStatus() == ItemStatus.CANCELLED).count());
+        eventPublisher.publishEvent(SpringPlanEvent.forPlan(SpringPlanEvent.PLAN_CANCELLED, planId));
+        eventStore.append(planId, null, SpringPlanEvent.PLAN_CANCELLED,
+                Map.of("planId", planId.toString()));
+    }
+
+    /**
      * Finds WAITING items with all dependencies satisfied and dispatches them.
+     * Skips dispatch if this instance is not the current leader (multi-instance safety).
      */
     private void dispatchReadyItems(UUID planId) {
+        if (leaderElectionService != null && !leaderElectionService.isLeader()) {
+            log.trace("Not leader — skipping dispatch cycle for plan {}", planId);
+            return;
+        }
         List<PlanItem> dispatchable = planItemRepository.findDispatchableItems(planId);
 
         if (dispatchable.isEmpty()) {
@@ -1040,8 +1090,12 @@ public class OrchestrationService {
                 item.transitionTo(ItemStatus.DISPATCHED);
                 item.setDispatchedAt(Instant.now());
                 dispatched++;
+                metrics.recordItemDispatched(item.getWorkerType().name());
                 eventPublisher.publishEvent(new PlanItemDispatchedEvent(
                         planId, item.getId(), item.getTaskKey(), item.getWorkerProfile()));
+                // Also publish as SpringPlanEvent so SseEmitterRegistry streams it to the dashboard (#28)
+                eventPublisher.publishEvent(SpringPlanEvent.forItem(SpringPlanEvent.TASK_DISPATCHED,
+                        planId, item.getId(), item.getTaskKey(), item.getWorkerProfile(), true, 0));
                 eventStore.append(planId, item.getId(), SpringPlanEvent.TASK_DISPATCHED,
                         Map.of("taskKey", item.getTaskKey(),
                                "workerProfile", item.getWorkerProfile() != null ? item.getWorkerProfile() : "",
@@ -1091,6 +1145,7 @@ public class OrchestrationService {
         plan.transitionTo(anyFailed ? PlanStatus.FAILED : PlanStatus.COMPLETED);
         plan.setCompletedAt(Instant.now());
         planRepository.save(plan);
+        if (anyFailed) { metrics.recordPlanFailed(); } else { metrics.recordPlanCompleted(); }
 
         // Record plan outcome for Council Taste Profile GP training (#13)
         if (decompositionPredictor != null && !anyFailed) {
@@ -1170,6 +1225,7 @@ public class OrchestrationService {
                 // Cache fallback: covers race conditions where the CM result is cached in Redis
                 // but not yet visible in completedResults (e.g. during rapid retry dispatch).
                 result = contextCacheService.get(item.getPlan().getId(), depKey).orElse(null);
+                if (result != null) { metrics.recordCacheHit(); } else { metrics.recordCacheMiss(); }
             }
             deps.put(depKey, result != null ? result : "{}");
             if (result == null) {
