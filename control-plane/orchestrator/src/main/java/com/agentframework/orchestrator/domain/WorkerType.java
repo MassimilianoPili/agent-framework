@@ -66,6 +66,21 @@ public enum WorkerType {
     SCHEMA_MANAGER,
 
     /**
+     * INTEGRATION_MANAGER verifies end-to-end integration of all artifacts produced
+     * by domain workers in a plan. Checks BE-FE API contract alignment, DB
+     * migration-entity consistency, cross-module compilation, and interface boundaries.
+     * Runs after all domain workers complete, before REVIEW.
+     *
+     * <p>Unlike REVIEW (which checks code quality per-file), INTEGRATION_MANAGER
+     * checks cross-component correctness — whether the assembled system works
+     * as a whole. May apply targeted fixes for minor mismatches (import paths,
+     * column name aliases, path prefix corrections).</p>
+     *
+     * <p>TaskKey prefix: {@code IM-}</p>
+     */
+    INTEGRATION_MANAGER,
+
+    /**
      * RESEARCH_MANAGER fetches and synthesises external technical knowledge
      * (library docs, API references, best-practice guides, arXiv papers, RFCs)
      * relevant to a task. Runs as a dependency before domain workers that need

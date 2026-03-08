@@ -22,6 +22,12 @@ x-skills-volumes: &skills-volumes
   - /data/massimiliano/agent-framework/skills:/skills/skills:ro
   - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
 
+# Plan-scoped workspace — shared bind-mount for code generation and review (#44).
+# Orchestrator: RW (WorkspaceManager creates/destroys subdirs per plan).
+# Domain workers: RW (write generated code via MCP fs_write).
+# Review worker: RO (read generated code via MCP fs_read).
+# Path: /data/massimiliano/agent-framework/data/workspaces:/workspace
+
 networks:
   shared:
     external: true   # Rete Docker condivisa del server SOL
@@ -63,6 +69,8 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
     depends_on:
       agentfw-postgres:
         condition: service_healthy
@@ -81,7 +89,11 @@ services:
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
-    volumes: *skills-volumes
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
     restart: unless-stopped
 
   fe-react-worker:
@@ -97,7 +109,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       FS_SKILLS_DIR: /skills
-    volumes: *skills-volumes
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
     restart: unless-stopped
 
   contract-worker:
@@ -129,7 +145,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       FS_SKILLS_DIR: /skills
-    volumes: *skills-volumes
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:ro
     restart: unless-stopped
 
   # ── Middle-layer Workers ─────────────────────────────────────────────────────
@@ -196,7 +216,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       FS_SKILLS_DIR: /skills
-    volumes: *skills-volumes
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
     restart: unless-stopped
 
   # ── Ollama ─────────────────────────────────────────────────────────────────
