@@ -49,6 +49,10 @@
       "mcpServers": ["bash", "git", "repo-fs"],
       "ownsPaths": ["android/", "execution-plane/workers/mobile-kotlin-worker/", "execution-plane/workers/mobile-swift-worker/", "ios/", "mobile/", "templates/mobile/"]
     },
+    "RAG_MANAGER": {
+      "mcpServers": [],
+      "ownsPaths": ["execution-plane/workers/rag-manager-worker/"]
+    },
     "RESEARCH_MANAGER": {
       "mcpServers": ["bash", "repo-fs"],
       "ownsPaths": ["execution-plane/workers/research-manager-worker/"]
