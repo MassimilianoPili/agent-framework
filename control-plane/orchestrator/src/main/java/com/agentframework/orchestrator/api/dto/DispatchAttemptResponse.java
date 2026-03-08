@@ -15,7 +15,8 @@ public record DispatchAttemptResponse(
     Instant completedAt,
     boolean success,
     String failureReason,
-    Long durationMs
+    Long durationMs,
+    String conversationLog   // G1: full LLM conversation JSON (nullable)
 ) {
     public static DispatchAttemptResponse from(DispatchAttempt a) {
         return new DispatchAttemptResponse(
@@ -25,7 +26,8 @@ public record DispatchAttemptResponse(
             a.getCompletedAt(),
             a.isSuccess(),
             a.getFailureReason(),
-            a.getDurationMs()
+            a.getDurationMs(),
+            a.getConversationLog()
         );
     }
 }

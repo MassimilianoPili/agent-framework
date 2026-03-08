@@ -1,6 +1,7 @@
 package com.agentframework.orchestrator.api;
 
 import com.agentframework.orchestrator.api.dto.DispatchAttemptResponse;
+import com.agentframework.orchestrator.api.dto.FileModificationResponse;
 import com.agentframework.orchestrator.api.dto.PlanCostResponse;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
 import com.agentframework.orchestrator.api.dto.PlanResponse;
@@ -11,6 +12,7 @@ import com.agentframework.orchestrator.budget.CovarianceMatrix;
 import com.agentframework.orchestrator.budget.PortfolioOptimizer;
 import com.agentframework.orchestrator.gp.TaskOutcomeRepository;
 import com.agentframework.orchestrator.domain.PlanStatus;
+import com.agentframework.orchestrator.repository.FileModificationRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.domain.IllegalStateTransitionException;
@@ -58,6 +60,7 @@ public class PlanController {
     private final Optional<TaskOutcomeRepository> taskOutcomeRepository;
     private final Optional<RootCauseAnalyzer> rootCauseAnalyzer;
     private final ObjectMapper objectMapper;
+    private final FileModificationRepository fileModificationRepository;
 
     public PlanController(OrchestrationService orchestrationService,
                           PlanSnapshotService snapshotService,
@@ -70,7 +73,8 @@ public class PlanController {
                           PlanRepository planRepository,
                           Optional<TaskOutcomeRepository> taskOutcomeRepository,
                           Optional<RootCauseAnalyzer> rootCauseAnalyzer,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          FileModificationRepository fileModificationRepository) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
@@ -83,6 +87,7 @@ public class PlanController {
         this.taskOutcomeRepository = taskOutcomeRepository;
         this.rootCauseAnalyzer = rootCauseAnalyzer;
         this.objectMapper = objectMapper;
+        this.fileModificationRepository = fileModificationRepository;
     }
 
     /**
@@ -738,5 +743,24 @@ public class PlanController {
         return orchestrationService.getPlan(id)
             .map(plan -> ResponseEntity.ok(PlanCostResponse.from(plan)))
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    // --- G3: File Modification Tracking ---
+
+    @GetMapping("/{id}/files")
+    public ResponseEntity<List<FileModificationResponse>> getPlanFiles(@PathVariable UUID id) {
+        return ResponseEntity.ok(
+            fileModificationRepository.findByPlanIdOrderByOccurredAtAsc(id).stream()
+                .map(FileModificationResponse::from)
+                .toList());
+    }
+
+    @GetMapping("/{id}/items/{itemId}/files")
+    public ResponseEntity<List<FileModificationResponse>> getItemFiles(
+            @PathVariable UUID id, @PathVariable UUID itemId) {
+        return ResponseEntity.ok(
+            fileModificationRepository.findByItemIdOrderByOccurredAtAsc(itemId).stream()
+                .map(FileModificationResponse::from)
+                .toList());
     }
 }

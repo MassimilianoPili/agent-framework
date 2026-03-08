@@ -1,8 +1,11 @@
 package com.agentframework.worker.policy;
 
 import com.agentframework.common.policy.HookPolicy;
+import com.agentframework.worker.dto.FileModificationEvent;
+import com.agentframework.worker.event.WorkerEventPublisher;
 import com.agentframework.worker.policy.ToolAuditLogger.Outcome;
 import com.agentframework.worker.policy.ToolAuditLogger.ToolAuditEvent;
+import com.agentframework.worker.util.HashUtil;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
@@ -11,6 +14,8 @@ import org.springframework.ai.tool.metadata.ToolMetadata;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CancellationException;
 
 /**
  * Decorator that wraps a {@link ToolCallback} with policy enforcement.
@@ -83,6 +88,45 @@ public class PolicyEnforcingToolCallback implements ToolCallback {
     /** Clears dynamic ownsPaths. Call in finally to prevent ThreadLocal leaks. */
     public static void clearDynamicOwnsPaths() { DYNAMIC_OWNS_PATHS.remove(); }
 
+    // G3: Accumulates file modification events for the current task (per-thread).
+    private static final ThreadLocal<List<FileModificationEvent>> FILE_MODS = ThreadLocal.withInitial(ArrayList::new);
+
+    /** Resets the file-mod accumulator. Call before execute(). */
+    public static void resetFileMods() { FILE_MODS.get().clear(); }
+
+    /** Drains and returns file modifications accumulated since the last reset. Clears the list. */
+    public static List<FileModificationEvent> drainFileMods() {
+        List<FileModificationEvent> mods = new ArrayList<>(FILE_MODS.get());
+        FILE_MODS.get().clear();
+        return mods;
+    }
+
+    /** Clears file mods. Call in finally to prevent ThreadLocal leaks. */
+    public static void clearFileMods() { FILE_MODS.remove(); }
+
+    // G6: ThreadLocals for plan/task context — set by AbstractWorker.process()
+    private static final ThreadLocal<UUID> CURRENT_PLAN_ID = new ThreadLocal<>();
+    private static final ThreadLocal<String> CURRENT_TASK_KEY = new ThreadLocal<>();
+    private static final ThreadLocal<WorkerEventPublisher> EVENT_PUBLISHER = new ThreadLocal<>();
+
+    public static void setCurrentContext(UUID planId, String taskKey) {
+        CURRENT_PLAN_ID.set(planId);
+        CURRENT_TASK_KEY.set(taskKey);
+    }
+    public static void clearCurrentContext() {
+        CURRENT_PLAN_ID.remove();
+        CURRENT_TASK_KEY.remove();
+    }
+    public static UUID getCurrentPlanId() { return CURRENT_PLAN_ID.get(); }
+    public static String getCurrentTaskKey() { return CURRENT_TASK_KEY.get(); }
+    public static void setEventPublisher(WorkerEventPublisher publisher) { EVENT_PUBLISHER.set(publisher); }
+    public static void clearEventPublisher() { EVENT_PUBLISHER.remove(); }
+
+    // Write-type tool names that create or modify files
+    private static final List<String> WRITE_TOOLS = List.of("fs_write");
+    // Delete-type tool names
+    private static final List<String> DELETE_TOOLS = List.of("fs_delete");
+
     public PolicyEnforcingToolCallback(ToolCallback delegate,
                                        PathOwnershipEnforcer enforcer,
                                        ToolAuditLogger auditLogger,
@@ -116,6 +160,13 @@ public class PolicyEnforcingToolCallback implements ToolCallback {
     }
 
     private String executeWithPolicy(String toolInput, ToolCallSupplier supplier) {
+        // Cancellation check: in in-process mode, Future.cancel(true) sets the interrupt flag.
+        // We check it BEFORE starting each tool call so a cancelled task stops promptly
+        // rather than completing the current tool call and starting a new one.
+        if (Thread.currentThread().isInterrupted()) {
+            throw new CancellationException("Task cancelled — refusing to start tool call");
+        }
+
         String toolName = getToolDefinition().name();
         TOOL_NAMES.get().add(toolName);
         long startMs = System.currentTimeMillis();
@@ -177,6 +228,9 @@ public class PolicyEnforcingToolCallback implements ToolCallback {
             return "{\"error\":true,\"message\":\"" + escapeJson(readViolation.get()) + "\"}";
         }
 
+        // G6: Emit TOOL_CALL_START event
+        emitToolCallStart(toolName, toolInput);
+
         // 2. Delegate to actual tool
         try {
             String result = supplier.call();
@@ -186,9 +240,19 @@ public class PolicyEnforcingToolCallback implements ToolCallback {
                     Outcome.SUCCESS, durationMs,
                     auditLogger.truncateInput(toolInput),
                     null));
+
+            // G3: Capture file modification events for write/delete tools
+            captureFileMod(toolName, toolInput);
+
+            // G6: Emit TOOL_CALL_END event (success)
+            emitToolCallEnd(toolName, true, durationMs);
+
             return result;
         } catch (Exception e) {
             long durationMs = System.currentTimeMillis() - startMs;
+            // G6: Emit TOOL_CALL_END event (failure)
+            emitToolCallEnd(toolName, false, durationMs);
+
             auditLogger.logToolCall(new ToolAuditEvent(
                     toolName, workerType, workerProfile,
                     Outcome.FAILURE, durationMs,
@@ -196,6 +260,81 @@ public class PolicyEnforcingToolCallback implements ToolCallback {
                     e.getMessage()));
             throw e;
         }
+    }
+
+    /** G6: Emits TOOL_CALL_START event if publisher is available. */
+    private static void emitToolCallStart(String toolName, String toolInput) {
+        WorkerEventPublisher pub = EVENT_PUBLISHER.get();
+        if (pub != null) {
+            try {
+                pub.publishToolCallStart(CURRENT_PLAN_ID.get(), CURRENT_TASK_KEY.get(),
+                    toolName, toolInput != null ? toolInput.substring(0, Math.min(toolInput.length(), 200)) : "");
+            } catch (Exception ignored) { /* never block tool execution */ }
+        }
+    }
+
+    /** G6: Emits TOOL_CALL_END event if publisher is available. */
+    private static void emitToolCallEnd(String toolName, boolean success, long durationMs) {
+        WorkerEventPublisher pub = EVENT_PUBLISHER.get();
+        if (pub != null) {
+            try {
+                pub.publishToolCallEnd(CURRENT_PLAN_ID.get(), CURRENT_TASK_KEY.get(),
+                    toolName, success, durationMs);
+            } catch (Exception ignored) { /* never block tool execution */ }
+        }
+    }
+
+    /**
+     * G3: Captures a file modification event if the tool is a write or delete tool.
+     * Parses file_path and content from the JSON toolInput using simple string extraction
+     * (avoids Jackson dependency — toolInput is a flat JSON object from MCP).
+     */
+    private static void captureFileMod(String toolName, String toolInput) {
+        try {
+            if (WRITE_TOOLS.contains(toolName)) {
+                String filePath = extractJsonField(toolInput, "file_path");
+                if (filePath == null) filePath = extractJsonField(toolInput, "path");
+                if (filePath == null) return;
+
+                String content = extractJsonField(toolInput, "content");
+                String hashAfter = (content != null) ? HashUtil.sha256(content) : null;
+
+                FILE_MODS.get().add(new FileModificationEvent(
+                    filePath, "MODIFIED", null, hashAfter, null));
+            } else if (DELETE_TOOLS.contains(toolName)) {
+                String filePath = extractJsonField(toolInput, "file_path");
+                if (filePath == null) filePath = extractJsonField(toolInput, "path");
+                if (filePath == null) return;
+
+                FILE_MODS.get().add(new FileModificationEvent(
+                    filePath, "DELETED", null, null, null));
+            }
+        } catch (Exception e) {
+            // Never fail the tool call because of tracking — silently skip
+        }
+    }
+
+    /**
+     * Extracts a string value from a flat JSON object by field name.
+     * Simple regex-free extraction for performance: finds "field":"value".
+     */
+    private static String extractJsonField(String json, String field) {
+        if (json == null) return null;
+        String key = "\"" + field + "\"";
+        int idx = json.indexOf(key);
+        if (idx < 0) return null;
+        int colonIdx = json.indexOf(':', idx + key.length());
+        if (colonIdx < 0) return null;
+        int quoteStart = json.indexOf('"', colonIdx + 1);
+        if (quoteStart < 0) return null;
+        int quoteEnd = quoteStart + 1;
+        while (quoteEnd < json.length()) {
+            char c = json.charAt(quoteEnd);
+            if (c == '\\') { quoteEnd += 2; continue; }
+            if (c == '"') break;
+            quoteEnd++;
+        }
+        return (quoteEnd < json.length()) ? json.substring(quoteStart + 1, quoteEnd) : null;
     }
 
     /** Escapes double quotes and backslashes for safe JSON embedding. */

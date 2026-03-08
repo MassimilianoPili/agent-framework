@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.messaging.dto;
 
+import java.util.List;
 import java.util.UUID;
 
 public record AgentResult(
@@ -15,5 +16,7 @@ public record AgentResult(
     String modelId,         // reserved (null)
     String promptHash,      // reserved (null)
     Provenance provenance,  // nested, nullable — supercedes flat fields
-    Long tokensUsed         // actual tokens consumed by this task (null if worker doesn't report)
+    Long tokensUsed,        // actual tokens consumed by this task (null if worker doesn't report)
+    String conversationLog,                    // G1: full LLM conversation JSON for post-mortem debugging (nullable)
+    List<FileModificationEvent> fileModifications  // G3: file ops performed during this task (nullable)
 ) {}

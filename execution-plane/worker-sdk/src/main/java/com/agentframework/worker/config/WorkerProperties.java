@@ -17,6 +17,7 @@ public class WorkerProperties {
     private String taskTopic;
     private String taskSubscription;
     private String resultsTopic = "agent-results";
+    private String eventsTopic = "agent-events";
 
     public String getTaskTopic() { return taskTopic; }
     public void setTaskTopic(String taskTopic) { this.taskTopic = taskTopic; }
@@ -26,4 +27,7 @@ public class WorkerProperties {
 
     public String getResultsTopic() { return resultsTopic; }
     public void setResultsTopic(String resultsTopic) { this.resultsTopic = resultsTopic; }
+
+    public String getEventsTopic() { return eventsTopic; }
+    public void setEventsTopic(String eventsTopic) { this.eventsTopic = eventsTopic; }
 }

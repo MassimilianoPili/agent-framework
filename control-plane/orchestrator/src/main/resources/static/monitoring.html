@@ -53,6 +53,9 @@
     .badge-TASK_FAILED       { background:#f38ba8; color:#1e1e2e; }
     .badge-ITEM_STATUS_CHANGED { background:#cba6f7; color:#1e1e2e; }
     .badge-BUDGET_UPDATE     { background:#f9e2af; color:#1e1e2e; }
+    .badge-TOOL_CALL_START   { background:#74c7ec; color:#1e1e2e; }
+    .badge-TOOL_CALL_END     { background:#94e2d5; color:#1e1e2e; }
+    .badge-TOKEN_UPDATE      { background:#f5c2e7; color:#1e1e2e; }
     .badge-default           { background:#45475a; color:#cdd6f4; }
     #filter-bar { display: flex; gap: 0.4rem; flex-wrap: wrap; padding: 0.4rem 0.75rem; border-bottom: 1px solid #313244; flex-shrink: 0; }
     .filter-chip { font-size: 0.7rem; cursor: pointer; padding: 0.15rem 0.4rem; border-radius: 3px; border: 1px solid #313244; background: #181825; color: #a6adc8; user-select: none; }
@@ -72,6 +75,19 @@
     .status-RUNNING, .status-DISPATCHED { color: #89b4fa; }
     .status-WAITING { color: #fab387; }
     .detail-placeholder { color: #585b70; font-size: 0.85rem; }
+    .detail-tabs { display: flex; gap: 0; border-bottom: 1px solid #313244; margin-bottom: 0.5rem; }
+    .detail-tab { padding: 0.3rem 0.7rem; font-size: 0.7rem; cursor: pointer; color: #a6adc8; border-bottom: 2px solid transparent; text-transform: uppercase; letter-spacing: 0.05em; }
+    .detail-tab.active { color: #89b4fa; border-bottom-color: #89b4fa; }
+    .detail-tab:hover { color: #cdd6f4; }
+    .detail-tab-content { display: none; }
+    .detail-tab-content.active { display: block; }
+    .file-row { background: #181825; border-radius: 4px; padding: 0.3rem 0.5rem; margin-top: 0.3rem; font-size: 0.72rem; display: flex; gap: 0.5rem; align-items: center; }
+    .file-op { font-weight: 600; font-size: 0.65rem; padding: 0.1rem 0.3rem; border-radius: 3px; }
+    .file-op-MODIFIED { background: #f9e2af; color: #1e1e2e; }
+    .file-op-CREATED  { background: #a6e3a1; color: #1e1e2e; }
+    .file-op-DELETED  { background: #f38ba8; color: #1e1e2e; }
+    .file-path { color: #89b4fa; word-break: break-all; }
+    .conv-block { background: #181825; border-radius: 4px; padding: 0.5rem; margin-top: 0.4rem; font-size: 0.72rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #a6adc8; }
 
     /* ── Stats ───────────────────────────────────── */
     #stats-panel { grid-row: 2; grid-column: 2; }
@@ -169,7 +185,8 @@ const STATUS_COLORS = {
 };
 const FILTER_TYPES = [
   'PLAN_STARTED','TASK_DISPATCHED','TASK_COMPLETED','TASK_FAILED',
-  'ITEM_STATUS_CHANGED','BUDGET_UPDATE','PLAN_COMPLETED','PLAN_CANCELLED'
+  'ITEM_STATUS_CHANGED','BUDGET_UPDATE','PLAN_COMPLETED','PLAN_CANCELLED',
+  'TOOL_CALL_START','TOOL_CALL_END','TOKEN_UPDATE'
 ];
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -181,6 +198,7 @@ let dagRerenderTimer = null;
 let autoScroll = true;
 let activeFilters = new Set(FILTER_TYPES);
 let budgetMap = {};        // workerType → { consumed, total }
+let tokenMap = {};         // taskKey → { prompt, completion, total }
 let statsInterval = null;
 let eloInterval = null;
 
@@ -355,21 +373,20 @@ function startSse(planId) {
 
 function handleSseEvent(event, planId) {
   const type = event.eventType || event.type || '';
+  // extra is now a parsed JSON object (from SseEmitterRegistry), fallback to extraJson string
+  const extra = event.extra || (event.extraJson ? tryParse(event.extraJson) : null);
 
   // Append to feed
   if (activeFilters.has(type) || activeFilters.size === 0) {
-    appendEventRow(type, event);
+    appendEventRow(type, event, extra);
   }
 
   // Update statusMap on item status changes
-  if (type === 'ITEM_STATUS_CHANGED' && event.taskKey && event.extraJson) {
-    try {
-      const payload = JSON.parse(event.extraJson);
-      if (payload.status) {
-        statusMap[event.taskKey] = payload.status;
-        scheduleDagRerender(planId);
-      }
-    } catch { /* ignore */ }
+  if (type === 'ITEM_STATUS_CHANGED' && event.taskKey && extra) {
+    if (extra.status) {
+      statusMap[event.taskKey] = extra.status;
+      scheduleDagRerender(planId);
+    }
   }
 
   if (type === 'TASK_DISPATCHED' || type === 'TASK_COMPLETED' || type === 'TASK_FAILED') {
@@ -377,14 +394,19 @@ function handleSseEvent(event, planId) {
   }
 
   // Budget updates
-  if (type === 'BUDGET_UPDATE' && event.extraJson) {
-    try {
-      const payload = JSON.parse(event.extraJson);
-      if (payload.workerType) {
-        budgetMap[payload.workerType] = { consumed: payload.consumed, total: payload.total };
-        renderBudget();
-      }
-    } catch { /* ignore */ }
+  if (type === 'BUDGET_UPDATE' && extra) {
+    if (extra.workerType) {
+      budgetMap[extra.workerType] = { consumed: extra.consumed, total: extra.total };
+      renderBudget();
+    }
+  }
+
+  // G6: TOKEN_UPDATE — accumulate token usage for real-time display
+  if (type === 'TOKEN_UPDATE' && extra) {
+    const tk = event.taskKey || extra.taskKey;
+    if (tk) {
+      tokenMap[tk] = { prompt: +extra.promptTokens || 0, completion: +extra.completionTokens || 0, total: +extra.totalTokens || 0 };
+    }
   }
 
   // Plan terminal events
@@ -395,57 +417,240 @@ function handleSseEvent(event, planId) {
   }
 }
 
+function tryParse(s) { try { return JSON.parse(s); } catch { return null; } }
+
 // ── Event feed ────────────────────────────────────────────────────────────────
-function appendEventRow(type, event) {
+function appendEventRow(type, event, extra) {
   const feed = document.getElementById('event-feed');
   const row = document.createElement('div');
   row.className = 'event-row';
 
-  const badgeClass = `badge-${type}`;
-  const taskInfo = event.taskKey ? `<span style="color:#89b4fa">${event.taskKey}</span>` : '';
-  const extra = event.extraJson ? `<span style="color:#585b70"> ${event.extraJson.substring(0,80)}</span>` : '';
+  const badge = document.createElement('span');
+  badge.className = `badge badge-${type}`;
+  badge.textContent = type.replace(/_/g, ' ');
+  row.appendChild(badge);
 
-  row.innerHTML = `<span class="badge ${badgeClass}">${type.replace(/_/g,' ')}</span>${taskInfo}${extra}`;
+  if (event.taskKey) {
+    const tk = document.createElement('span');
+    tk.style.color = '#89b4fa';
+    tk.textContent = event.taskKey + ' ';
+    row.appendChild(tk);
+  }
+
+  if (extra) {
+    const det = document.createElement('span');
+    if (type === 'TOOL_CALL_START') {
+      det.style.color = '#74c7ec';
+      det.textContent = extra.toolName || '?';
+    } else if (type === 'TOOL_CALL_END') {
+      const ok = extra.success !== false;
+      det.style.color = ok ? '#a6e3a1' : '#f38ba8';
+      let t = (ok ? '\u2713 ' : '\u2717 ') + (extra.toolName || '?');
+      if (extra.durationMs != null) t += ' ' + extra.durationMs + 'ms';
+      det.textContent = t;
+    } else if (type === 'TOKEN_UPDATE') {
+      det.style.color = '#f5c2e7';
+      det.textContent = '+' + (extra.totalTokens || 0) + ' tok';
+    } else if (type === 'ITEM_STATUS_CHANGED' && extra.status) {
+      det.className = 'status-' + extra.status;
+      det.textContent = extra.status;
+    } else {
+      det.style.color = '#585b70';
+      const s = JSON.stringify(extra);
+      det.textContent = s.length > 80 ? s.substring(0, 80) + '\u2026' : s;
+    }
+    row.appendChild(det);
+  }
+
   feed.prepend(row);
-
-  // Trim to 300 events
   while (feed.children.length > 300) feed.removeChild(feed.lastChild);
 }
 
 // ── Worker detail ─────────────────────────────────────────────────────────────
 async function showWorkerDetail(item) {
   const el = document.getElementById('detail-content');
-  const statusCls = `status-${item.status}`;
-  el.innerHTML = `
-    <div class="field"><div class="label">Task Key</div><div class="value">${item.taskKey}</div></div>
-    <div class="field"><div class="label">Worker Type</div><div class="value">${item.workerType}</div></div>
-    <div class="field"><div class="label">Worker Profile</div><div class="value">${item.workerProfile || '—'}</div></div>
-    <div class="field"><div class="label">Status</div><div class="value ${statusCls}">${item.status}</div></div>
-    <div class="field"><div class="label">Description</div><div class="value">${item.description || '—'}</div></div>
-    <div class="label" style="margin-top:0.5rem">Attempt History</div>
-    <div id="attempts-list"><em style="color:#585b70;font-size:0.75rem">Loading…</em></div>
-  `;
+  el.textContent = '';
+
+  // Header fields
+  const fields = [
+    ['Task Key', item.taskKey],
+    ['Worker Type', item.workerType],
+    ['Worker Profile', item.workerProfile || '\u2014'],
+    ['Status', item.status],
+    ['Description', item.description || '\u2014']
+  ];
+  fields.forEach(([label, value]) => {
+    const f = document.createElement('div');
+    f.className = 'field';
+    const l = document.createElement('div');
+    l.className = 'label';
+    l.textContent = label;
+    const v = document.createElement('div');
+    v.className = label === 'Status' ? 'value status-' + item.status : 'value';
+    v.textContent = value;
+    f.append(l, v);
+    el.appendChild(f);
+  });
+
+  // Token usage from live SSE
+  const tk = tokenMap[item.taskKey];
+  if (tk) {
+    const f = document.createElement('div');
+    f.className = 'field';
+    const l = document.createElement('div');
+    l.className = 'label';
+    l.textContent = 'Tokens (live)';
+    const v = document.createElement('div');
+    v.className = 'value';
+    v.style.color = '#f5c2e7';
+    v.textContent = 'prompt: ' + tk.prompt + ' | completion: ' + tk.completion + ' | total: ' + tk.total;
+    f.append(l, v);
+    el.appendChild(f);
+  }
+
+  // Tabs
+  const tabs = document.createElement('div');
+  tabs.className = 'detail-tabs';
+  const tabNames = ['Attempts', 'Files', 'Conversation'];
+  const panels = {};
+
+  tabNames.forEach(function(name, i) {
+    const tab = document.createElement('div');
+    tab.className = 'detail-tab' + (i === 0 ? ' active' : '');
+    tab.textContent = name;
+    tab.addEventListener('click', function() {
+      tabs.querySelectorAll('.detail-tab').forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      Object.values(panels).forEach(function(p) { p.classList.remove('active'); });
+      panels[name].classList.add('active');
+    });
+    tabs.appendChild(tab);
+
+    const panel = document.createElement('div');
+    panel.className = 'detail-tab-content' + (i === 0 ? ' active' : '');
+    panels[name] = panel;
+  });
+
+  el.appendChild(tabs);
+  tabNames.forEach(function(name) { el.appendChild(panels[name]); });
 
   if (!currentPlanId || !item.id) return;
+
+  // Load Attempts + Conversation
+  loadAttempts(panels['Attempts'], panels['Conversation'], item);
+  // Load Files (G3)
+  loadFiles(panels['Files'], item);
+}
+
+async function loadAttempts(attPanel, convPanel, item) {
+  attPanel.textContent = 'Loading\u2026';
+  convPanel.textContent = 'Loading\u2026';
   try {
-    const res = await fetch(`${API}/api/v1/plans/${currentPlanId}/items/${item.id}/attempts`);
+    const res = await fetch(API + '/api/v1/plans/' + currentPlanId + '/items/' + item.id + '/attempts');
     const attempts = res.ok ? await res.json() : [];
-    const listEl = document.getElementById('attempts-list');
+    attPanel.textContent = '';
+    convPanel.textContent = '';
+
     if (attempts.length === 0) {
-      listEl.innerHTML = '<em style="color:#585b70;font-size:0.75rem">No attempts yet.</em>';
+      attPanel.textContent = 'No attempts yet.';
+      convPanel.textContent = 'No conversation data.';
       return;
     }
-    listEl.innerHTML = attempts.map(a => {
-      const dur = (a.durationMs != null) ? `${a.durationMs}ms` : '—';
-      const err = a.errorMessage ? `<div style="color:#f38ba8;word-break:break-all">${a.errorMessage.substring(0,120)}</div>` : '';
-      return `<div class="attempt-row">
-        <span class="att-status status-${a.status}">#${a.attemptNumber} ${a.status}</span>
-        <span>${a.dispatchedAt ? new Date(a.dispatchedAt).toLocaleTimeString() : '—'}</span>
-        <span>${dur}</span>
-      </div>${err}`;
-    }).join('');
+
+    attempts.forEach(function(a) {
+      var row = document.createElement('div');
+      row.className = 'attempt-row';
+      var st = document.createElement('span');
+      st.className = 'att-status status-' + (a.success ? 'COMPLETED' : (a.completedAt ? 'FAILED' : 'RUNNING'));
+      st.textContent = '#' + a.attemptNumber + ' ' + (a.success ? 'OK' : (a.completedAt ? 'FAIL' : 'RUNNING'));
+      var time = document.createElement('span');
+      time.textContent = a.dispatchedAt ? new Date(a.dispatchedAt).toLocaleTimeString() : '\u2014';
+      var dur = document.createElement('span');
+      dur.textContent = a.durationMs != null ? a.durationMs + 'ms' : '\u2014';
+      row.append(st, time, dur);
+      attPanel.appendChild(row);
+
+      if (a.failureReason) {
+        var err = document.createElement('div');
+        err.style.cssText = 'color:#f38ba8;font-size:0.72rem;word-break:break-all;padding:0.2rem 0.5rem';
+        err.textContent = a.failureReason.substring(0, 200);
+        attPanel.appendChild(err);
+      }
+    });
+
+    // Conversation tab — show latest attempt's conversationLog
+    var latest = null;
+    for (var i = attempts.length - 1; i >= 0; i--) {
+      if (attempts[i].conversationLog) { latest = attempts[i]; break; }
+    }
+
+    if (latest && latest.conversationLog) {
+      try {
+        var conv = typeof latest.conversationLog === 'string' ? JSON.parse(latest.conversationLog) : latest.conversationLog;
+        if (Array.isArray(conv)) {
+          conv.forEach(function(msg) {
+            var block = document.createElement('div');
+            block.className = 'conv-block';
+            var role = document.createElement('strong');
+            role.style.color = msg.role === 'assistant' ? '#a6e3a1' : (msg.role === 'user' ? '#89b4fa' : '#cba6f7');
+            role.textContent = (msg.role || 'unknown').toUpperCase();
+            block.appendChild(role);
+            var content = document.createElement('div');
+            var raw = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+            content.textContent = raw.substring(0, 2000);
+            block.appendChild(content);
+            convPanel.appendChild(block);
+          });
+        } else {
+          var block = document.createElement('div');
+          block.className = 'conv-block';
+          block.textContent = JSON.stringify(conv, null, 2).substring(0, 5000);
+          convPanel.appendChild(block);
+        }
+      } catch (pe) {
+        var block2 = document.createElement('div');
+        block2.className = 'conv-block';
+        block2.textContent = latest.conversationLog.substring(0, 5000);
+        convPanel.appendChild(block2);
+      }
+    } else {
+      convPanel.textContent = 'No conversation log captured for this task.';
+    }
   } catch (e) {
-    document.getElementById('attempts-list').innerHTML = `<em style="color:#f38ba8;font-size:0.75rem">Error: ${e.message}</em>`;
+    attPanel.textContent = 'Error: ' + e.message;
+    convPanel.textContent = 'Error loading conversation.';
+  }
+}
+
+async function loadFiles(panel, item) {
+  panel.textContent = 'Loading\u2026';
+  try {
+    var res = await fetch(API + '/api/v1/plans/' + currentPlanId + '/items/' + item.id + '/files');
+    var files = res.ok ? await res.json() : [];
+    panel.textContent = '';
+
+    if (files.length === 0) {
+      panel.textContent = 'No file modifications recorded.';
+      return;
+    }
+
+    files.forEach(function(f) {
+      var row = document.createElement('div');
+      row.className = 'file-row';
+      var op = document.createElement('span');
+      op.className = 'file-op file-op-' + (f.operation || 'MODIFIED');
+      op.textContent = f.operation || '?';
+      var path = document.createElement('span');
+      path.className = 'file-path';
+      path.textContent = f.filePath;
+      var time = document.createElement('span');
+      time.style.cssText = 'color:#585b70;font-size:0.65rem;margin-left:auto';
+      time.textContent = f.occurredAt ? new Date(f.occurredAt).toLocaleTimeString() : '';
+      row.append(op, path, time);
+      panel.appendChild(row);
+    });
+  } catch (e) {
+    panel.textContent = 'Error: ' + e.message;
   }
 }
 

@@ -40,6 +40,9 @@ public class DispatchAttempt {
     @Column(name = "duration_ms")
     private Long durationMs;
 
+    @Column(name = "conversation_log", columnDefinition = "jsonb")
+    private String conversationLog;
+
     protected DispatchAttempt() {}
 
     public DispatchAttempt(UUID id, PlanItem item, int attemptNumber) {
@@ -72,4 +75,6 @@ public class DispatchAttempt {
     public boolean isSuccess() { return success; }
     public String getFailureReason() { return failureReason; }
     public Long getDurationMs() { return durationMs; }
+    public String getConversationLog() { return conversationLog; }
+    public void setConversationLog(String conversationLog) { this.conversationLog = conversationLog; }
 }

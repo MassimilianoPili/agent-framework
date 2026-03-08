@@ -35,8 +35,9 @@ spring:
           timeout: 120s
           max-tokens: 4096
 
-# Messaging SPI — provider: redis (default), jms, servicebus
+# Messaging SPI — provider: redis (default), jms, servicebus, in-process
 # JMS/Artemis: activate profile 'jms' (application-jms.yml)
+# In-process (single JVM, Phase 1): activate profile 'inprocess' (application-inprocess.yml)
 messaging:
   provider: redis
   redis:
@@ -47,6 +48,9 @@ messaging:
   agent-results:
     topic: agent-results
     subscription: orchestrator-group
+  agent-events:
+    topic: agent-events
+    subscription: orchestrator-events-group
 
 # Caching — provider: redis (default), simple
 cache:

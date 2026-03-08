@@ -1,0 +1,16 @@
+# In-process profile (#29 Phase 1): workers run as virtual threads inside the orchestrator JVM.
+# Redis DB 3 (messaging streams) is NOT used; Redis DB 4/5 (cache) remain active.
+#
+# Activate with: spring.profiles.active=inprocess
+# Or: mvn spring-boot:run -Dspring-boot.run.profiles=inprocess
+#
+# NOTE: worker JARs must be on the orchestrator classpath for their @Component beans to
+# be picked up. Phase 1b (JVM consolidation) is required before activating this profile
+# in a full deployment. In dev/test, load workers explicitly via @Import or classpath entries.
+
+messaging:
+  provider: in-process
+
+# No Redis messaging config needed — InProcessMessageBroker is fully in-memory.
+# Disable Spring Redis auto-config for messaging streams to avoid connection errors
+# if Redis DB 3 is not available. Cache Redis (DB 4/5) is configured in application.yml.

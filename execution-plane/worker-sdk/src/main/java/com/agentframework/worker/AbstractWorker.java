@@ -6,7 +6,9 @@ import com.agentframework.worker.context.AgentContext;
 import com.agentframework.worker.context.AgentContextBuilder;
 import com.agentframework.worker.dto.AgentResult;
 import com.agentframework.worker.dto.AgentTask;
+import com.agentframework.worker.dto.FileModificationEvent;
 import com.agentframework.worker.dto.Provenance;
+import com.agentframework.worker.event.WorkerEventPublisher;
 import com.agentframework.worker.interceptor.WorkerInterceptor;
 import com.agentframework.worker.messaging.WorkerResultProducer;
 import com.agentframework.worker.policy.PolicyEnforcingToolCallback;
@@ -15,12 +17,14 @@ import org.springframework.ai.chat.metadata.Usage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.concurrent.CancellationException;
 
 /**
  * Base class for all worker implementations.
@@ -51,10 +55,26 @@ public abstract class AbstractWorker {
     // Set by subclasses via captureReasoning(). Only the first call per task is stored (idempotent).
     private static final ThreadLocal<String> REASONING = new ThreadLocal<>();
 
+    // G1: ThreadLocal to capture the full LLM conversation JSON for post-mortem debugging.
+    // Set by subclasses via captureConversation(). Truncated to 500KB to keep DB payload reasonable.
+    private static final ThreadLocal<String> CONVERSATION_LOG = new ThreadLocal<>();
+
     /** Called by generated workers after each LLM response to capture token usage. */
     protected void recordTokenUsage(Usage usage) {
         TOKEN_USAGE.set(new Provenance.TokenUsage(
             toLong(usage.getPromptTokens()), toLong(usage.getCompletionTokens()), toLong(usage.getTotalTokens())));
+
+        // G6: Emit TOKEN_UPDATE event in real-time
+        if (workerEventPublisher != null) {
+            try {
+                workerEventPublisher.publishTokenUpdate(
+                    PolicyEnforcingToolCallback.getCurrentPlanId(),
+                    PolicyEnforcingToolCallback.getCurrentTaskKey(),
+                    toLong(usage.getPromptTokens()) != null ? toLong(usage.getPromptTokens()) : 0L,
+                    toLong(usage.getCompletionTokens()) != null ? toLong(usage.getCompletionTokens()) : 0L,
+                    toLong(usage.getTotalTokens()) != null ? toLong(usage.getTotalTokens()) : 0L);
+            } catch (Exception ignored) { /* never block task processing */ }
+        }
     }
 
     /**
@@ -70,6 +90,18 @@ public abstract class AbstractWorker {
         }
     }
 
+    /**
+     * Called by generated workers to capture the full LLM conversation for debugging.
+     * Accepts pre-serialized JSON (system + user + assistant messages).
+     * Truncated to 500KB to keep DB payload reasonable.
+     */
+    protected void captureConversation(String conversationJson) {
+        if (conversationJson != null && !conversationJson.isBlank()) {
+            CONVERSATION_LOG.set(conversationJson.length() > 512_000
+                ? conversationJson.substring(0, 512_000) : conversationJson);
+        }
+    }
+
     private static Long toLong(Integer value) {
         return value != null ? value.longValue() : null;
     }
@@ -77,6 +109,10 @@ public abstract class AbstractWorker {
     /** Default LLM model ID, injected from each worker's application.yml at startup. */
     @Value("${spring.ai.anthropic.chat.options.model:claude-sonnet-4-6}")
     private String defaultModelId;
+
+    /** G6: Optional event publisher for real-time worker events (tool calls, token updates). */
+    @Autowired(required = false)
+    private WorkerEventPublisher workerEventPublisher;
 
     private final AgentContextBuilder contextBuilder;
     private final WorkerChatClientFactory chatClientFactory;
@@ -255,6 +291,12 @@ public abstract class AbstractWorker {
         AgentResult result;
         AgentContext context = null;
         PolicyEnforcingToolCallback.resetToolNames();
+        PolicyEnforcingToolCallback.resetFileMods();
+        // G6: Set plan/task context for event publishing
+        PolicyEnforcingToolCallback.setCurrentContext(task.planId(), task.taskKey());
+        if (workerEventPublisher != null) {
+            PolicyEnforcingToolCallback.setEventPublisher(workerEventPublisher);
+        }
         try {
             context = contextBuilder.build(task, resolveSystemPromptFile(task), skillPaths());
             PolicyEnforcingToolCallback.setContextFiles(context.relevantFiles());
@@ -274,6 +316,11 @@ public abstract class AbstractWorker {
                 log.info("[{}] Task {} served from context cache", workerType(), task.taskKey());
                 resultJson = cachedResult;
             } else {
+                // Check cancellation BEFORE starting the LLM call (especially useful in in-process mode
+                // where Future.cancel(true) interrupts the virtual thread between tool calls).
+                if (Thread.interrupted()) {
+                    throw new InterruptedException("Task " + task.taskKey() + " cancelled before LLM call");
+                }
                 ChatClient chatClient = chatClientFactory.create(workerType(), resolveToolAllowlist(task), task.modelId());
                 resultJson = execute(context, chatClient);
             }
@@ -284,6 +331,7 @@ public abstract class AbstractWorker {
             }
 
             List<String> toolsUsed = PolicyEnforcingToolCallback.drainToolNames();
+            List<FileModificationEvent> fileMods = PolicyEnforcingToolCallback.drainFileMods();
             String promptHashValue = HashUtil.sha256(context.systemPrompt());
             String skillsHashValue = HashUtil.sha256(context.skillsContent());
             Provenance.TokenUsage tokenUsage = TOKEN_USAGE.get();
@@ -315,10 +363,41 @@ public abstract class AbstractWorker {
                 resolvedModel,          // actual model used (haiku/sonnet/opus)
                 promptHashValue,
                 provenance,
-                tokenUsage != null ? tokenUsage.totalTokens() : null   // tokensUsed
+                tokenUsage != null ? tokenUsage.totalTokens() : null,  // tokensUsed
+                CONVERSATION_LOG.get(),  // G1: full LLM conversation (nullable)
+                fileMods.isEmpty() ? null : fileMods  // G3: file modifications (nullable)
             );
-            log.info("[{}] Task {} completed in {}ms (profile={})",
-                     workerType(), task.taskKey(), result.durationMs(), task.workerProfile());
+            log.info("[{}] Task {} completed in {}ms (profile={}, files={})",
+                     workerType(), task.taskKey(), result.durationMs(), task.workerProfile(), fileMods.size());
+
+        } catch (InterruptedException | CancellationException e) {
+            // Task was cancelled (via Future.cancel(true) in in-process mode or CancellationException
+            // from PolicyEnforcingToolCallback). Restore interrupt flag and publish a CANCELLED result.
+            Thread.currentThread().interrupt();
+            log.info("[{}] Task {} was cancelled (profile={})", workerType(), task.taskKey(), task.workerProfile());
+
+            List<String> toolsUsed = PolicyEnforcingToolCallback.drainToolNames();
+            String resolvedModel = (task.modelId() != null && !task.modelId().isBlank())
+                ? task.modelId() : defaultModelId;
+
+            Provenance provenance = new Provenance(
+                workerType(), task.workerProfile(),
+                task.attemptNumber(),
+                task.dispatchAttemptId() != null ? task.dispatchAttemptId().toString() : null,
+                task.dispatchedAt(), Instant.now().toString(),
+                task.traceId() != null ? task.traceId().toString() : null,
+                resolvedModel,
+                toolsUsed.isEmpty() ? null : toolsUsed,
+                null, null, null, null
+            );
+
+            result = new AgentResult(
+                task.planId(), task.itemId(), task.taskKey(),
+                false, null, "CANCELLED",
+                Instant.now().toEpochMilli() - startMs,
+                workerType(), task.workerProfile(), resolvedModel,
+                null, provenance, null, null, null
+            );
 
         } catch (Exception e) {
             log.error("[{}] Task {} failed: {} (profile={})",
@@ -364,15 +443,21 @@ public abstract class AbstractWorker {
                 resolvedModel,          // actual model attempted
                 null,
                 provenance,
-                null                    // tokensUsed: unavailable on failure
+                null,                   // tokensUsed: unavailable on failure
+                CONVERSATION_LOG.get(), // G1: capture partial conversation even on failure
+                null                    // G3: fileModifications unavailable on failure
             );
         } finally {
             ContextCacheHolder.clear();                      // prevent ThreadLocal leak on cache-hit path
             TOKEN_USAGE.remove();                            // always clean up to prevent ThreadLocal leak in thread pools
             REASONING.remove();                              // always clean up to prevent stale reasoning in reused threads
+            CONVERSATION_LOG.remove();                       // G1: clean up conversation log
+            PolicyEnforcingToolCallback.clearFileMods();       // G3: clear file mod accumulator
             PolicyEnforcingToolCallback.clearContextFiles(); // clear read-context allowlist
             PolicyEnforcingToolCallback.clearTaskPolicy();   // clear task-level HookPolicy
             PolicyEnforcingToolCallback.clearDynamicOwnsPaths(); // clear dynamic ownsPaths
+            PolicyEnforcingToolCallback.clearCurrentContext();     // G6: clear plan/task context
+            PolicyEnforcingToolCallback.clearEventPublisher();     // G6: clear event publisher
         }
 
         resultProducer.publish(result);

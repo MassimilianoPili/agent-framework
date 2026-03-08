@@ -20,7 +20,7 @@ class WorkerGeneratorTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        generator = new WorkerGenerator(null);
+        generator = new WorkerGenerator(null, "1.1.0-SNAPSHOT");
         manifest = new ManifestLoader().load(
             Path.of("src/test/resources/valid-manifest.agent.yml"));
     }
@@ -161,5 +161,54 @@ class WorkerGeneratorTest {
         assertThat(content).contains("task-subscription: test-worker-sub");
         assertThat(content).contains("model: claude-sonnet-4-6");
         assertThat(content).contains("max-tokens: 8192");
+    }
+
+    // --- Hand-written source detection tests ---
+
+    @Test
+    void shouldSkipJavaGenerationWhenHandWrittenSourcesExist(@TempDir Path tempDir) throws IOException {
+        // Pre-create a hand-written worker source (outside generated/ package)
+        Path moduleDir = tempDir.resolve("test-worker");
+        Path handWrittenDir = moduleDir.resolve(
+            "src/main/java/com/agentframework/workers/testworker");
+        Files.createDirectories(handWrittenDir);
+        Files.writeString(handWrittenDir.resolve("TestWorkerApplication.java"),
+            "package com.agentframework.workers.testworker;\n"
+            + "@SpringBootApplication\npublic class TestWorkerApplication {}");
+
+        generator.generate(manifest, tempDir, "test.agent.yml");
+
+        // Generated Java files should NOT exist
+        Path generatedDir = moduleDir.resolve(
+            "src/main/java/com/agentframework/workers/generated/testworker");
+        assertThat(generatedDir.resolve("TestWorker.java")).doesNotExist();
+        assertThat(generatedDir.resolve("TestWorkerApplication.java")).doesNotExist();
+
+        // Non-Java files should still be generated
+        assertThat(moduleDir.resolve("pom.xml")).isRegularFile();
+        assertThat(moduleDir.resolve("Dockerfile")).isRegularFile();
+        assertThat(moduleDir.resolve("src/main/resources/application.yml")).isRegularFile();
+    }
+
+    @Test
+    void shouldDetectHandWrittenSources(@TempDir Path tempDir) throws IOException {
+        Path moduleDir = tempDir.resolve("test-worker");
+
+        // No sources at all
+        assertThat(generator.hasNonGeneratedJavaSources(moduleDir)).isFalse();
+
+        // Only generated sources
+        Path generatedDir = moduleDir.resolve(
+            "src/main/java/com/agentframework/workers/generated/testworker");
+        Files.createDirectories(generatedDir);
+        Files.writeString(generatedDir.resolve("TestWorker.java"), "// generated");
+        assertThat(generator.hasNonGeneratedJavaSources(moduleDir)).isFalse();
+
+        // Hand-written source added
+        Path handWrittenDir = moduleDir.resolve(
+            "src/main/java/com/agentframework/workers/testworker");
+        Files.createDirectories(handWrittenDir);
+        Files.writeString(handWrittenDir.resolve("TestWorker.java"), "// hand-written");
+        assertThat(generator.hasNonGeneratedJavaSources(moduleDir)).isTrue();
     }
 }

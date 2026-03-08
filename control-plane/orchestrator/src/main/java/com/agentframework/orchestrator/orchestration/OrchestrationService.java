@@ -17,12 +17,14 @@ import com.agentframework.common.policy.RiskLevel;
 import com.agentframework.orchestrator.messaging.AgentTaskProducer;
 import com.agentframework.orchestrator.messaging.dto.AgentResult;
 import com.agentframework.orchestrator.messaging.dto.AgentTask;
+import com.agentframework.orchestrator.messaging.dto.FileModificationEvent;
 import com.agentframework.orchestrator.council.CouncilProperties;
 import com.agentframework.orchestrator.council.CouncilReport;
 import com.agentframework.orchestrator.council.CouncilService;
 import com.agentframework.orchestrator.config.EnrichmentProperties;
 import com.agentframework.orchestrator.planner.PlannerService;
 import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
+import com.agentframework.orchestrator.repository.FileModificationRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
@@ -33,6 +35,7 @@ import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.SuccessPrediction;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
+import com.agentframework.messaging.inprocess.InProcessMessageBroker;
 import com.agentframework.orchestrator.leader.LeaderElectionService;
 import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.specification.*;
@@ -111,6 +114,9 @@ public class OrchestrationService {
     private final PlanDecompositionPredictor decompositionPredictor;
     private final OrchestratorMetrics metrics;
     private final LeaderElectionService leaderElectionService;
+    private final FileModificationRepository fileModificationRepository;
+    // P1.7: optional — present only when messaging.provider=in-process
+    private final InProcessMessageBroker inProcessBroker;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -139,7 +145,9 @@ public class OrchestrationService {
                                 ContextCacheService contextCacheService,
                                 Optional<PlanDecompositionPredictor> decompositionPredictor,
                                 OrchestratorMetrics metrics,
-                                Optional<LeaderElectionService> leaderElectionService) {
+                                Optional<LeaderElectionService> leaderElectionService,
+                                FileModificationRepository fileModificationRepository,
+                                Optional<InProcessMessageBroker> inProcessBroker) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -168,6 +176,8 @@ public class OrchestrationService {
         this.decompositionPredictor = decompositionPredictor.orElse(null);
         this.metrics = metrics;
         this.leaderElectionService = leaderElectionService.orElse(null);
+        this.fileModificationRepository = fileModificationRepository;
+        this.inProcessBroker = inProcessBroker.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -271,8 +281,26 @@ public class OrchestrationService {
         attemptRepository.findOpenAttempt(result.itemId())
             .ifPresent(attempt -> {
                 attempt.complete(result.success(), result.failureReason(), result.durationMs());
+                if (result.conversationLog() != null) {
+                    attempt.setConversationLog(result.conversationLog());
+                }
                 attemptRepository.save(attempt);
             });
+
+        // G3: Persist file modifications reported by the worker
+        if (result.fileModifications() != null && !result.fileModifications().isEmpty()) {
+            for (FileModificationEvent fm : result.fileModifications()) {
+                FileOperation op;
+                try { op = FileOperation.valueOf(fm.operation()); }
+                catch (Exception e) { op = FileOperation.MODIFIED; }
+
+                fileModificationRepository.save(new FileModification(
+                    result.planId(), result.itemId(), result.taskKey(),
+                    fm.filePath(), op,
+                    fm.contentHashBefore(), fm.contentHashAfter(),
+                    fm.diffPreview()));
+            }
+        }
 
         if (result.success()) {
             // Check for missing_context BEFORE transitioning to DONE.
@@ -821,6 +849,13 @@ public class OrchestrationService {
         planRepository.save(plan);
 
         List<PlanItem> items = planItemRepository.findByPlanId(planId);
+
+        // Collect DISPATCHED taskKeys before the transition loop (for in-process interrupt)
+        List<String> dispatchedTaskKeys = items.stream()
+                .filter(i -> i.getStatus() == ItemStatus.DISPATCHED)
+                .map(PlanItem::getTaskKey)
+                .toList();
+
         for (PlanItem item : items) {
             if (item.getStatus().canTransitionTo(ItemStatus.CANCELLED)) {
                 item.transitionTo(ItemStatus.CANCELLED);
@@ -829,6 +864,15 @@ public class OrchestrationService {
                 eventPublisher.publishEvent(SpringPlanEvent.forItemStatus(
                         planId, item.getId(), item.getTaskKey(), item.getWorkerProfile(), "CANCELLED"));
             }
+        }
+
+        // P1.7: interrupt virtual threads for DISPATCHED tasks in in-process mode
+        if (inProcessBroker != null && !dispatchedTaskKeys.isEmpty()) {
+            dispatchedTaskKeys.forEach(taskKey -> {
+                boolean interrupted = inProcessBroker.cancel(taskKey);
+                log.debug("In-process cancel for task '{}': interrupted={}", taskKey, interrupted);
+            });
+            log.info("Sent interrupt signal to {} dispatched task(s) in plan {}", dispatchedTaskKeys.size(), planId);
         }
 
         log.info("Plan {} cancelled ({} items cancelled)", planId,

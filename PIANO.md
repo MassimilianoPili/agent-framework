@@ -187,7 +187,7 @@ Proposta: estrarre in modulo `agent-common` condiviso.
 
 ---
 
-### 13. Council Taste Profile
+### 13. Council Taste Profile ✅ → [PIANO_HISTORY.md]
 
 **Problema**: `CouncilService.conductPrePlanningSession()` (riga 97) e' stateless —
 non impara da piani passati. Non sa che piani "CRUD API" con 3 task funzionano meglio
@@ -336,7 +336,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | 24L2 | Tool configurabili (Livello 2: TOOL_MANAGER) | 1g | Medio | #23 |
 | 26L2 | Auto-split task costosi | 1.5g | Medio | #26L1, #11, #20 |
 | 21 | Redis topic splitting | 1g | Basso | — |
-| **28** | **Monitoring Dashboard UI (real-time)** | **3g** | **Alto** | #5 (SSE), G1, G4, G6 |
+| **28** | **Monitoring Dashboard UI (real-time)** ✅ S14 | **3g** | **Alto** | #5 (SSE), G1, G4, G6 |
 | **29** | **Worker Lifecycle Management (kill, singleton, JVM-per-type)** | **3.5g** | **Alto** | B17 (per fase 1 in-process) |
 | **B18** | **No singleton per task — double processing** | — | **Alto** | Risolto da #29 (ConcurrentHashMap) |
 | **B19** | **DispatchAttempt orfani — non-unique result** | **0.5g** | **Alto** | Query fix ✅ applicato, cleanup strutturale futuro |
@@ -346,19 +346,15 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 # Stato implementazione #1-#49 (audit codice)
 
-Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-07.
+Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-08.
 
-## Non implementati (29 item — nessun codice)
+## Non implementati (22 item — nessun codice)
 
 | # | Item |
 |---|------|
-| 20 | Modello LLM per task (solo campo `modelId` reserved null) |
 | 21 | Redis topic splitting per workerType |
-| 22 | Orchestrator singleton (leader election) |
-| 23 ✅ | Enrichment Pipeline Activation |
-| 24 | Tool configurabili (toolHints + TOOL_MANAGER) |
-| 25 ✅ | mcp-bash-tool + mcp-python-tool |
-| 26 | Cost tracking per task + auto-split (L1 ✅, L2 pending) |
+| 24 L2 | TOOL_MANAGER (enrichment worker per singolo task) |
+| 26 L2 | Auto-split per task costosi |
 | 28 | Monitoring Dashboard UI |
 | 29 | Worker Lifecycle Management |
 | 30 | Hash Chain Tamper-Proof |
@@ -382,18 +378,16 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 48 | Content-Addressable Storage |
 | 49 | Quadratic Voting Council |
 
-## Parzialmente implementati (6 item — codice base, estensioni da fare)
+## Parzialmente implementati (4 item — codice base, estensioni da fare)
 
 | # | Item | Cosa c'e' | Cosa manca |
 |---|------|-----------|------------|
-| 5 | SSE + TrackerSync | `SseEmitterRegistry` (147 righe), endpoint `/events` | TrackerSync non wired, late-join replay (#5b) |
+| 5 | SSE + TrackerSync | `SseEmitterRegistry` (147 righe), endpoint `/events`, late-join replay | TrackerSync non wired |
 | 7 | Context Cache (TASK_MANAGER) | Enum `TASK_MANAGER` in WorkerType | Nessun `ContextCacheService` |
 | 8 | DAG + Mermaid | `PlanGraphService` (227 righe), `toMermaid()`, endpoint `/graph` | Miglioramenti UI |
 | 9 | Hierarchical Plans | `handleSubPlan()`, `SUB_PLAN` WorkerType, child plan | Estensioni previste |
-| 10 | HookPolicy Extensions | 7 file in `hooks/`, `HookManagerService` (134 righe) | Self-constraining agent extensions |
-| 13 | Council Taste Profile | `CouncilService` (8 file, SubmodularSelector, CoverageFunction) | Nessun `TasteProfile` |
 
-**Nota**: #5, #8, #9, #10 presenti dall'initial commit (`2c5d7cc`). Il piano li elenca come "da fare"
+**Nota**: #5, #8, #9 presenti dall'initial commit (`2c5d7cc`). Il piano li elenca come "da fare"
 perche' richiedono estensioni rispetto all'implementazione base.
 
 ---
@@ -430,9 +424,9 @@ Bug emersi dall'esplorazione del codice e dall'uso reale del framework.
 | B14 ✅ | **Mustache template hardcoda write-tool-names errati** — `application.yml.mustache` (righe 30-32) genera `write-tool-names: [Write, Edit]` hardcoded, ignorando i nomi MCP reali. `PolicyProperties.java` ha il default corretto (`["Write", "Edit", "fs_write"]`), ma il template lo sovrascrive. Risultato: `PathOwnershipEnforcer` non controlla mai `fs_write` perche' non e' nella lista dei write-tool-names → un worker puo' scrivere ovunque con `fs_write` senza violazione path ownership. | HIGH | `agent-compiler-maven-plugin/.../templates/application.yml.mustache:30-32`, `PolicyProperties.java:37` | Aggiornare il template Mustache per generare `write-tool-names` dinamicamente dal manifest (includendo `fs_write`, `bash_execute`, etc.) oppure rimuovere la sezione hardcoded e lasciare i default di `PolicyProperties`. |
 | B15 ✅ | **ownsPaths statici — manca il project path dinamico** — i manifest dichiarano `ownsPaths` statici (`backend/`, `frontend/`, `docs/`, `eval/`). Ma il path del progetto in corso (es. `cps4/`) non viene propagato dall'orchestratore. Un `ai-task` con `ownsPaths: [eval/]` non puo' scrivere in `cps4/` anche se il task lo richiede. L'orchestratore deve almeno propagare il path del piano/progetto come owned path per ogni worker. | HIGH | `agents/manifests/*.agent.yml` (ownsPaths), `AgentTaskProducer.java`, `WorkerTaskConsumer.java`, `PathOwnershipEnforcer.java:49-99` | L'orchestratore aggiunge il project path (dal campo `Plan.projectPath` o dalla spec del piano) ai `ownsPaths` del task al momento del dispatch. Design: `AgentTask.dynamicOwnsPaths` (lista propagata via Redis) + merge con i `ownsPaths` statici dal manifest nel `PathOwnershipEnforcer`. |
 | B16 ✅ | **HOOK_MANAGER schema con nomi Claude Code** — `hook-manager.agent.yml:34` mostra esempio `["Read", "Write", "Edit", "Glob", "Grep", "Bash"]`. Il HOOK_MANAGER worker (LLM) genera HookPolicy con questi nomi. `PolicyEnforcingToolCallback` al livello 2 blocca i tool MCP reali (`fs_read`, `fs_write`) perche' non sono nell'allowlist della policy. Il fallback statico `HookPolicyResolver.DEFAULT_TOOL_ALLOWLISTS` ha i nomi corretti — ma viene usato solo se il HOOK_MANAGER non ha generato policy. | HIGH | `hook-manager.agent.yml:34`, `PolicyEnforcingToolCallback.java:113-125`, `HookPolicyResolver.java:35-46` | Aggiornare lo schema in `hook-manager.agent.yml` con nomi MCP reali. Centralizzare i nomi in un'unica source of truth (vedi #27). |
-| B18 | **No singleton per task — double processing** — se un worker crasha durante l'esecuzione, il messaggio resta nel Redis PEL (Pending Entries List). Quando il worker viene riavviato (Docker `restart: unless-stopped`), il messaggio pendente puo' essere reclamato (XCLAIM) e riprocessato. Ma se nel frattempo l'`AutoRetryScheduler` ha gia' ri-dispatchato il task, **due worker processano lo stesso task in parallelo**. Risultato: scritture duplicate, conflitti su file, token sprecati, risultato incoerente. Nessun lock distribuito impedisce il double processing. | HIGH | `WorkerTaskConsumer.java` (nessun lock pre-process), `AutoRetryScheduler.java` (ri-dispatcha senza check PEL), `RedisStreamListenerContainer.java` (nessun XCLAIM) | `TaskLockService` — lock distribuito Redis (`SETNX task:{taskKey}:lock {consumerId} EX 300`). Il worker acquisisce il lock prima di processare. Se lock gia' acquisito → NACK, il messaggio torna in coda. TTL 5 min come safety net (worker crash). Heartbeat ogni 60s per task lunghi. |
+| B18 ✅ | **No singleton per task — double processing** — risolto con `RedisTaskLockService` (SETNX + Lua release + heartbeat 60s). Integrato in `WorkerTaskConsumer`: lock acquisito prima del processing, rilasciato nel finally. Se lock fallisce → ACK senza processing. | HIGH | `RedisTaskLockService.java`, `WorkerTaskConsumer.java` | Risolto S12. |
 | B17 ✅ | **Context overflow da `fs_read` senza limiti** — un worker (es. AI-001 audit) che chiama `fs_read` su file grandi (HTML ~80KB, CSS ~80KB, JS ~30KB) accumula migliaia di token per ogni chiamata. Con un sito di 11 pagine (es. CPS), 48 tool call portano il prompt a 208K token, superando il limite di 200K del modello. Il LLM non ha visibilita' sul budget token residuo e continua a leggere file finche' non viene troncato. Nessun meccanismo di protezione: ne' `maxTokens` nel manifest, ne' auto-compacting nel worker SDK, ne' `limit` parametro nel tool `fs_read`. | CRITICAL | `WorkerChatClient.java` (nessun token counting pre-call), `fs_read` tool (nessun parametro `limit`), manifests `*.agent.yml` (nessun campo `maxTokens`) | Fix a 3 livelli: **(1)** campo `maxTokens` nel manifest → il worker SDK lo propaga come `maxOutputTokens` nella chat request (quick fix); **(2)** **auto-compacting nel worker SDK** — prima di ogni tool call, stimare token accumulati (system + messaggi + tool results). Se si supera una soglia (es. 75% del context window), compattare la storia: sostituire i risultati vecchi di tool call con un riassunto LLM compresso (un `fs_read` da 80KB → "file X: 1400 righe HTML, struttura header/nav/main/footer, Bootstrap 5" — da ~20K a ~200 token). Il worker continua a lavorare con contesto compresso, senza interrompere il task. Pattern analogo a Claude Code auto-compress; **(3)** parametro `limit` (righe/byte) nel tool `fs_read` — il worker sceglie quanto leggere per file (prevenzione upstream). Livello 2 e' il fix architetturale — il worker non crasha mai, si auto-compatta. |
-| B19 | **DispatchAttempt orfani — non-unique result** — `findOpenAttempt(itemId)` usa `Optional<DispatchAttempt>` con query `completedAt IS NULL`, che attende 0 o 1 risultato. Ma ogni retry (`retryFailedItem` → `dispatchReadyItems`) crea un **nuovo** `DispatchAttempt` senza chiudere il precedente. Con 2+ attempt aperti, Spring Data JPA lancia `IncorrectResultSizeDataAccessException`. Cascata: `onTaskCompleted()` chiama `findOpenAttempt` → eccezione → risultato del worker perso → item resta DISPATCHED → piano bloccato (B3). Scenari che creano orfani: rollback transazione in `onTaskCompleted` (B1), worker crash senza risultato + stale detector che marca FAILED senza chiudere l'attempt, race condition su `dispatchReadyItems` concorrenti. | HIGH | `DispatchAttemptRepository.java:18-19` (query single-result), `OrchestrationService.java:206` (chiama `findOpenAttempt`), `OrchestrationService.java:342-364` (`retryFailedItem` non chiude attempt precedente) | **Fix immediato ✅ applicato**: `ORDER BY a.attemptNumber DESC LIMIT 1` nella query — restituisce solo l'attempt piu' recente anche con multipli aperti. **Fix strutturale** (futuro): (1) `closeOrphanedAttempts(itemId)` bulk update in `retryFailedItem` prima del nuovo dispatch; (2) `onTaskCompleted` difensivo — chiudere TUTTI gli attempt aperti (`findByItemIdAndCompletedAtIsNull` + loop) con log warning se >1. |
+| B19 ✅ | **DispatchAttempt orfani — non-unique result** — risolto con fix immediato (`ORDER BY attemptNumber DESC LIMIT 1`) + fix strutturale (`closeOrphanedAttempts(itemId)` in `retryFailedItem`). | HIGH | `DispatchAttemptRepository.java`, `OrchestrationService.java` | Risolto S12. |
 
 ## B17 Livello 2 — Design dettagliato: CompactingToolCallingManager
 
@@ -650,7 +644,7 @@ I nomi dei tool attraversano tre livelli di enforcement, TUTTI devono usare gli 
 
 ---
 
-## #20 — Decisione modello LLM per task (planner)
+## #20 ✅ — Decisione modello LLM per task (planner) → [PIANO_HISTORY.md]
 
 **Problema**: il modello LLM e' fissato a build-time nel manifest del worker (`.agent.yml` → `spec.model.name`).
 Il planner non puo' scegliere il modello per task in base alla complessita'.
@@ -687,28 +681,7 @@ Flag `messaging.redis.topic-per-type: true/false` per backward compatibility.
 
 ---
 
-## #22 — Orchestrator singleton (leader election)
-
-**Problema**: nulla impedisce 2 istanze dell'orchestratore. Con Redis consumer groups, un secondo
-orchestratore consuma risultati in parallelo causando conflitti sugli state transitions (race condition
-sull'item, sovrascritture, dispatch doppio).
-
-**Soluzione**: leader election via Redis lock per garantire che una sola istanza dell'orchestratore
-sia attiva. Pattern: `SET orchestrator:leader {id} NX PX 30000` + refresh periodico.
-
-**Design**:
-- `LeaderElectionService` — Redis-based, `@Scheduled` heartbeat (es. ogni 10s, TTL 30s)
-- L'istanza non-leader rimane in standby: non consuma messaggi, non dispatcha
-- Al crash del leader: TTL scade, lo standby diventa leader (failover ~30s)
-- Soft-reboot: il leader rilascia il lock → lo standby prende il controllo → zero downtime
-
-**Beneficio soft-reboot**: l'orchestratore puo' essere riavviato senza perdere messaggi in-flight
-(consumer group Redis mantiene i pending, la nuova istanza li reclama con S8-H).
-
-**File**: `LeaderElectionService.java` (NEW), `AgentResultConsumer.java` (condizionale su leader),
-`AgentTaskProducer.java` (condizionale), `application.yml` (config)
-
-**Sforzo**: 1.5g. **Dipendenze**: S8-H (consumer group resilience).
+## #22 ✅ — Orchestrator singleton (leader election) → [PIANO_HISTORY.md]
 
 ---
 
@@ -784,7 +757,7 @@ if (costEstimator.exceedsThreshold(item)) {
 
 ## #27 ✅ — Centralizzazione nomi tool (ToolNames registry) → [PIANO_HISTORY.md]
 
-## #28 — Monitoring Dashboard UI (real-time)
+## #28 — Monitoring Dashboard UI (real-time) ✅ → S14
 
 **Problema**: l'orchestratore espone 17 endpoint REST + SSE events, ma non ha nessun frontend.
 L'utente non ha visibilita' su cosa sta succedendo durante l'esecuzione se non leggendo i log.
@@ -3694,7 +3667,7 @@ Quadro completo di cosa il framework traccia (decisioni, errori, modifiche, stor
 
 ## 5 gap di observability
 
-### G1 — Conversation history (❌ mancante)
+### G1 — Conversation history (✅ → S14)
 
 **Problema**: i turni LLM non vengono salvati — solo il risultato finale (`PlanItem.result`).
 Impossibile fare debug post-mortem ("perche' il worker ha letto file X prima di Y?"), impossibile fare session resume (P4).
@@ -3710,7 +3683,7 @@ Per retention: truncare a N turni (es. ultimi 50) se la conversazione e' troppo 
 
 ### G2 — Decision reasoning (✅ → S13 PIANO_HISTORY.md)
 
-### G3 — File modification tracking (❌ mancante)
+### G3 — File modification tracking (✅ → S14)
 
 **Problema**: quando un worker chiama `fs_write`, il tool audit logga "fs_write, SUCCESS, 150ms" — ma non **quale file**, non **cosa ha scritto**, non il **diff**.
 Non c'e' rollback granulare, non c'e' review delle modifiche pre-merge.
@@ -3732,7 +3705,7 @@ calcola hash del file. Opzionale: `git diff <file>` per il diffPreview.
 
 **Sforzo**: 1.5g. **Pattern collegati**: P28 (worktrees), P13 (dangerous command detection), P15 (reversibility).
 
-### G4 — Prometheus/Micrometer metrics (❌ mancante)
+### G4 — Prometheus/Micrometer metrics (✅ → S12)
 
 **Problema**: zero metriche applicative esposte. Il monitoring stack del server (Prometheus + Grafana) non ha visibilita' sul framework.
 L'unica fonte sono i log strutturati — che richiedono parsing e non supportano alerting nativo.
@@ -3757,7 +3730,7 @@ Endpoint: `/actuator/prometheus` → scrape da Prometheus esistente → dashboar
 
 ### G5 — Persistent audit (✅ → S13 PIANO_HISTORY.md)
 
-### G6 — MCP Server audit logging (❌ mancante)
+### G6 — Worker event pipeline (✅ → S14)
 
 **Problema**: il server MCP (`simoge-mcp`, ~548 tool) esegue le tool call ma **non logga in modo strutturato
 chi ha chiamato cosa e quando**. Le informazioni si perdono:
@@ -3827,12 +3800,12 @@ li legge e li aggrega con gli eventi del framework (PlanEvent + ToolAudit) per u
 
 | Gap | Sforzo | Priorita' | Dipendenze |
 |-----|--------|-----------|------------|
-| G1 Conversation history | 1g | ALTA | — |
+| G1 Conversation history ✅ S14 | 1g | ALTA | — |
 | G2 Decision reasoning | ✅ S13 | — | — |
-| G3 File modification tracking | 1.5g | ALTA | — |
-| G4 Prometheus metrics | 0.5g | ALTA | actuator+micrometer deps |
+| G3 File modification tracking ✅ S14 | 1.5g | ALTA | — |
+| G4 Prometheus metrics | ✅ S12 | — | — |
 | G5 Persistent audit | ✅ S13 | — | — |
-| G6 MCP server audit logging | 1g | ALTA | header propagation nel worker SDK |
+| G6 Worker event pipeline ✅ S14 | 1g | ALTA | header propagation nel worker SDK |
 | **Totale** | **5g** | | |
 
 ---
