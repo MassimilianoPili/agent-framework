@@ -6,7 +6,7 @@ LABEL description="SDK Scaffold Worker"
 
 WORKDIR /app
 
-COPY target/sdk-scaffold-worker-*.jar app.jar
+COPY target/sdk-scaffold-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

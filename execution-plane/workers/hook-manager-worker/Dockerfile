@@ -6,7 +6,7 @@ LABEL description="Hook Manager Worker"
 
 WORKDIR /app
 
-COPY target/hook-manager-worker-*.jar app.jar
+COPY target/hook-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

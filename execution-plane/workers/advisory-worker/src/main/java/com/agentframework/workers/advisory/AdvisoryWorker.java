@@ -1,22 +1,17 @@
 package com.agentframework.workers.advisory;
 
-import com.agentframework.worker.AbstractWorker;
-import com.agentframework.worker.ToolAllowlist;
-import com.agentframework.worker.WorkerExecutionException;
+import com.agentframework.worker.LlmWorker;
+import com.agentframework.worker.WorkerMetadata;
 import com.agentframework.worker.claude.WorkerChatClientFactory;
-import com.agentframework.worker.context.AgentContext;
 import com.agentframework.worker.context.AgentContextBuilder;
 import com.agentframework.worker.dto.AgentTask;
 import com.agentframework.worker.interceptor.WorkerInterceptor;
 import com.agentframework.worker.messaging.WorkerResultProducer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Advisory Worker — handles {@code MANAGER} and {@code SPECIALIST} task types.
@@ -44,16 +39,16 @@ import java.util.Map;
  * topic/subscription, so a single worker application handles all advisory roles.</p>
  */
 @Component
-public class AdvisoryWorker extends AbstractWorker {
+@WorkerMetadata(
+    workerType = "MANAGER",
+    systemPromptFile = "prompts/council/managers/be-manager.agent.md",
+    toolAllowlist = {"Glob", "Grep", "Read"}
+)
+public class AdvisoryWorker extends LlmWorker {
 
     private static final Logger log = LoggerFactory.getLogger(AdvisoryWorker.class);
 
-    /**
-     * Strict read-only tool allowlist. Advisory workers MUST NOT write or execute.
-     */
-    private static final List<String> READ_ONLY_TOOLS = List.of("Glob", "Grep", "Read");
-
-    private static final String INSTRUCTIONS = """
+    private static final String ADVISORY_INSTRUCTIONS = """
             You are a domain advisory expert. Your role is to provide structured, actionable
             guidance based on your area of expertise and a thorough read-only exploration of
             the codebase.
@@ -70,6 +65,13 @@ public class AdvisoryWorker extends AbstractWorker {
             apiDesignGuidelines, insights). Always include a "summary" field with a one-sentence
             overview of your most critical recommendation.""";
 
+    private static final String ADVISORY_RESULT_SCHEMA = """
+            {
+              "summary": "...",
+              "insights": ["..."],
+              "recommendations": ["..."]
+            }""";
+
     public AdvisoryWorker(AgentContextBuilder contextBuilder,
                           WorkerChatClientFactory chatClientFactory,
                           WorkerResultProducer resultProducer,
@@ -77,25 +79,14 @@ public class AdvisoryWorker extends AbstractWorker {
         super(contextBuilder, chatClientFactory, resultProducer, interceptors);
     }
 
-    /**
-     * Advisory workers handle both MANAGER and SPECIALIST types.
-     * The messaging subscription for this worker covers the "agent-advisory" topic.
-     * The actual type (MANAGER or SPECIALIST) is in the message property but
-     * both route here — workerType() serves as the primary subscription key.
-     */
     @Override
-    public String workerType() {
-        return "MANAGER";
+    protected String instructions() {
+        return ADVISORY_INSTRUCTIONS;
     }
 
-    /**
-     * Default system prompt — used only as a fallback if resolveSystemPromptFile() is somehow
-     * not overridden or the profile cannot be resolved. In practice, the advisory worker
-     * always resolves the profile-specific file via resolveSystemPromptFile().
-     */
     @Override
-    protected String systemPromptFile() {
-        return "prompts/council/managers/be-manager.agent.md";
+    protected String resultSchema() {
+        return ADVISORY_RESULT_SCHEMA;
     }
 
     /**
@@ -116,44 +107,6 @@ public class AdvisoryWorker extends AbstractWorker {
         log.debug("[{}] Routing advisory task {} (profile={}) to prompt: {}",
                   task.workerType(), task.taskKey(), profile, path);
         return path;
-    }
-
-    /**
-     * Read-only tool allowlist: Glob, Grep, Read only — no write access.
-     */
-    @Override
-    protected ToolAllowlist toolAllowlist() {
-        return new ToolAllowlist.Explicit(READ_ONLY_TOOLS);
-    }
-
-    @Override
-    protected String execute(AgentContext context, ChatClient chatClient)
-            throws WorkerExecutionException {
-
-        String userPrompt = buildStandardUserPrompt(context, INSTRUCTIONS);
-        log.info("[ADVISORY] Executing task '{}' with {} dependency result(s)",
-                 context.taskKey(), context.dependencyResults().size());
-
-        try {
-            ChatResponse chatResponse = chatClient.prompt()
-                .system(context.systemPrompt())
-                .user(userPrompt)
-                .call()
-                .chatResponse();
-
-            String response = chatResponse.getResult().getOutput().getText();
-            if (chatResponse.getMetadata() != null && chatResponse.getMetadata().getUsage() != null) {
-                recordTokenUsage(chatResponse.getMetadata().getUsage());
-            }
-
-            log.info("[ADVISORY] Task '{}' completed, response length: {} chars",
-                     context.taskKey(), response != null ? response.length() : 0);
-            return response;
-
-        } catch (Exception e) {
-            throw new WorkerExecutionException(
-                "Advisory worker execution failed for task " + context.taskKey(), e);
-        }
     }
 
     /**

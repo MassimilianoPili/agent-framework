@@ -6,7 +6,7 @@ LABEL description="Research Manager Worker"
 
 WORKDIR /app
 
-COPY target/research-manager-worker-*.jar app.jar
+COPY target/research-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

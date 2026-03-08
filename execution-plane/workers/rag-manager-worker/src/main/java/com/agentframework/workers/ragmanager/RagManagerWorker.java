@@ -6,8 +6,8 @@ import com.agentframework.rag.model.SearchFilters;
 import com.agentframework.rag.model.SearchResult;
 import com.agentframework.rag.search.RagSearchService;
 import com.agentframework.worker.AbstractWorker;
-import com.agentframework.worker.ToolAllowlist;
 import com.agentframework.worker.WorkerExecutionException;
+import com.agentframework.worker.WorkerMetadata;
 import com.agentframework.worker.claude.WorkerChatClientFactory;
 import com.agentframework.worker.context.AgentContext;
 import com.agentframework.worker.context.AgentContextBuilder;
@@ -39,6 +39,10 @@ import java.util.stream.Collectors;
  * alongside CONTEXT_MANAGER before domain workers execute.</p>
  */
 @Component
+@WorkerMetadata(
+    workerType = "RAG_MANAGER",
+    systemPromptFile = "prompts/rag-manager.agent.md"
+)
 public class RagManagerWorker extends AbstractWorker {
 
     private static final Logger log = LoggerFactory.getLogger(RagManagerWorker.class);
@@ -59,24 +63,6 @@ public class RagManagerWorker extends AbstractWorker {
         this.ragSearchService = ragSearchService;
         this.graphRagService = graphRagService;
         this.objectMapper = objectMapper;
-    }
-
-    @Override
-    public String workerType() {
-        return "RAG_MANAGER";
-    }
-
-    @Override
-    protected String systemPromptFile() {
-        return "prompts/rag-manager.agent.md";
-    }
-
-    /**
-     * RAG_MANAGER does not use any MCP tools — all work is done programmatically.
-     */
-    @Override
-    protected ToolAllowlist toolAllowlist() {
-        return new ToolAllowlist.Explicit(List.of());
     }
 
     /**

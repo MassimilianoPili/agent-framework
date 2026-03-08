@@ -6,7 +6,7 @@ LABEL description="AI Task Worker"
 
 WORKDIR /app
 
-COPY target/ai-task-worker-*.jar app.jar
+COPY target/ai-task-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

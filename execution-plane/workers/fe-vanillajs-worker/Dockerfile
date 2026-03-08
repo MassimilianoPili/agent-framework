@@ -6,7 +6,7 @@ LABEL description="Frontend Vanilla JS Worker"
 
 WORKDIR /app
 
-COPY target/fe-vanillajs-worker-*.jar app.jar
+COPY target/fe-vanillajs-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

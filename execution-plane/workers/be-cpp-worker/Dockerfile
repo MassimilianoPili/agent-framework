@@ -6,7 +6,7 @@ LABEL description="Backend C++ Worker"
 
 WORKDIR /app
 
-COPY target/be-cpp-worker-*.jar app.jar
+COPY target/be-cpp-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

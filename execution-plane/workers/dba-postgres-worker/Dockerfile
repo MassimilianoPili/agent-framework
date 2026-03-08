@@ -6,7 +6,7 @@ LABEL description="DBA PostgreSQL Worker"
 
 WORKDIR /app
 
-COPY target/dba-postgres-worker-*.jar app.jar
+COPY target/dba-postgres-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

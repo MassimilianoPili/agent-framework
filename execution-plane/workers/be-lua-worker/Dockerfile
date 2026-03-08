@@ -6,7 +6,7 @@ LABEL description="Backend Lua Worker"
 
 WORKDIR /app
 
-COPY target/be-lua-worker-*.jar app.jar
+COPY target/be-lua-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

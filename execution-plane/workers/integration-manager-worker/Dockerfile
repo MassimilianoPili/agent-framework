@@ -6,7 +6,7 @@ LABEL description="Integration Manager Worker"
 
 WORKDIR /app
 
-COPY target/integration-manager-worker-*.jar app.jar
+COPY target/integration-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

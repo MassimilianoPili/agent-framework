@@ -6,7 +6,7 @@ LABEL description="Frontend Next.js Worker"
 
 WORKDIR /app
 
-COPY target/fe-nextjs-worker-*.jar app.jar
+COPY target/fe-nextjs-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

@@ -3,6 +3,19 @@
 
 workers:
 
+  advisory-worker:
+    displayName: Advisory Worker (MANAGER + SPECIALIST)
+    topic: agent-advisory
+    subscription: advisory-worker-sub
+    image: agent-framework/advisory-worker:latest
+    description: >-
+      Read-only advisory worker for MANAGER and SPECIALIST task types. Provides domain expertise without write access — Glob, Grep, and Read tools only. Produces structured domain knowledge (architectural decisions, security constraints, data-modeling guidelines, test strategies) that flows to downstream implementation workers via dependency results.
+    mcpAllowlist:
+      - Glob
+      - Grep
+      - Read
+    maxConcurrentCalls: 3
+
   ai-task-worker:
     displayName: AI Task Worker
     topic: agent-tasks

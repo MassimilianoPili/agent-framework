@@ -6,7 +6,7 @@ LABEL description="Backend Laravel Worker (PHP)"
 
 WORKDIR /app
 
-COPY target/be-laravel-worker-*.jar app.jar
+COPY target/be-laravel-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

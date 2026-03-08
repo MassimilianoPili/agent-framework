@@ -6,7 +6,7 @@ LABEL description="DBA MongoDB Worker"
 
 WORKDIR /app
 
-COPY target/dba-mongo-worker-*.jar app.jar
+COPY target/dba-mongo-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

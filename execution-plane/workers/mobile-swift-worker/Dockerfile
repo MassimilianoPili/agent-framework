@@ -6,7 +6,7 @@ LABEL description="Mobile iOS (Swift) Worker"
 
 WORKDIR /app
 
-COPY target/mobile-swift-worker-*.jar app.jar
+COPY target/mobile-swift-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

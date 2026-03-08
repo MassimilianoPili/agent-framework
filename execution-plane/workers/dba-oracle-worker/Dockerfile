@@ -6,7 +6,7 @@ LABEL description="DBA Oracle Worker"
 
 WORKDIR /app
 
-COPY target/dba-oracle-worker-*.jar app.jar
+COPY target/dba-oracle-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

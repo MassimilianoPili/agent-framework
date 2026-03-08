@@ -86,10 +86,12 @@ public class InProcessMessageBroker {
             return;
         }
 
-        RegisteredHandler chosen = findHandler(candidates, envelope.properties().get("workerType"));
+        String workerType = envelope.properties().get("workerType");
+        String workerProfile = envelope.properties().get("workerProfile");
+        RegisteredHandler chosen = findHandler(candidates, workerType, workerProfile);
         if (chosen == null) {
-            log.warn("InProcess: no matching handler for workerType='{}' destination='{}'",
-                    envelope.properties().get("workerType"), envelope.destination());
+            log.warn("InProcess: no matching handler for workerType='{}' workerProfile='{}' destination='{}'",
+                    workerType, workerProfile, envelope.destination());
             return;
         }
 
@@ -152,17 +154,42 @@ public class InProcessMessageBroker {
     // ------------------------------------------------------------------ internal
 
     /**
-     * Find the best handler for the given workerType.
-     * Matches by checking if the group name contains the workerType string.
-     * Falls back to the first registered handler if no specific match is found.
+     * Find the best handler for the given workerType and workerProfile.
+     *
+     * <p>Matching priority:
+     * <ol>
+     *   <li>Exact match: group starts with "{type}-{profile}-" (e.g. "BE-be-java-worker-group")</li>
+     *   <li>Type-only match: group starts with "{type}-" (first handler of the matching type)</li>
+     *   <li>Fallback: first registered handler for the destination</li>
+     * </ol>
+     *
+     * <p>In consolidated JVM mode, each worker registers with group
+     * "{workerType}-{workerProfile}-worker-group". The handler's internal
+     * {@code shouldProcess()} provides an additional safety check.
      */
-    private RegisteredHandler findHandler(List<RegisteredHandler> candidates, String workerType) {
+    private RegisteredHandler findHandler(List<RegisteredHandler> candidates,
+                                          String workerType, String workerProfile) {
         if (workerType != null && !workerType.isBlank()) {
-            return candidates.stream()
-                    .filter(h -> h.group().contains(workerType))
-                    .findFirst()
-                    .orElseGet(() -> candidates.isEmpty() ? null : candidates.get(0));
+            // 1. Try exact match: type + profile
+            if (workerProfile != null && !workerProfile.isBlank()) {
+                String exactPrefix = workerType + "-" + workerProfile + "-";
+                var exact = candidates.stream()
+                        .filter(h -> h.group().startsWith(exactPrefix))
+                        .findFirst();
+                if (exact.isPresent()) {
+                    return exact.get();
+                }
+            }
+            // 2. Fallback: type-only match (first handler of that type)
+            String typePrefix = workerType + "-";
+            var typeMatch = candidates.stream()
+                    .filter(h -> h.group().startsWith(typePrefix))
+                    .findFirst();
+            if (typeMatch.isPresent()) {
+                return typeMatch.get();
+            }
         }
+        // 3. Last resort: first handler
         return candidates.isEmpty() ? null : candidates.get(0);
     }
 

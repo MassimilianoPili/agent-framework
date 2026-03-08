@@ -6,7 +6,7 @@ LABEL description="Frontend Angular Worker"
 
 WORKDIR /app
 
-COPY target/fe-angular-worker-*.jar app.jar
+COPY target/fe-angular-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

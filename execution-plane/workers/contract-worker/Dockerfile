@@ -6,7 +6,7 @@ LABEL description="Contract Worker"
 
 WORKDIR /app
 
-COPY target/contract-worker-*.jar app.jar
+COPY target/contract-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

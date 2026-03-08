@@ -6,7 +6,7 @@ LABEL description="Backend Node.js Worker"
 
 WORKDIR /app
 
-COPY target/be-node-worker-*.jar app.jar
+COPY target/be-node-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

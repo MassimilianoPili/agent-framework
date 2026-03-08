@@ -6,7 +6,7 @@ LABEL description="DBA MySQL/MariaDB Worker"
 
 WORKDIR /app
 
-COPY target/dba-mysql-worker-*.jar app.jar
+COPY target/dba-mysql-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

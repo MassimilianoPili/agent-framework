@@ -6,7 +6,7 @@ LABEL description="Task Manager Worker"
 
 WORKDIR /app
 
-COPY target/task-manager-worker-*.jar app.jar
+COPY target/task-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

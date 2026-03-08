@@ -6,7 +6,7 @@ LABEL description="Backend Kotlin Worker (Spring Boot)"
 
 WORKDIR /app
 
-COPY target/be-kotlin-worker-*.jar app.jar
+COPY target/be-kotlin-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

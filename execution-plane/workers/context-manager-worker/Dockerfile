@@ -6,7 +6,7 @@ LABEL description="Context Manager Worker"
 
 WORKDIR /app
 
-COPY target/context-manager-worker-*.jar app.jar
+COPY target/context-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

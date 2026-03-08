@@ -6,7 +6,7 @@ LABEL description="DBA SQLite/libSQL Worker"
 
 WORKDIR /app
 
-COPY target/dba-sqlite-worker-*.jar app.jar
+COPY target/dba-sqlite-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

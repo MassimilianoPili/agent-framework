@@ -6,7 +6,7 @@ LABEL description="Backend Rust Worker"
 
 WORKDIR /app
 
-COPY target/be-rust-worker-*.jar app.jar
+COPY target/be-rust-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

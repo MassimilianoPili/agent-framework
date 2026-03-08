@@ -199,6 +199,9 @@ public class WorkerGenerator {
         }
         ctx.put("ownsPathEntries", ownsPathEntries);
 
+        // Flag for pom.xml.mustache: only emit <dependencies> if tool deps or MCP servers exist
+        ctx.put("hasWorkerDependencies", !toolDependencies.isEmpty() || (mcpRegistry != null && !spec.getTools().getMcpServers().isEmpty()));
+
         // --- MCP client configuration (for application-mcp.yml profile) ---
         buildMcpContext(spec, ctx);
 
