@@ -646,24 +646,7 @@ I nomi dei tool attraversano tre livelli di enforcement, TUTTI devono usare gli 
 
 # Roadmap items #19-#26
 
-## #19 ✅ — Retry manuale via DB `TO_DISPATCH`
-
-**Implementato**: 2026-03-07.
-
-Stato `TO_DISPATCH` nella state machine. Dispatch diretto senza dependency resolution (operator override).
-Transizioni: `FAILED/DONE → TO_DISPATCH → DISPATCHED`. Riapertura automatica plan se COMPLETED/FAILED/PAUSED.
-
-**Componenti**:
-- `ItemStatus.TO_DISPATCH` — stato + transizioni in `FAILED`, `DONE`
-- `OrchestrationService.redispatchItem()` — dispatch diretto (bypass dep resolution, risk gate, Bayesian)
-- `PlanController: POST /{id}/items/{itemId}/redispatch` — endpoint REST (202 Accepted)
-- `RedispatchPollerService` — safety-net poller @Scheduled 10s (crash recovery, DB-level retry)
-- `RedispatchTransactionService` — tx isolation REQUIRES_NEW per poller
-- `PlanItemRepository.findByStatusWithPlan()` — query per poller
-
-**Test**: `ItemStatusTest` (13), `RedispatchPollerServiceTest` (3), `OrchestrationServiceTest` (+7 redispatch).
-
-**Sforzo**: 1g. **Dipendenze**: S8.
+## #19 ✅ — Retry manuale via DB `TO_DISPATCH` → [PIANO_HISTORY.md]
 
 ---
 
@@ -729,66 +712,11 @@ sia attiva. Pattern: `SET orchestrator:leader {id} NX PX 30000` + refresh period
 
 ---
 
-## #23 — Enrichment Pipeline Activation (CRITICO)
-
-**Problema**: l'intera pipeline di enrichment (CONTEXT_MANAGER → RAG_MANAGER → vectorDB/graphDB)
-e' **costruita ma non collegata**. Il planner non genera mai task di enrichment perche':
-
-1. **`plan_tasks.prompt.md` (riga 17-31)** elenca solo 5 tipi standard (CONTRACT, BE, FE, AI_TASK, REVIEW)
-   e 3 advisory (COUNCIL_MANAGER, MANAGER, SPECIALIST). **CONTEXT_MANAGER, RAG_MANAGER, SCHEMA_MANAGER,
-   TASK_MANAGER, HOOK_MANAGER, AUDIT_MANAGER, EVENT_MANAGER non sono menzionati.**
-2. **Nessuna auto-injection** — `PlannerService.decompose()` e `OrchestrationService.createAndStart()`
-   non iniettano automaticamente task di enrichment prima del dispatch.
-3. **RAG_MANAGER orfano** — il worker Java e' completo (`RagManagerWorker.java`), ma
-   **`agents/manifests/rag-manager.agent.yml` non esiste**. Idem per hook-manager, audit-manager.
-4. **Solo reattivo** — l'unico meccanismo e' `missing_context` (worker dice "mi manca contesto"
-   → CM creato on-the-fly in `handleMissingContext()`, riga 804-838). E' un fallback, non una strategia.
-
-**Conseguenza**: tutto il lavoro RAG (S1-S3: vectorDB, graphDB, hybrid search, reranking, ingestion,
-graph services — 100+ test, 3 sessioni complete) e' inutilizzato in produzione.
-
-**Soluzione**: approccio a 2 livelli.
-
-**Livello 1 — Planner-aware (minimo)**: aggiornare `plan_tasks.prompt.md` per includere i manager types.
-Il planner generera' CM e RAG_MANAGER come dipendenze dei domain worker quando serve.
-
-```markdown
-## Enrichment Worker Types (Pre-requisiti — usare come dipendenze dei domain worker)
-
-| Type | Quando usarlo |
-|------|---------------|
-| CONTEXT_MANAGER | Sempre come primo task: esplora codebase, produce file rilevanti |
-| RAG_MANAGER | Per codebase grandi: ricerca semantica su vectorDB + graphDB |
-| SCHEMA_MANAGER | Per task che toccano API/DTO: estrae interfacce e contratti |
-| TASK_MANAGER | Con issue tracker: recupera issue snapshot + branch target |
-```
-
-**Livello 2 — Auto-injection (robusto)**: l'orchestratore inietta automaticamente task di enrichment
-prima del primo dispatch. Configurabile per piano:
-
-```java
-// In OrchestrationService, dopo planner.decompose():
-if (enrichmentProperties.autoInjectEnabled()) {
-    enrichmentInjector.inject(plan);  // Aggiunge CM → RAG_MANAGER → domain workers
-}
-```
-
-**Design auto-injection**:
-- `EnrichmentInjectorService` (NEW) — analizza il piano e aggiunge task manager come dipendenze
-- Configurabile: `enrichment.auto-inject: true`, `enrichment.include-rag: true`, `enrichment.include-schema: true`
-- Il DAG risultante: `CM-001 → RAG-001 → [BE-001, FE-001, ...]` (CM e RAG come antenati comuni)
-- Ogni domain worker riceve i risultati via `dependencyResults` (meccanismo esistente)
-
-**File da creare**: `rag-manager.agent.yml` (manifest mancante), `EnrichmentInjectorService.java` (NEW)
-**File da modificare**: `plan_tasks.prompt.md` (aggiungere enrichment types), `OrchestrationService.java`
-(chiamare injector dopo decompose), `application.yml` (config enrichment)
-
-**Sforzo**: 2g (Livello 1: 0.5g, Livello 2: 1.5g). **Dipendenze**: nessuna.
-**Impatto**: **Molto alto** — sblocca tutto il lavoro RAG/vectorDB/graphDB delle sessioni S1-S3.
+## #23 ✅ — Enrichment Pipeline Activation → [PIANO_HISTORY.md]
 
 ---
 
-## #24 — Tool configurabili dal planner + TOOL_MANAGER
+## #24 — Tool configurabili (L1 toolHints ✅ / L2 TOOL_MANAGER ❌)
 
 **Problema**: i worker domain (BE, FE, AI_TASK) partono con **0 tools abilitati** perche':
 1. Il HOOK_MANAGER (che genera HookPolicy con `allowedTools`) non viene mai eseguito (pipeline enrichment disconnessa, vedi #23)
@@ -796,38 +724,7 @@ if (enrichmentProperties.autoInjectEnabled()) {
 3. Il fallback statico (`config/generated/hooks-config.json`) potrebbe non essere configurato
 4. Risultato: il worker puo' solo generare testo (chiamata LLM pura), non interagire col filesystem
 
-**Soluzione a 2 livelli**:
-
-**Livello 1 — Planner specifica `toolHints` per task**:
-Il planner, conoscendo la natura del task, indica quali tool servono nel piano generato.
-
-```json
-{
-  "taskKey": "BE-001",
-  "workerType": "BE",
-  "title": "Implement REST controller",
-  "toolHints": ["fs_read", "fs_write", "fs_search", "fs_list", "bash_execute"],
-  "modelHint": "claude-sonnet-4-6"
-}
-```
-
-**ATTENZIONE (vedi B13)**: i `toolHints` devono usare i **nomi MCP reali**, NON i nomi Claude Code.
-La tabella di riferimento:
-
-| Capacita' | Tool MCP | Fonte |
-|-----------|----------|-------|
-| Leggi file | `fs_read` | mcp-fs-tools (esistente) |
-| Scrivi file | `fs_write` | mcp-fs-tools (esistente) |
-| Cerca file | `fs_search` | mcp-fs-tools (esistente) |
-| Lista directory | `fs_list` | mcp-fs-tools (esistente) |
-| Esegui shell | `bash_execute` | **mcp-bash-tool** (da creare, vedi #25) |
-| Esegui Python | `python_execute` | **mcp-python-tool** (da creare, vedi #25) |
-
-- `PlanItem.toolHints` — nuovo campo (lista nullable, nomi MCP reali)
-- `PlanSchema` — nuovo campo opzionale `toolHints` per task
-- `AgentTask.toolHints` — propagato al worker via Redis
-- `WorkerChatClientFactory.create()` — se `toolHints` presente, usa come allowlist override
-- `planner.agent.md` — linee guida con nomi MCP reali
+**Soluzione a 2 livelli**: L1 (toolHints da planner) ✅ implementato. Da fare: L2.
 
 **Livello 2 — TOOL_MANAGER come enrichment worker**:
 Worker dedicato che analizza il task + codebase e genera una `HookPolicy` precisa (come HOOK_MANAGER,
@@ -844,86 +741,16 @@ ma per singolo task, non per l'intero piano).
 
 ---
 
-## #25 — mcp-bash-tool + mcp-python-tool (nuove librerie MCP)
-
-**Problema**: i worker domain non hanno modo di eseguire comandi shell o script Python.
-Le librerie MCP esistenti coprono filesystem (`mcp-fs-tools`), Docker, database, DevOps, ma
-**non c'e' nessun tool per esecuzione di codice**. Senza questi, un worker non puo':
-- Compilare/buildare il progetto (`mvn`, `npm`, `gradle`)
-- Eseguire test
-- Lanciare script di migrazione
-- Eseguire data processing/ML tasks
-
-**Soluzione**: due nuove librerie MCP Spring Boot, seguendo lo stesso pattern delle esistenti
-(`@ReactiveTool` + `ReactiveToolAutoConfiguration`).
-
-**mcp-bash-tool** (`io.github.massimilianopili:mcp-bash-tool`):
-
-| Tool | Descrizione |
-|------|-------------|
-| `bash_execute` | Esegue un comando shell con timeout, working directory, env vars |
-
-- Sandboxing: working directory configurabile, timeout (default 60s), env vars whitelist
-- Output: stdout + stderr + exit code (troncato a N chars per non esplodere il contesto LLM)
-- Sicurezza: lista comandi bloccati configurabile (`rm -rf /`, `shutdown`, etc.)
-- Pattern: `ProcessBuilder` con redirect stderr → stdout, `waitFor(timeout)`
-- `@ConditionalOnProperty(prefix = "mcp.bash", name = "enabled", havingValue = "true")`
-
-**mcp-python-tool** (`io.github.massimilianopili:mcp-python-tool`):
-
-| Tool | Descrizione |
-|------|-------------|
-| `python_execute` | Esegue uno script Python con timeout e virtualenv opzionale |
-
-- Sandboxing: virtualenv path configurabile, timeout, working directory
-- Output: stdout + stderr + exit code
-- Sicurezza: flag per abilitare/disabilitare `pip install` a runtime
-- Pattern: `ProcessBuilder` con `python3 -c <script>` o `python3 <file>`
-- `@ConditionalOnProperty(prefix = "mcp.python", name = "enabled", havingValue = "true")`
-
-**Struttura progetto** (uguale alle altre librerie MCP):
-
-```
-mcp-bash-tool/
-├── pom.xml             # parent mcp-parent, Java 21
-├── src/main/java/com/agentframework/mcp/bash/
-│   ├── BashTool.java                  # @ReactiveTool
-│   ├── BashToolAutoConfiguration.java # @AutoConfiguration
-│   └── BashToolProperties.java        # @ConfigurationProperties
-└── src/test/java/...
-
-mcp-python-tool/
-├── pom.xml
-├── src/main/java/com/agentframework/mcp/python/
-│   ├── PythonTool.java
-│   ├── PythonToolAutoConfiguration.java
-│   └── PythonToolProperties.java
-└── src/test/java/...
-```
-
-**Sforzo**: 1.5g (0.75g per tool). **Dipendenze**: nessuna (standalone).
-**Impatto**: **Alto** — senza questi tool, i worker possono solo leggere/scrivere file ma non compilare, testare, o eseguire.
+## #25 ✅ — mcp-bash-tool + mcp-python-tool → [PIANO_HISTORY.md]
 
 ---
 
-## #26 — Cost tracking per task + auto-split task costosi
+## #26 — Cost tracking + auto-split (L1 ✅ / L2 ❌)
 
-**Problema**: il costo (token input/output) di un task non viene tracciato in modo strutturato.
-Task molto costosi (es. generazione di un intero modulo con molte classi) consumano budget
-senza possibilita' di controllo granulare. Non c'e' un meccanismo per spezzare automaticamente
-task troppo grandi.
+**Problema**: task molto costosi consumano budget senza possibilita' di controllo granulare.
+Non c'e' un meccanismo per spezzare automaticamente task troppo grandi.
 
-**Soluzione a 2 livelli**:
-
-**Livello 1 — Cost tracking per task**:
-Tracciare token utilizzati (input + output) e costo stimato per ogni task completato.
-
-- `PlanItem.tokenUsage` — nuovo campo: `{ inputTokens, outputTokens, estimatedCostUsd }` (JSON)
-- `AgentResult.tokenUsage` — il worker riporta l'uso token nel risultato
-- `WorkerTaskConsumer` — dopo chiamata LLM, popola `tokenUsage` da `ChatResponse.getMetadata()`
-- `OrchestrationService.onTaskCompleted()` — salva `tokenUsage` nell'item
-- Dashboard/API: `GET /api/v1/plans/{id}/cost` — costo totale piano, breakdown per task
-- Log strutturato: `log.info("Task {} completed: {}in/{}out tokens, ~${}",...)`
+**Soluzione a 2 livelli**: L1 (cost tracking per task) ✅ implementato. Da fare: L2.
 
 **Livello 2 — Auto-split per task costosi** (threshold configurabile):
 Se un task supera una soglia configurabile di token stimati (via GP prediction o euristica),
@@ -955,36 +782,7 @@ if (costEstimator.exceedsThreshold(item)) {
 
 ---
 
-## #27 — Centralizzazione nomi tool (ToolNames registry)
-
-**Problema**: i nomi dei tool MCP sono sparsi in 6+ file con 3 convenzioni diverse (Claude Code names,
-MCP names, misto). Questo ha causato B13, B14, B16 — e continuera' a causare bug ogni volta che si
-aggiunge un tool o si modifica la policy.
-
-**Soluzione**: classe `ToolNames` nel modulo `worker-sdk` come unica source of truth.
-Costanti per i 5 tool filesystem (`fs_list`, `fs_read`, `fs_write`, `fs_search`, `fs_grep`),
-categorie (`WRITE_TOOLS`, `READ_TOOLS`, `ALL_FS_TOOLS`, `READONLY_FS_TOOLS`) e metodi helper.
-
-**Scope**: ToolNames centralizza solo i tool usati nelle **policy di enforcement** (livelli 1-3).
-I ~548 tool di dominio (`azure_*`, `devops_*`, `ocp_*`, etc.) sono gestiti esclusivamente
-dal manifest allowlist — non servono costanti perche' non partecipano all'enforcement path/write.
-
-**Design dettagliato**: vedi S8-L nel piano Session 8.
-
-**Consumatori** (6 file da aggiornare):
-1. `HookPolicyResolver.java` — usa `ToolNames.ALL_FS_TOOLS` / `ToolNames.READONLY_FS_TOOLS`
-2. `PolicyProperties.java` — default da `ToolNames.WRITE_TOOLS`
-3. `PathOwnershipEnforcer.java` — `ToolNames.isWriteTool()` / `ToolNames.isReadTool()`
-4. `hook-manager.agent.yml` — schema con nomi MCP reali (tutti e 5 fs_*)
-5. `application.yml.mustache` — rimuovere hardcoded, delegare a PolicyProperties
-6. Worker generati — gia' corretti, ma refactorizzare per usare `ToolNames.ALL_FS_TOOLS`
-
-**Estensibilita' futura** (#25): quando arrivano `mcp-bash-tool` e `mcp-python-tool`,
-basta aggiungere `BASH_EXECUTE` e `PYTHON_EXECUTE` in `ToolNames` — tutti i consumatori
-ereditano automaticamente. I tool di dominio (`db_query`, `docker_*`, etc.) restano fuori
-dal registry perche' non hanno enforcement path ownership.
-
-**Sforzo**: 0.5g. **Dipendenze**: nessuna (prerequisito per B13, B14, B16 fix definitivo).
+## #27 ✅ — Centralizzazione nomi tool (ToolNames registry) → [PIANO_HISTORY.md]
 
 ## #28 — Monitoring Dashboard UI (real-time)
 
@@ -3912,17 +3710,6 @@ Per retention: truncare a N turni (es. ultimi 50) se la conversazione e' troppo 
 
 ### G2 — Decision reasoning (✅ → S13 PIANO_HISTORY.md)
 
-**Problema**: nessun chain-of-thought salvato. Il Provenance ha `toolsUsed` (cosa) ma non `reasoning` (perche').
-Il GP Engine (#11) non ha accesso al reasoning del worker per calcolare reward piu' precisi.
-
-**Impatto**: MEDIO — utile per audit e miglioramento GP, non bloccante.
-
-**Design proposto**: campo `Provenance.reasoning` (TEXT, max 2000 char).
-L'`AbstractWorker` estrae il primo blocco di testo dalla prima risposta LLM (prima del primo tool call) — questo e' tipicamente il "piano d'azione" del worker.
-Salvato automaticamente, nessun costo aggiuntivo di token.
-
-**Sforzo**: 0.5g. **Pattern collegati**: P24 (insight blocks).
-
 ### G3 — File modification tracking (❌ mancante)
 
 **Problema**: quando un worker chiama `fs_write`, il tool audit logga "fs_write, SUCCESS, 150ms" — ma non **quale file**, non **cosa ha scritto**, non il **diff**.
@@ -3969,25 +3756,6 @@ Endpoint: `/actuator/prometheus` → scrape da Prometheus esistente → dashboar
 **Sforzo**: 0.5g. **Pattern collegati**: monitoring stack server SOL (Prometheus + Grafana gia' operativi).
 
 ### G5 — Persistent audit (✅ → S13 PIANO_HISTORY.md)
-
-**Problema**: `AuditManagerService` usa `CopyOnWriteArrayList` in-memory (max 10k eventi).
-Al restart del servizio, tutti gli audit event sono persi. Con ring-buffer, gli eventi piu' vecchi vengono eliminati.
-
-**Impatto**: MEDIO — gli eventi critici sono gia' su `PlanEvent` (DB). Ma i tool audit dettagliati (con input preview, violations) vanno persi.
-
-**Design proposto**: migrare `AuditManagerService` da in-memory a PostgreSQL.
-`AuditEvent` entity (NEW):
-```
-id (UUID)
-taskKey (VARCHAR, nullable)
-eventType (VARCHAR — TOOL_CALL, POLICY_VIOLATION, TASK_LIFECYCLE)
-payload (JSONB)
-occurredAt (TIMESTAMP)
-```
-Retention: cron job cancella eventi > 30 giorni. Indice su `(taskKey, occurredAt)`.
-Il REST endpoint `/audit/events` legge da DB invece che da lista in-memory.
-
-**Sforzo**: 0.5g. **Pattern collegati**: Event Sourcing (#1) — estensione naturale.
 
 ### G6 — MCP Server audit logging (❌ mancante)
 
