@@ -122,6 +122,30 @@ For every TypeScript/TSX file produced by FE agents, check:
 - **Dependency consistency**: `pom.xml` / `package.json` changes are consistent (no unnecessary dependencies, no version conflicts).
 - **Configuration**: Application config (`application.yml`, `.env.example`) is present and documented for any new configuration properties.
 
+### Step 7b -- Artifact functional integrity
+Every artifact MUST be functional and usable as-is. The principle: **an artifact that cannot compile, load, or execute in its target runtime is worse than no artifact at all.** Verify each type:
+
+**General (all artifact types):**
+- Files are in the correct location for their type and runtime.
+- File names follow the conventions required by the target platform (see below). Wrong names can break builds silently.
+- No placeholder or stub content left in production files (e.g. `TODO: implement`, empty method bodies, `throw NotImplementedException()`).
+- No files accidentally placed in directories that forbid their type (e.g. documentation in resource directories).
+
+**Platform-specific naming rules:**
+| Platform | Directory | Rule | Example violation |
+|----------|-----------|------|-------------------|
+| Android | `res/**` | Filenames: `[a-z0-9_]+\.[ext]` only. NO uppercase, NO hyphens, NO spaces. | `README.md`, `MyIcon.png`, `feature-flag.xml` |
+| Java/Kotlin classpath | `src/main/resources/**` | Avoid uppercase in property keys; resource file names may use mixed case but not in platform-constrained dirs. | |
+| Spring Boot | `application*.yml` | Must be valid YAML; `${VAR}` placeholders must have defaults or be documented as required env vars. | `port: ${PORT}` with no default |
+| Python | packages | `__init__.py` required in package dirs; module names must be valid Python identifiers. | `my-module.py` |
+| npm/JS | `package.json` | `"main"` must point to an existing file; all `"scripts"` must reference valid commands. | |
+
+**Specific checks:**
+- For every file in `files_created`/`files_modified`: read the file and verify it is syntactically valid for its language/format (Kotlin, Python, YAML, JSON, XML, etc.).
+- For Android artifacts: scan every path containing `/res/` — any filename with uppercase or hyphens is an **automatic FAIL** (Gate Rule 11).
+- For backend artifacts: verify the class/function signature matches what the contract (OpenAPI) or tests expect. A class that exists but has wrong method signatures is a functional failure.
+- For config files: verify all required environment variables are documented (in `.env.example` or equivalent).
+
 ### Step 8 -- Run full test suite
 - Use `Bash: mvn test` or `Bash: npm test` (via Bash, read-only observation) to verify the test suite passes.
 - Record the results in the metrics.
@@ -192,6 +216,7 @@ The review agent MUST set `passed: false` if ANY of these conditions are met:
 | 8 | **Three or more WARN findings** | Automatic FAIL. Accumulated warnings indicate systemic quality issues. |
 | 9 | **Specification not met** | Automatic FAIL. A functional requirement from the spec is not implemented by any artifact. |
 | 10 | **Build failure** | Automatic FAIL. The project does not compile or the test suite does not execute. |
+| 11 | **Non-functional artifact** | Automatic FAIL. Any produced file is syntactically invalid, placed in a wrong location that breaks the target runtime, or has a filename that violates platform naming rules (e.g. uppercase in Android `res/`, invalid Python identifier as module name, missing required config). An artifact that cannot be used is worse than no artifact. |
 
 The review agent MUST set `passed: true` only when ALL of the above gates pass AND there are no more than 2 WARN-level findings.
 

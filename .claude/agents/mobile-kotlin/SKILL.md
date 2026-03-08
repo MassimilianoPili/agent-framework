@@ -393,6 +393,8 @@ Verify Retrofit interfaces and data classes match the OpenAPI spec.
 | 6 | **Test coverage >= 80%** | Unit tests for all ViewModel methods |
 | 7 | **Material Design 3** | Use Material 3 components and theming |
 | 8 | **Version catalog** | All dependencies in `libs.versions.toml` |
+| 9 | **Android resource naming** | ALL files inside any `res/` subdirectory MUST have names matching `[a-z0-9_]+\.[ext]`. NO uppercase, NO hyphens, NO spaces. NEVER create documentation files (README.md, CHANGELOG.md, .gitignore) inside `res/`. The Android resource compiler (`aapt2`) rejects any filename with uppercase or hyphens and FAILS the build. |
+| 10 | **Artifact usability** | Verify every created file compiles (valid Kotlin syntax, valid XML, valid YAML) and is in the correct location. Run `./gradlew assembleDebug` or `./gradlew testDebugUnitTest` — if the build fails, fix it before reporting success. |
 
 ---
 

@@ -472,6 +472,71 @@ cost:
       input-per-million: 0.80
       output-per-million: 4.0
 
+# Superrationality (Hofstadter) — cooperative equilibrium between worker types
+superrationality:
+  enabled: true
+  min-overlap: 2                  # min co-occurrences to compute cooperation gain
+
+# Functional Decision Theory / TDT (Yudkowsky) — timeless policy-based dispatch
+fdt:
+  enabled: true
+  similarity-threshold: 0.85     # cosine similarity threshold for similar tasks
+  min-similar-tasks: 3           # minimum similar tasks to recommend a profile
+
+# Minimum Description Length (Rissanen) — Occam's razor for plan complexity
+mdl:
+  enabled: true
+
+# H-Infinity Robust Control (Zhou-Doyle) — worst-case worker profile selection
+h-infinity:
+  enabled: true
+  confidence-level: 0.95         # tail probability for H∞ norm (95th percentile)
+
+# Edge of Chaos (Langton) — auto-tune exploration via Lyapunov proxy
+edge-of-chaos:
+  enabled: true
+  target-lyapunov: 0.0           # target Lyapunov exponent (0 = edge of chaos)
+  adaptation-rate: 0.01          # step size for exploration adjustment
+
+# Active Inference / Free Energy Principle (Friston) — variational dispatch
+active-inference:
+  enabled: true
+  kl-weight: 1.0                 # weight for KL divergence term (uncertainty penalty)
+
+# Information Bottleneck (Tishby) — embedding compression for dispatch similarity
+information-bottleneck:
+  enabled: true
+  compression-ratio: 0.125       # target dim / original dim (e.g. 1024 → 128)
+  beta: 1.0                      # trade-off: high β → more compression
+
+# Spin Glass / Simulated Annealing (Kirkpatrick) — task ordering optimisation
+spin-glass:
+  enabled: true
+  max-iterations: 10000          # SA iterations
+  cooling-rate: 0.95             # geometric cooling: T_i = T₀ × rate^i
+
+# Byzantine Fault Tolerance (Lamport-Shostak-Pease) — majority voting on retries
+bft:
+  enabled: true
+  majority-threshold: 0.67       # fraction of votes required for consensus (PBFT: 2/3)
+
+# Renormalization Group (Wilson) — multi-scale coupling analysis for plans
+renormalization-group:
+  enabled: true
+  max-scales: 3                  # number of coarsening levels (fine/medium/coarse)
+
+# Persistent Homology (Edelsbrunner) — topological structure of embedding space
+persistent-homology:
+  enabled: true
+  max-epsilon: 0.5               # maximum scale for Vietoris-Rips complex
+  epsilon-steps: 50              # number of ε steps in barcode computation
+
+# Functorial Semantics (Mac Lane) — category-theoretic compositionality of plans
+functorial-semantics:
+  enabled: true
+  compositionality-check: true
+  compositionality-threshold: 0.3   # L∞ error threshold to declare compositional
+
 logging:
   level:
     com.agentframework: INFO
