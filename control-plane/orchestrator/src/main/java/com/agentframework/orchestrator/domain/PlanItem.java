@@ -283,6 +283,17 @@ public class PlanItem {
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ── Content-Addressable Storage (#48) ───────────────────────────────────
+
+    /** SHA-256 hash linking to the artifact_store CAS table. Null for items without CAS. */
+    @Column(name = "result_hash", length = 64)
+    private String resultHash;
+
+    public String getResultHash() { return resultHash; }
+    public void setResultHash(String resultHash) { this.resultHash = resultHash; }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ── Cost tracking fields (#26L1) ────────────────────────────────────────
 
     /** Input tokens consumed by this task. Null if the worker did not report token usage. */

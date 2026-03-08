@@ -1,6 +1,7 @@
 package com.agentframework.orchestrator.orchestration;
 
 import com.agentframework.orchestrator.api.dto.PlanRequest;
+import com.agentframework.orchestrator.artifact.ArtifactStore;
 import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.domain.*;
@@ -30,6 +31,7 @@ import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.SuccessPrediction;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
 import com.agentframework.orchestrator.specification.*;
+import com.agentframework.orchestrator.workspace.WorkspaceManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,6 +98,8 @@ public class OrchestrationService {
     private final SerendipityService serendipityService;
     private final BayesianSuccessPredictorService bayesianPredictor;
     private final MarketMakingDispatcher marketMakingDispatcher;
+    private final ArtifactStore artifactStore;
+    private final WorkspaceManager workspaceManager;
     private final EnrichmentInjectorService enrichmentInjectorService;
     private final EnrichmentProperties enrichmentProperties;
 
@@ -119,6 +123,8 @@ public class OrchestrationService {
                                 Optional<SerendipityService> serendipityService,
                                 Optional<BayesianSuccessPredictorService> bayesianPredictor,
                                 Optional<MarketMakingDispatcher> marketMakingDispatcher,
+                                ArtifactStore artifactStore,
+                                WorkspaceManager workspaceManager,
                                 EnrichmentInjectorService enrichmentInjectorService,
                                 EnrichmentProperties enrichmentProperties) {
         this.planRepository = planRepository;
@@ -141,6 +147,8 @@ public class OrchestrationService {
         this.serendipityService = serendipityService.orElse(null);
         this.bayesianPredictor = bayesianPredictor.orElse(null);
         this.marketMakingDispatcher = marketMakingDispatcher.orElse(null);
+        this.artifactStore = artifactStore;
+        this.workspaceManager = workspaceManager;
         this.enrichmentInjectorService = enrichmentInjectorService;
         this.enrichmentProperties = enrichmentProperties;
         this.capabilitySpec = new CompositeSpec(
@@ -162,6 +170,14 @@ public class OrchestrationService {
 
         if (projectPath != null && !projectPath.isBlank()) {
             plan.setProjectPath(projectPath);
+        }
+
+        // Create plan-scoped workspace for shared file access (#44)
+        try {
+            String workspaceName = workspaceManager.createWorkspace(plan.getId());
+            plan.setWorkspaceVolume(workspaceName);
+        } catch (Exception e) {
+            log.warn("Failed to create workspace for plan {}: {}", plan.getId(), e.getMessage());
         }
 
         if (budget != null) {
@@ -254,6 +270,17 @@ public class OrchestrationService {
             item.transitionTo(ItemStatus.DONE);
             item.setResult(result.resultJson());
             item.setNextRetryAt(null);
+
+            // CAS: deduplicate result content via content-addressable storage (#48)
+            if (result.resultJson() != null && !result.resultJson().isBlank()) {
+                try {
+                    String hash = artifactStore.save(result.resultJson());
+                    item.setResultHash(hash);
+                } catch (Exception e) {
+                    log.warn("Failed to store artifact for {}: {}", result.taskKey(), e.getMessage());
+                }
+            }
+
             log.info("Task {} completed successfully (plan={}, profile={}, duration={}ms)",
                      result.taskKey(), result.planId(), item.getWorkerProfile(), result.durationMs());
         } else {
@@ -475,7 +502,8 @@ public class OrchestrationService {
             null,  // no hook policy override for operator-initiated redispatch
             plan.getCouncilReport(),
             buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile()),
-            item.getToolHints()
+            item.getToolHints(),
+            resolveWorkspacePath(plan)
         );
 
         try {
@@ -834,7 +862,8 @@ public class OrchestrationService {
                 policy,
                 plan.getCouncilReport(),  // inject pre-planning council context into every task
                 buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile()),
-                item.getToolHints()       // planner-suggested MCP tool allowlist (#24L1)
+                item.getToolHints(),      // planner-suggested MCP tool allowlist (#24L1)
+                resolveWorkspacePath(plan)
             );
 
             try {
@@ -984,6 +1013,13 @@ public class OrchestrationService {
         return entry.getOwnsPaths().stream()
                 .map(p -> base + p)
                 .toList();
+    }
+
+    /** Resolves the workspace path for task dispatch. Null if no workspace configured. */
+    private String resolveWorkspacePath(Plan plan) {
+        return plan.getWorkspaceVolume() != null
+                ? "/workspace/" + plan.getWorkspaceVolume()
+                : null;
     }
 
     /** Deserializes the plan's budget JSON back to a {@link PlanRequest.Budget} (null if absent/invalid). */
