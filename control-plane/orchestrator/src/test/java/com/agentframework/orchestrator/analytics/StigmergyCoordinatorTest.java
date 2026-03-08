@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
@@ -28,7 +29,7 @@ class StigmergyCoordinatorTest {
 
     private StigmergyCoordinator coordinator;
 
-    /** INITIAL_PHEROMONE constant from the service (package-private via reflection). */
+    /** INITIAL_PHEROMONE constant from the service. */
     private static final double INITIAL_PHEROMONE = 0.1;
 
     @BeforeEach
@@ -58,11 +59,11 @@ class StigmergyCoordinatorTest {
 
     @Test
     @DisplayName("positive reward deposits pheromone — τ > INITIAL after deposit+evaporation")
-    void analyse_positiveReward_pheromonIncreasesAboveInitial() {
+    void analyse_positiveReward_pheromoneIncreasesAboveInitial() {
         // be-java has reward=0.8 → deposit: τ = (0.1 + 1.0*0.8) * (1-0.1) = 0.81
-        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(List.of(
-                rewardRow("be-java", 0.8)
-        ));
+        List<Object[]> rows = new ArrayList<>();
+        rows.add(rewardRow("be-java", 0.8));
+        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(rows);
 
         StigmergyCoordinator.StigmergyReport report = coordinator.analyse();
 
@@ -75,9 +76,9 @@ class StigmergyCoordinatorTest {
     @Test
     @DisplayName("zero reward does NOT deposit pheromone — τ stays at INITIAL after evaporation")
     void analyse_zeroReward_noDeposit() {
-        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(List.of(
-                rewardRow("be-java", 0.0)
-        ));
+        List<Object[]> rows = new ArrayList<>();
+        rows.add(rewardRow("be-java", 0.0));
+        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(rows);
 
         StigmergyCoordinator.StigmergyReport report = coordinator.analyse();
 
@@ -93,10 +94,10 @@ class StigmergyCoordinatorTest {
     void analyse_twoWorkersSameTask_higherRewardRecommended() {
         // be-java: reward=0.9 → τ = (0.1 + 0.9) * 0.9 = 0.90
         // be-go:   reward=0.3 → τ = (0.1 + 0.3) * 0.9 = 0.36
-        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(List.of(
-                rewardRow("be-java", 0.9),
-                rewardRow("be-go",   0.3)
-        ));
+        List<Object[]> rows = new ArrayList<>();
+        rows.add(rewardRow("be-java", 0.9));
+        rows.add(rewardRow("be-go",   0.3));
+        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(rows);
 
         StigmergyCoordinator.StigmergyReport report = coordinator.analyse();
 
@@ -109,9 +110,9 @@ class StigmergyCoordinatorTest {
     @Test
     @DisplayName("evaporation rate is reflected in the report")
     void analyse_evaporationRate_matchesConfig() {
-        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(List.of(
-                rewardRow("fe-react", 0.7)
-        ));
+        List<Object[]> rows = new ArrayList<>();
+        rows.add(rewardRow("fe-react", 0.7));
+        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(rows);
 
         StigmergyCoordinator.StigmergyReport report = coordinator.analyse();
 
@@ -123,11 +124,11 @@ class StigmergyCoordinatorTest {
     @Test
     @DisplayName("single worker per task type → convergenceDetected = true (trivially)")
     void analyse_singleWorkerPerTask_convergenceTrue() {
-        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(List.of(
-                rewardRow("be-java",    0.8),
-                rewardRow("fe-react",   0.7),
-                rewardRow("dba-postgres", 0.9)
-        ));
+        List<Object[]> rows = new ArrayList<>();
+        rows.add(rewardRow("be-java",     0.8));
+        rows.add(rewardRow("fe-react",    0.7));
+        rows.add(rewardRow("dba-postgres", 0.9));
+        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(rows);
 
         StigmergyCoordinator.StigmergyReport report = coordinator.analyse();
 
@@ -139,12 +140,12 @@ class StigmergyCoordinatorTest {
     @DisplayName("two workers with very different τ → convergenceDetected = false")
     void analyse_twoWorkersHighVariance_convergenceFalse() {
         // be-java: high reward → high τ; be-go: zero reward → low τ → large deviation
-        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(List.of(
-                rewardRow("be-java", 1.0),
-                rewardRow("be-java", 1.0),
-                rewardRow("be-java", 1.0),
-                rewardRow("be-go",   0.0)
-        ));
+        List<Object[]> rows = new ArrayList<>();
+        rows.add(rewardRow("be-java", 1.0));
+        rows.add(rewardRow("be-java", 1.0));
+        rows.add(rewardRow("be-java", 1.0));
+        rows.add(rewardRow("be-go",   0.0));
+        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(rows);
 
         StigmergyCoordinator.StigmergyReport report = coordinator.analyse();
 
@@ -157,9 +158,9 @@ class StigmergyCoordinatorTest {
     @Test
     @DisplayName("topRoutes is non-empty and contains τ value")
     void analyse_topRoutes_containsTauSymbol() {
-        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(List.of(
-                rewardRow("be-java", 0.8)
-        ));
+        List<Object[]> rows = new ArrayList<>();
+        rows.add(rewardRow("be-java", 0.8));
+        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(rows);
 
         StigmergyCoordinator.StigmergyReport report = coordinator.analyse();
 

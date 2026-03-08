@@ -269,6 +269,18 @@ orchestrator:
     enabled: true
     ttl-ms: 30000         # Lock TTL in milliseconds
     refresh-ms: 10000     # Heartbeat interval in milliseconds
+  stale-detection:
+    default-timeout-minutes: 30   # Fallback for worker types not listed below
+    worker-timeouts:
+      AI_TASK: 120          # Complex code generation tasks — allow 2 h
+      ADVISORY: 90          # Council advisory sessions
+      REVIEW: 60            # Review analysis — moderately long
+      BE: 90                # Backend code workers
+      FE: 90                # Frontend code workers
+      CONTEXT_MANAGER: 15   # Fast file-based exploration
+      SCHEMA_MANAGER: 15    # Fast schema validation
+      HOOK_MANAGER: 10      # Deterministic policy evaluation
+      RAG_MANAGER: 20       # Semantic search (network + DB bound)
 
 # Council System — advisory pre-planning and in-plan council sessions
 # Set council.enabled=false for backward compatibility (plan executes without council)

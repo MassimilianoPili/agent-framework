@@ -66,7 +66,7 @@ class BayesianSurpriseServiceTest {
     @DisplayName("single reward near prior mean → EXPECTED category")
     void analyse_rewardNearMean_expected() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType(any(), anyInt()))
-                .thenReturn(List.of(row("be-java", 0.5)));
+                .thenReturn(List.<Object[]>of(row("be-java", 0.5)));
 
         BayesianSurpriseService.BayesianSurpriseReport report = service.analyse("be-java");
 
@@ -161,7 +161,7 @@ class BayesianSurpriseServiceTest {
     @DisplayName("report contains correct prior values")
     void analyse_reportHasCorrectPrior() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType(any(), anyInt()))
-                .thenReturn(List.of(row("be-java", 0.6)));
+                .thenReturn(List.<Object[]>of(row("be-java", 0.6)));
 
         BayesianSurpriseService.BayesianSurpriseReport report = service.analyse("be-java");
 

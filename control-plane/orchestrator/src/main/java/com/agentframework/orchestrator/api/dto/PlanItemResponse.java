@@ -53,7 +53,9 @@ public record PlanItemResponse(
     /** Last quality gate feedback received when the item was re-queued. Null if never looped. */
     String lastQualityGateFeedback,
     /** MCP tool names suggested by the planner for this task. Empty if no tools needed. */
-    List<String> toolHints
+    List<String> toolHints,
+    /** LLM model ID used for this task (e.g. "claude-haiku-4-5-20251001"). Null until task completes. */
+    String modelId
 ) {
 
     public static PlanItemResponse from(PlanItem item) {
@@ -79,7 +81,8 @@ public record PlanItemResponse(
             item.getEstimatedCostUsd(),
             item.getRalphLoopCount(),
             item.getLastQualityGateFeedback(),
-            item.getToolHints()
+            item.getToolHints(),
+            item.getModelId()
         );
     }
 }

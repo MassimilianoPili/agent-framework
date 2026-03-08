@@ -10,7 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,8 +64,11 @@ class ChandyLamportSnapshotterTest {
     @DisplayName("empty plan (no outcomes, no events) → consistent empty snapshot")
     void snapshot_emptyPlan_consistentEmpty() {
         UUID planId = UUID.randomUUID();
-        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(List.of());
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of());
+
+        List<Object[]> noOutcomes = new ArrayList<>();
+        List<PlanEvent> noEvents  = new ArrayList<>();
+        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(noOutcomes);
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(noEvents);
 
         ChandyLamportSnapshotter.SnapshotReport report = snapshotter.snapshot(planId);
 
@@ -88,14 +91,18 @@ class ChandyLamportSnapshotterTest {
         UUID item1  = UUID.randomUUID();
         UUID item2  = UUID.randomUUID();
 
-        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(
-                List.of(outcomeRow("task-1"), outcomeRow("task-2")));
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(item1, "TASK_DISPATCHED"),
-                event(item1, "TASK_COMPLETED"),
-                event(item2, "TASK_DISPATCHED"),
-                event(item2, "TASK_COMPLETED")
-        ));
+        List<Object[]> outcomes = new ArrayList<>();
+        outcomes.add(outcomeRow("task-1"));
+        outcomes.add(outcomeRow("task-2"));
+
+        List<PlanEvent> events = new ArrayList<>();
+        events.add(event(item1, "TASK_DISPATCHED"));
+        events.add(event(item1, "TASK_COMPLETED"));
+        events.add(event(item2, "TASK_DISPATCHED"));
+        events.add(event(item2, "TASK_COMPLETED"));
+
+        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(outcomes);
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(events);
 
         ChandyLamportSnapshotter.SnapshotReport report = snapshotter.snapshot(planId);
 
@@ -114,13 +121,16 @@ class ChandyLamportSnapshotterTest {
         UUID inFlight  = UUID.randomUUID();
         UUID completed = UUID.randomUUID();
 
-        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(
-                List.of(outcomeRow("task-completed")));
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(completed, "TASK_DISPATCHED"),
-                event(completed, "TASK_COMPLETED"),
-                event(inFlight,  "TASK_DISPATCHED")     // dispatched but no COMPLETED yet
-        ));
+        List<Object[]> outcomes = new ArrayList<>();
+        outcomes.add(outcomeRow("task-completed"));
+
+        List<PlanEvent> events = new ArrayList<>();
+        events.add(event(completed, "TASK_DISPATCHED"));
+        events.add(event(completed, "TASK_COMPLETED"));
+        events.add(event(inFlight,  "TASK_DISPATCHED"));   // dispatched but no COMPLETED yet
+
+        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(outcomes);
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(events);
 
         ChandyLamportSnapshotter.SnapshotReport report = snapshotter.snapshot(planId);
 
@@ -136,10 +146,12 @@ class ChandyLamportSnapshotterTest {
         UUID planId  = UUID.randomUUID();
         UUID orphan  = UUID.randomUUID();
 
-        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(List.of());
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(orphan, "TASK_COMPLETED")  // completed without prior dispatch
-        ));
+        List<Object[]> noOutcomes = new ArrayList<>();
+        List<PlanEvent> events    = new ArrayList<>();
+        events.add(event(orphan, "TASK_COMPLETED"));   // completed without prior dispatch
+
+        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(noOutcomes);
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(events);
 
         ChandyLamportSnapshotter.SnapshotReport report = snapshotter.snapshot(planId);
 
@@ -155,11 +167,13 @@ class ChandyLamportSnapshotterTest {
         UUID planId = UUID.randomUUID();
         UUID item   = UUID.randomUUID();
 
-        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(List.of());
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(item, "TASK_DISPATCHED"),
-                event(item, "TASK_FAILED")
-        ));
+        List<Object[]> noOutcomes = new ArrayList<>();
+        List<PlanEvent> events    = new ArrayList<>();
+        events.add(event(item, "TASK_DISPATCHED"));
+        events.add(event(item, "TASK_FAILED"));
+
+        when(taskOutcomeRepository.findOutcomesByPlanId(planId)).thenReturn(noOutcomes);
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(events);
 
         ChandyLamportSnapshotter.SnapshotReport report = snapshotter.snapshot(planId);
 

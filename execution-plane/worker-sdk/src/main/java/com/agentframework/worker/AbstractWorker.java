@@ -15,6 +15,7 @@ import org.springframework.ai.chat.metadata.Usage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.time.Instant;
 import java.util.List;
@@ -72,6 +73,10 @@ public abstract class AbstractWorker {
     private static Long toLong(Integer value) {
         return value != null ? value.longValue() : null;
     }
+
+    /** Default LLM model ID, injected from each worker's application.yml at startup. */
+    @Value("${spring.ai.anthropic.chat.options.model:claude-sonnet-4-6}")
+    private String defaultModelId;
 
     private final AgentContextBuilder contextBuilder;
     private final WorkerChatClientFactory chatClientFactory;
@@ -282,6 +287,8 @@ public abstract class AbstractWorker {
             String promptHashValue = HashUtil.sha256(context.systemPrompt());
             String skillsHashValue = HashUtil.sha256(context.skillsContent());
             Provenance.TokenUsage tokenUsage = TOKEN_USAGE.get();
+            String resolvedModel = (task.modelId() != null && !task.modelId().isBlank())
+                ? task.modelId() : defaultModelId;
 
             Provenance provenance = new Provenance(
                 workerType(), task.workerProfile(),
@@ -289,7 +296,7 @@ public abstract class AbstractWorker {
                 task.dispatchAttemptId() != null ? task.dispatchAttemptId().toString() : null,
                 task.dispatchedAt(), Instant.now().toString(),
                 task.traceId() != null ? task.traceId().toString() : null,
-                null,                                       // model: reserved for future use
+                resolvedModel,                              // actual LLM model used
                 toolsUsed.isEmpty() ? null : toolsUsed,
                 promptHashValue, skillsHashValue, tokenUsage,
                 REASONING.get()                             // first LLM reasoning text (null if not captured)
@@ -305,7 +312,7 @@ public abstract class AbstractWorker {
                 Instant.now().toEpochMilli() - startMs,
                 workerType(),           // provenance (flat, kept for backward compat)
                 task.workerProfile(),   // provenance (flat, kept for backward compat)
-                null,                   // modelId: reserved
+                resolvedModel,          // actual model used (haiku/sonnet/opus)
                 promptHashValue,
                 provenance,
                 tokenUsage != null ? tokenUsage.totalTokens() : null   // tokensUsed
@@ -329,6 +336,8 @@ public abstract class AbstractWorker {
 
             List<String> toolsUsed = PolicyEnforcingToolCallback.drainToolNames();
             String promptHashValue = context != null ? HashUtil.sha256(context.systemPrompt()) : null;
+            String resolvedModel = (task.modelId() != null && !task.modelId().isBlank())
+                ? task.modelId() : defaultModelId;
 
             Provenance provenance = new Provenance(
                 workerType(), task.workerProfile(),
@@ -336,7 +345,7 @@ public abstract class AbstractWorker {
                 task.dispatchAttemptId() != null ? task.dispatchAttemptId().toString() : null,
                 task.dispatchedAt(), Instant.now().toString(),
                 task.traceId() != null ? task.traceId().toString() : null,
-                null,                                       // model: reserved for future use
+                resolvedModel,                              // actual LLM model attempted
                 toolsUsed.isEmpty() ? null : toolsUsed,
                 promptHashValue, null, null,                // no skillsHash or tokenUsage on failure
                 null                                        // no reasoning captured on failure path
@@ -352,7 +361,7 @@ public abstract class AbstractWorker {
                 Instant.now().toEpochMilli() - startMs,
                 workerType(),           // provenance (flat, kept for backward compat)
                 task.workerProfile(),   // provenance (flat, kept for backward compat)
-                null,                   // modelId: reserved
+                resolvedModel,          // actual model attempted
                 null,
                 provenance,
                 null                    // tokensUsed: unavailable on failure

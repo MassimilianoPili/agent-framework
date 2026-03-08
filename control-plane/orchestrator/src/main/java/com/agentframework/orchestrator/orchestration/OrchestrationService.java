@@ -839,6 +839,35 @@ public class OrchestrationService {
     }
 
     /**
+     * Immediately kills a DISPATCHED or WAITING task by transitioning it to FAILED.
+     *
+     * <p>The running worker (if any) continues until natural completion, but its result is
+     * ignored by the idempotency guard in {@link #onTaskCompleted} (item already terminal).
+     * The normal retry flow applies: if attempts remain, the item will be re-queued;
+     * otherwise the plan transitions to PAUSED/FAILED as usual.</p>
+     *
+     * @throws IllegalStateException           if the item is not found
+     * @throws IllegalStateTransitionException if the item is not in DISPATCHED or WAITING status
+     */
+    @Transactional
+    public void killItem(UUID itemId) {
+        PlanItem item = planItemRepository.findById(itemId)
+                .orElseThrow(() -> new IllegalStateException("Unknown item: " + itemId));
+        if (item.getStatus() != ItemStatus.DISPATCHED && item.getStatus() != ItemStatus.WAITING) {
+            throw new IllegalStateTransitionException("PlanItem", item.getId(), item.getStatus(), ItemStatus.FAILED);
+        }
+        item.transitionTo(ItemStatus.FAILED);
+        item.setFailureReason("killed_by_operator");
+        item.setCompletedAt(Instant.now());
+        planItemRepository.save(item);
+        eventPublisher.publishEvent(SpringPlanEvent.forItemStatus(
+                item.getPlan().getId(), item.getId(), item.getTaskKey(),
+                item.getWorkerProfile(), "FAILED"));
+        log.info("Item {} killed by operator (plan={})", itemId, item.getPlan().getId());
+        checkPlanCompletion(item.getPlan().getId());
+    }
+
+    /**
      * Finds WAITING items with all dependencies satisfied and dispatches them.
      * Skips dispatch if this instance is not the current leader (multi-instance safety).
      */
