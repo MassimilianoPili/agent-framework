@@ -261,6 +261,15 @@ management:
     health:
       show-details: when-authorized
 
+# Orchestrator Leader Election — Redis-based distributed lock for multi-instance safety (#22)
+# When enabled, only the instance holding the lock dispatches tasks and consumes results.
+# Failover latency ≈ ttl-ms (default 30 s). refresh-ms must be < ttl-ms/3.
+orchestrator:
+  leader-election:
+    enabled: true
+    ttl-ms: 30000         # Lock TTL in milliseconds
+    refresh-ms: 10000     # Heartbeat interval in milliseconds
+
 # Council System — advisory pre-planning and in-plan council sessions
 # Set council.enabled=false for backward compatibility (plan executes without council)
 council:
@@ -576,6 +585,20 @@ queuing:
   enabled: true
   max-samples: 1000                 # max completion records per worker type
   target-wait-seconds: 30           # target mean queue wait for consumer sizing
+
+# Thompson Sampling (Bayesian exploration over worker-type reward posteriors)
+thompson-sampling:
+  enabled: true
+  max-samples-per-type: 200         # max reward observations per worker type
+
+# Compressed Sensing Retriever (OMP sparse recovery for RAG query optimisation)
+compressed-sensing:
+  enabled: true
+
+# Viable System Model Auditor (Beer VSM S1-S5 audit of framework architecture)
+vsm:
+  enabled: true
+  max-samples: 2000                 # max task_outcomes rows for variety analysis
 
 logging:
   level:
