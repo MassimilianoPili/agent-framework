@@ -85,6 +85,11 @@ public class JmsMessageListenerContainer implements MessageListenerContainer {
         }
     }
 
+    @Override
+    public boolean isRunning() {
+        return containers.stream().anyMatch(DefaultMessageListenerContainer::isRunning);
+    }
+
     /**
      * In session-transacted mode, the DMLC handles commit/rollback automatically:
      * - If the listener returns normally → session.commit()

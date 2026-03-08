@@ -73,4 +73,19 @@ public class PlanEventStore {
     public List<PlanEvent> findByPlanId(UUID planId) {
         return repository.findByPlanIdOrderBySequenceNumberAsc(planId);
     }
+
+    /**
+     * Returns events after {@code afterSeqNum} in sequence order.
+     *
+     * <p>Used for SSE resume: when a client reconnects with a {@code Last-Event-ID} header,
+     * only the missed events are replayed instead of the full history.</p>
+     *
+     * @param planId      the plan to query
+     * @param afterSeqNum exclusive lower bound (the last sequence number the client received)
+     */
+    @Transactional(readOnly = true)
+    public List<PlanEvent> findByPlanIdAfter(UUID planId, long afterSeqNum) {
+        return repository.findByPlanIdAndSequenceNumberGreaterThanOrderBySequenceNumberAsc(
+                planId, afterSeqNum);
+    }
 }

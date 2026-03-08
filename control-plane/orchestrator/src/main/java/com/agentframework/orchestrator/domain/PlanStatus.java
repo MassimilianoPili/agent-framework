@@ -7,10 +7,11 @@ import java.util.Set;
  *
  * <pre>
  * PENDING → RUNNING
- * RUNNING → COMPLETED, FAILED, PAUSED
- * PAUSED  → RUNNING  (resume — re-enters the dispatch loop)
+ * RUNNING → COMPLETED, FAILED, PAUSED, CANCELLED
+ * PAUSED  → RUNNING, CANCELLED
  * COMPLETED → RUNNING  (ralph-loop — quality gate triggers re-dispatch)
  * FAILED → RUNNING  (retry — reopens the plan)
+ * CANCELLED → (terminal — no further transitions)
  * </pre>
  */
 public enum PlanStatus {
@@ -22,12 +23,12 @@ public enum PlanStatus {
     },
     RUNNING {
         @Override public Set<PlanStatus> allowedTransitions() {
-            return Set.of(COMPLETED, FAILED, PAUSED);
+            return Set.of(COMPLETED, FAILED, PAUSED, CANCELLED);
         }
     },
     PAUSED {
         @Override public Set<PlanStatus> allowedTransitions() {
-            return Set.of(RUNNING);
+            return Set.of(RUNNING, CANCELLED);
         }
     },
     COMPLETED {
@@ -40,6 +41,12 @@ public enum PlanStatus {
     FAILED {
         @Override public Set<PlanStatus> allowedTransitions() {
             return Set.of(RUNNING);
+        }
+    },
+    /** Terminal state: plan was explicitly cancelled by the operator. No further transitions. */
+    CANCELLED {
+        @Override public Set<PlanStatus> allowedTransitions() {
+            return Set.of();
         }
     };
 

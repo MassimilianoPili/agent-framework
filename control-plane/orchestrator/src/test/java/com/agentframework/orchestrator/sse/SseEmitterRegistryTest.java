@@ -317,6 +317,6 @@ class SseEmitterRegistryTest {
     private static SpringPlanEvent planEvent(String eventType, UUID planId) {
         return new SpringPlanEvent(
                 eventType, planId, UUID.randomUUID(),
-                "BE-001", "be-java", true, 1500L, Instant.now());
+                "BE-001", "be-java", true, 1500L, Instant.now(), null);
     }
 }

@@ -70,5 +70,11 @@ public class ServiceBusListenerContainer implements MessageListenerContainer {
         log.info("Stopped {} Service Bus processor(s)", pendingSubscriptions.size());
     }
 
+    @Override
+    public boolean isRunning() {
+        // After stop(), processors.clear() is called — empty list means stopped
+        return !processors.isEmpty();
+    }
+
     private record SubscriptionInfo(String destination, String group, MessageHandler handler) {}
 }

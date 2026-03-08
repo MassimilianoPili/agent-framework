@@ -11,6 +11,7 @@ import com.agentframework.orchestrator.domain.*;
 import com.agentframework.orchestrator.eventsourcing.PlanEventStore;
 import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.orchestrator.messaging.AgentTaskProducer;
+import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.messaging.dto.AgentResult;
 import com.agentframework.orchestrator.planner.PlannerService;
 import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
@@ -62,6 +63,7 @@ class MissingContextPropagationTest {
     @Mock private EnrichmentInjectorService enrichmentInjectorService;
     @Mock private EnrichmentProperties enrichmentProperties;
     @Mock private ContextCacheService contextCacheService;
+    @Mock private OrchestratorMetrics metrics;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private OrchestrationService service;
@@ -79,6 +81,8 @@ class MissingContextPropagationTest {
                 artifactStore, workspaceManager,
                 enrichmentInjectorService, enrichmentProperties,
                 contextCacheService,
+                Optional.empty(),
+                metrics,
                 Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);

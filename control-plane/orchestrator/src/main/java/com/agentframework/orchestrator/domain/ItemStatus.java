@@ -7,13 +7,14 @@ import java.util.Set;
  *
  * <p>Transition graph:</p>
  * <pre>
- * WAITING            → DISPATCHED, FAILED, AWAITING_APPROVAL (high-risk tasks), DONE (operator skip)
- * AWAITING_APPROVAL  → WAITING (approved), FAILED (rejected / timeout)
+ * WAITING            → DISPATCHED, FAILED, AWAITING_APPROVAL (high-risk tasks), DONE (operator skip), CANCELLED
+ * AWAITING_APPROVAL  → WAITING (approved), FAILED (rejected / timeout), CANCELLED
  * DISPATCHED         → RUNNING, DONE, FAILED, WAITING (context retry loop)
  * RUNNING            → DONE, FAILED
  * DONE               → WAITING (ralph-loop), TO_DISPATCH (manual redispatch)
  * FAILED             → WAITING (auto-retry), TO_DISPATCH (manual redispatch)
  * TO_DISPATCH        → DISPATCHED (operator-initiated, bypasses dependency resolution)
+ * CANCELLED          → (terminal — operator cancelled the plan)
  * </pre>
  */
 public enum ItemStatus {
@@ -21,7 +22,7 @@ public enum ItemStatus {
     WAITING {
         @Override public Set<ItemStatus> allowedTransitions() {
             // DONE: operator skip (greenfield projects, irrelevant enrichment tasks)
-            return Set.of(DISPATCHED, FAILED, AWAITING_APPROVAL, DONE);
+            return Set.of(DISPATCHED, FAILED, AWAITING_APPROVAL, DONE, CANCELLED);
         }
     },
 
@@ -36,7 +37,7 @@ public enum ItemStatus {
      */
     AWAITING_APPROVAL {
         @Override public Set<ItemStatus> allowedTransitions() {
-            return Set.of(WAITING, FAILED);
+            return Set.of(WAITING, FAILED, CANCELLED);
         }
     },
 
@@ -77,6 +78,13 @@ public enum ItemStatus {
     TO_DISPATCH {
         @Override public Set<ItemStatus> allowedTransitions() {
             return Set.of(DISPATCHED);
+        }
+    },
+
+    /** Terminal state: item was cancelled because the plan was explicitly cancelled. */
+    CANCELLED {
+        @Override public Set<ItemStatus> allowedTransitions() {
+            return Set.of();
         }
     };
 

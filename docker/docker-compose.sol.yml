@@ -89,11 +89,13 @@ services:
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
     volumes:
       - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
       - /data/massimiliano/agent-framework/skills:/skills/skills:ro
       - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
       - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   fe-react-worker:
@@ -109,11 +111,13 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
     volumes:
       - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
       - /data/massimiliano/agent-framework/skills:/skills/skills:ro
       - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
       - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   contract-worker:
@@ -185,6 +189,29 @@ services:
     volumes: *skills-volumes
     restart: unless-stopped
 
+  rag-manager-worker:
+    build:
+      context: ../execution-plane/workers/rag-manager-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-rag-manager-worker
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Embeddings database (pgvector + Apache AGE)
+      # Richiede EMBEDDINGS_DB_PASSWORD in docker/sol.env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://agentfw-postgres:5432/embeddings
+      SPRING_DATASOURCE_USERNAME: embeddings
+      SPRING_DATASOURCE_PASSWORD: ${EMBEDDINGS_DB_PASSWORD}
+      OLLAMA_BASE_URL: http://ollama:11434
+      # Non richiede ANTHROPIC_API_KEY: worker programmatico (no LLM)
+    mem_limit: 512m
+    depends_on:
+      agentfw-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   # ── AI Task Worker ─────────────────────────────────────────────────────────
   ai-task-worker:
     build:
@@ -216,11 +243,13 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
     volumes:
       - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
       - /data/massimiliano/agent-framework/skills:/skills/skills:ro
       - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
       - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   # ── Ollama ─────────────────────────────────────────────────────────────────

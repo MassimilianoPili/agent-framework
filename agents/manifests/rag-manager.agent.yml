@@ -1,0 +1,61 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: rag-manager-worker
+  displayName: "RAG Manager Worker"
+  description: >
+    Programmatic worker (no LLM, no MCP tools) che recupera contesto semantico
+    da pgvector e Apache AGE per i domain worker downstream.
+    Esegue hybrid search (coseno + BM25 + RRF) e graph traversal.
+    Dipende da CONTEXT_MANAGER. Risultati disponibili via contextJson.
+
+spec:
+  workerType: RAG_MANAGER
+  topic: agent-tasks
+  subscription: rag-manager-worker-sub
+
+  # Programmatic worker: nessuna interazione LLM, nessun MCP tool.
+  # La validazione spec.tools.allowlist viene bypassata.
+  programmatic: true
+
+  model:
+    name: claude-sonnet-4-6   # non usato a runtime (programmatic: true)
+    maxTokens: 1024
+    temperature: 0.0
+
+  prompts:
+    systemPromptFile: execution-plane/workers/rag-manager-worker/src/main/resources/prompts/rag-manager.agent.md
+    instructions: >
+      Esecuzione interamente programmatica — nessuna chiamata LLM.
+      La logica e' in RagManagerWorker.java: hybrid search su pgvector (coseno + BM25 + RRF)
+      e graph traversal su Apache AGE. I risultati vengono serializzati in JSON e restituiti
+      come contextJson per i domain worker che dipendono da questo task.
+    resultSchema: |
+      {
+        "semantic_chunks": [
+          { "content": "...", "score": 0.95, "source": "path/to/file.java", "chunkIndex": 0 }
+        ],
+        "graph_insights": [
+          { "entity": "UserService", "relation": "IMPLEMENTS", "target": "IUserService" }
+        ],
+        "related_files": ["src/main/java/com/example/UserService.java"],
+        "search_metadata": {
+          "query": "...",
+          "chunks_found": 10,
+          "graph_nodes_traversed": 42,
+          "duration_ms": 150,
+          "embedding_model": "mxbai-embed-large"
+        }
+      }
+
+  tools:
+    allowlist: []   # programmatic: true — nessun MCP tool utilizzato
+
+  concurrency:
+    maxConcurrentCalls: 3
+
+  retry:
+    maxAttempts: 2
+    backoffMs: 3000
+    attemptsBeforePause: 2

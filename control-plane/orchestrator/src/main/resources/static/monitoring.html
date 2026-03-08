@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Framework — Monitoring</title>
+  <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    /* ── Reset & base ─────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #cdd6f4; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    a { color: #89b4fa; }
+
+    /* ── Header ──────────────────────────────────── */
+    header { background: #181825; border-bottom: 1px solid #313244; padding: 0.5rem 1rem; display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
+    header h1 { font-size: 1rem; color: #cba6f7; letter-spacing: 0.05em; }
+    #plan-input { background: #1e1e2e; border: 1px solid #313244; border-radius: 6px; color: #cdd6f4; padding: 0.35rem 0.6rem; font-size: 0.85rem; width: 320px; }
+    #plan-input::placeholder { color: #585b70; }
+    .btn { background: #313244; border: 1px solid #45475a; border-radius: 6px; color: #cdd6f4; cursor: pointer; font-size: 0.8rem; padding: 0.35rem 0.75rem; transition: background 0.15s; }
+    .btn:hover { background: #45475a; }
+    .btn-primary { background: #7f5af0; border-color: #7f5af0; color: #fff; }
+    .btn-primary:hover { background: #6d48e5; }
+    .btn-danger { background: #f38ba8; border-color: #f38ba8; color: #1e1e2e; }
+    .btn-danger:hover { background: #e87b98; }
+    #recent-plans { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .recent-chip { background: #181825; border: 1px solid #313244; border-radius: 4px; color: #89b4fa; cursor: pointer; font-size: 0.75rem; padding: 0.2rem 0.5rem; }
+    .recent-chip:hover { border-color: #89b4fa; }
+    #status-badge { margin-left: auto; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 10px; border: 1px solid #313244; background: #1e1e2e; }
+
+    /* ── Main grid ───────────────────────────────── */
+    main { flex: 1; display: grid; grid-template-columns: 1fr 340px; grid-template-rows: 1fr 1fr; overflow: hidden; gap: 1px; background: #313244; }
+    .panel { background: #1e1e2e; display: flex; flex-direction: column; overflow: hidden; }
+    .panel-header { background: #181825; padding: 0.4rem 0.75rem; font-size: 0.75rem; color: #a6adc8; text-transform: uppercase; letter-spacing: 0.07em; flex-shrink: 0; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid #313244; }
+    .panel-body { flex: 1; overflow: auto; padding: 0.75rem; }
+
+    /* ── DAG ─────────────────────────────────────── */
+    #dag-panel { grid-row: 1; grid-column: 1; }
+    #dag-container { width: 100%; height: 100%; display: flex; align-items: flex-start; justify-content: flex-start; overflow: auto; }
+    #dag-container svg { max-width: none !important; }
+    .dag-placeholder { color: #585b70; font-size: 0.85rem; padding: 2rem; }
+
+    /* ── Event stream ────────────────────────────── */
+    #events-panel { grid-row: 1; grid-column: 2; }
+    #event-feed { font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.25rem; overflow-y: auto; height: 100%; }
+    .event-row { padding: 0.25rem 0.4rem; border-radius: 4px; border-left: 3px solid #313244; background: #181825; word-break: break-all; }
+    .event-row:hover { background: #24243e; }
+    .badge { font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 3px; font-weight: 600; margin-right: 0.3rem; display: inline-block; }
+    .badge-PLAN_STARTED      { background:#a6e3a1; color:#1e1e2e; }
+    .badge-PLAN_COMPLETED    { background:#89b4fa; color:#1e1e2e; }
+    .badge-PLAN_CANCELLED    { background:#f38ba8; color:#1e1e2e; }
+    .badge-TASK_DISPATCHED   { background:#fab387; color:#1e1e2e; }
+    .badge-TASK_COMPLETED    { background:#a6e3a1; color:#1e1e2e; }
+    .badge-TASK_FAILED       { background:#f38ba8; color:#1e1e2e; }
+    .badge-ITEM_STATUS_CHANGED { background:#cba6f7; color:#1e1e2e; }
+    .badge-BUDGET_UPDATE     { background:#f9e2af; color:#1e1e2e; }
+    .badge-default           { background:#45475a; color:#cdd6f4; }
+    #filter-bar { display: flex; gap: 0.4rem; flex-wrap: wrap; padding: 0.4rem 0.75rem; border-bottom: 1px solid #313244; flex-shrink: 0; }
+    .filter-chip { font-size: 0.7rem; cursor: pointer; padding: 0.15rem 0.4rem; border-radius: 3px; border: 1px solid #313244; background: #181825; color: #a6adc8; user-select: none; }
+    .filter-chip.active { border-color: #89b4fa; color: #89b4fa; }
+    #events-panel .panel-body { padding: 0; }
+
+    /* ── Worker detail ───────────────────────────── */
+    #detail-panel { grid-row: 2; grid-column: 1; }
+    #detail-content { font-size: 0.8rem; }
+    #detail-content .field { margin-bottom: 0.3rem; }
+    #detail-content .label { color: #a6adc8; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    #detail-content .value { color: #cdd6f4; }
+    .attempt-row { background: #181825; border-radius: 4px; padding: 0.35rem 0.5rem; margin-top: 0.4rem; font-size: 0.75rem; display: flex; gap: 0.75rem; }
+    .attempt-row .att-status { font-weight: 600; min-width: 80px; }
+    .status-DONE, .status-COMPLETED { color: #a6e3a1; }
+    .status-FAILED, .status-CANCELLED { color: #f38ba8; }
+    .status-RUNNING, .status-DISPATCHED { color: #89b4fa; }
+    .status-WAITING { color: #fab387; }
+    .detail-placeholder { color: #585b70; font-size: 0.85rem; }
+
+    /* ── Stats ───────────────────────────────────── */
+    #stats-panel { grid-row: 2; grid-column: 2; }
+    .stat-block { margin-bottom: 0.8rem; }
+    .stat-label { color: #a6adc8; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.25rem; }
+    .progress-bar-wrap { background: #313244; border-radius: 4px; height: 8px; overflow: hidden; }
+    .progress-bar-fill { background: #a6e3a1; height: 100%; border-radius: 4px; transition: width 0.4s; }
+    .stat-value { font-size: 0.85rem; color: #cdd6f4; }
+    .budget-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: #cdd6f4; margin-bottom: 0.2rem; }
+    .elo-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+    .elo-table th { color: #a6adc8; text-align: left; padding: 0.2rem 0.3rem; border-bottom: 1px solid #313244; }
+    .elo-table td { padding: 0.2rem 0.3rem; color: #cdd6f4; }
+
+    /* ── Scrollbar ───────────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #181825; }
+    ::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header / plan selector ──────────────────────────── -->
+<header>
+  <h1>Agent Monitor</h1>
+  <input id="plan-input" type="text" placeholder="Plan UUID…" autocomplete="off" />
+  <button class="btn btn-primary" onclick="loadPlanFromInput()">Load</button>
+  <button class="btn btn-danger" id="btn-cancel" style="display:none" onclick="cancelCurrentPlan()">Cancel</button>
+  <div id="recent-plans"></div>
+  <span id="status-badge">—</span>
+</header>
+
+<main>
+  <!-- DAG -->
+  <div class="panel" id="dag-panel">
+    <div class="panel-header">
+      DAG Live
+      <span id="dag-status-text" style="color:#585b70;font-size:0.7rem;margin-left:auto">No plan loaded</span>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <div id="dag-container"><p class="dag-placeholder">Load a plan to see the live task graph.</p></div>
+    </div>
+  </div>
+
+  <!-- Event stream -->
+  <div class="panel" id="events-panel">
+    <div class="panel-header">Event Stream</div>
+    <div id="filter-bar"></div>
+    <div class="panel-body">
+      <div id="event-feed"></div>
+    </div>
+  </div>
+
+  <!-- Worker detail -->
+  <div class="panel" id="detail-panel">
+    <div class="panel-header">Worker Detail</div>
+    <div class="panel-body">
+      <div id="detail-content"><p class="detail-placeholder">Click a node in the DAG to see details.</p></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="panel" id="stats-panel">
+    <div class="panel-header">Stats</div>
+    <div class="panel-body">
+      <div id="stats-content">
+        <div class="stat-block">
+          <div class="stat-label">Progress</div>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-bar" style="width:0%"></div></div>
+          <div class="stat-value" id="prog-text">0 / 0</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Budget (tokens by worker type)</div>
+          <div id="budget-rows"></div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">ELO Top-5</div>
+          <table class="elo-table">
+            <thead><tr><th>Profile</th><th>ELO</th><th>Wins</th></tr></thead>
+            <tbody id="elo-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const API = '';   // same origin — relative paths
+const STATUS_COLORS = {
+  QUEUED: '#585b70', WAITING: '#f9e2af',
+  DISPATCHED: '#fab387', RUNNING: '#89b4fa',
+  COMPLETED: '#a6e3a1', DONE: '#a6e3a1',
+  FAILED: '#f38ba8', CANCELLED: '#6c7086'
+};
+const FILTER_TYPES = [
+  'PLAN_STARTED','TASK_DISPATCHED','TASK_COMPLETED','TASK_FAILED',
+  'ITEM_STATUS_CHANGED','BUDGET_UPDATE','PLAN_COMPLETED','PLAN_CANCELLED'
+];
+
+// ── State ────────────────────────────────────────────────────────────────────
+let currentPlanId = null;
+let eventSource = null;
+let itemMap = {};          // taskKey → { id, workerType, workerProfile, status }
+let statusMap = {};        // taskKey → current ItemStatus string
+let dagRerenderTimer = null;
+let autoScroll = true;
+let activeFilters = new Set(FILTER_TYPES);
+let budgetMap = {};        // workerType → { consumed, total }
+let statsInterval = null;
+let eloInterval = null;
+
+// ── Mermaid init ─────────────────────────────────────────────────────────────
+mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose',
+  themeVariables: { primaryColor: '#313244', primaryTextColor: '#cdd6f4',
+    primaryBorderColor: '#45475a', lineColor: '#a6adc8', edgeLabelBackground: '#1e1e2e' }
+});
+
+// ── Filter bar ───────────────────────────────────────────────────────────────
+(function initFilters() {
+  const bar = document.getElementById('filter-bar');
+  FILTER_TYPES.forEach(t => {
+    const chip = document.createElement('span');
+    chip.className = 'filter-chip active';
+    chip.textContent = t.replace(/_/g, ' ');
+    chip.dataset.type = t;
+    chip.addEventListener('click', () => {
+      if (activeFilters.has(t)) { activeFilters.delete(t); chip.classList.remove('active'); }
+      else { activeFilters.add(t); chip.classList.add('active'); }
+    });
+    bar.appendChild(chip);
+  });
+})();
+
+// ── Recent plans ─────────────────────────────────────────────────────────────
+async function loadRecentPlans() {
+  try {
+    const res = await fetch(`${API}/api/v1/plans?limit=8`);
+    if (!res.ok) return;
+    const plans = await res.json();
+    const container = document.getElementById('recent-plans');
+    container.innerHTML = '';
+    plans.forEach(p => {
+      const chip = document.createElement('span');
+      chip.className = 'recent-chip';
+      chip.title = p.id;
+      chip.textContent = p.id.substring(0, 8) + '…';
+      chip.addEventListener('click', () => loadPlan(p.id));
+      container.appendChild(chip);
+    });
+  } catch (e) { /* server not running */ }
+}
+
+// ── Plan loader ───────────────────────────────────────────────────────────────
+function loadPlanFromInput() {
+  const id = document.getElementById('plan-input').value.trim();
+  if (id) loadPlan(id);
+}
+
+document.getElementById('plan-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadPlanFromInput();
+});
+
+async function loadPlan(planId) {
+  currentPlanId = planId;
+  document.getElementById('plan-input').value = planId;
+  itemMap = {}; statusMap = {}; budgetMap = {};
+  document.getElementById('detail-content').innerHTML = '<p class="detail-placeholder">Click a node in the DAG to see details.</p>';
+  document.getElementById('event-feed').innerHTML = '';
+
+  // Stop existing SSE
+  if (eventSource) { eventSource.close(); eventSource = null; }
+  clearInterval(statsInterval); clearInterval(eloInterval);
+
+  // Load DAG + plan detail
+  await Promise.all([renderDag(planId), fetchPlanStats(planId)]);
+  startSse(planId);
+  statsInterval = setInterval(() => fetchPlanStats(planId), 5000);
+  eloInterval = setInterval(fetchElo, 30000);
+  fetchElo();
+  document.getElementById('btn-cancel').style.display = 'inline-block';
+}
+
+// ── DAG ───────────────────────────────────────────────────────────────────────
+async function renderDag(planId) {
+  const container = document.getElementById('dag-container');
+  const statusEl = document.getElementById('dag-status-text');
+  try {
+    const [mermaidRes, planRes] = await Promise.all([
+      fetch(`${API}/api/v1/plans/${planId}/graph?format=mermaid`),
+      fetch(`${API}/api/v1/plans/${planId}`)
+    ]);
+
+    if (!mermaidRes.ok || !planRes.ok) {
+      statusEl.textContent = 'Plan not found';
+      container.innerHTML = '<p class="dag-placeholder">Plan not found.</p>';
+      return;
+    }
+
+    const planData = await planRes.json();
+    statusEl.textContent = planData.status;
+    document.getElementById('status-badge').textContent = planData.status;
+
+    // Build itemMap from plan response
+    (planData.items || []).forEach(item => {
+      itemMap[item.taskKey] = item;
+      statusMap[item.taskKey] = item.status;
+    });
+
+    const mermaidText = await mermaidRes.text();
+    const styledText = applyStatusColors(mermaidText);
+    container.innerHTML = `<div id="mermaid-render"></div>`;
+    const { svg } = await mermaid.render('mermaid-graph', styledText);
+    container.innerHTML = svg;
+
+    // Attach click handlers to DAG nodes
+    attachDagClickHandlers();
+
+  } catch (e) {
+    statusEl.textContent = 'Error';
+    container.innerHTML = `<p class="dag-placeholder">Error loading DAG: ${e.message}</p>`;
+  }
+}
+
+function applyStatusColors(mermaidText) {
+  // Append classDef for each status, then mark nodes whose taskKey is in statusMap
+  let text = mermaidText;
+  const classDefs = Object.entries(STATUS_COLORS).map(([s, c]) =>
+    `  classDef st_${s} fill:${c},color:#1e1e2e,stroke:#313244`).join('\n');
+
+  // Add class assignments based on current statusMap
+  const classAssignments = Object.entries(statusMap).map(([taskKey, status]) => {
+    const nodeId = taskKey.replace(/-/g, '_');
+    return `  class ${nodeId} st_${status}`;
+  }).join('\n');
+
+  return text + '\n' + classDefs + '\n' + classAssignments;
+}
+
+function attachDagClickHandlers() {
+  const container = document.getElementById('dag-container');
+  // Mermaid nodes have g elements with id "flowchart-<nodeId>-N"
+  container.querySelectorAll('g[id^="flowchart-"]').forEach(g => {
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', () => {
+      // Extract nodeId from "flowchart-CM_001-0" → "CM_001" → "CM-001"
+      const parts = g.id.split('-');
+      if (parts.length < 2) return;
+      const rawKey = parts.slice(1, -1).join('-');
+      const taskKey = rawKey.replace(/_/g, '-');
+      const item = itemMap[taskKey];
+      if (item) showWorkerDetail(item);
+    });
+  });
+}
+
+function scheduleDagRerender(planId) {
+  if (dagRerenderTimer) return;
+  dagRerenderTimer = setTimeout(() => {
+    dagRerenderTimer = null;
+    renderDag(planId);
+  }, 2000);
+}
+
+// ── SSE ───────────────────────────────────────────────────────────────────────
+function startSse(planId) {
+  eventSource = new EventSource(`${API}/api/v1/plans/${planId}/events`);
+
+  eventSource.onmessage = (e) => {
+    let event;
+    try { event = JSON.parse(e.data); } catch { return; }
+    handleSseEvent(event, planId);
+  };
+
+  eventSource.onerror = () => {
+    if (eventSource.readyState === EventSource.CLOSED) {
+      document.getElementById('dag-status-text').textContent = 'Stream closed';
+    }
+  };
+}
+
+function handleSseEvent(event, planId) {
+  const type = event.eventType || event.type || '';
+
+  // Append to feed
+  if (activeFilters.has(type) || activeFilters.size === 0) {
+    appendEventRow(type, event);
+  }
+
+  // Update statusMap on item status changes
+  if (type === 'ITEM_STATUS_CHANGED' && event.taskKey && event.extraJson) {
+    try {
+      const payload = JSON.parse(event.extraJson);
+      if (payload.status) {
+        statusMap[event.taskKey] = payload.status;
+        scheduleDagRerender(planId);
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (type === 'TASK_DISPATCHED' || type === 'TASK_COMPLETED' || type === 'TASK_FAILED') {
+    scheduleDagRerender(planId);
+  }
+
+  // Budget updates
+  if (type === 'BUDGET_UPDATE' && event.extraJson) {
+    try {
+      const payload = JSON.parse(event.extraJson);
+      if (payload.workerType) {
+        budgetMap[payload.workerType] = { consumed: payload.consumed, total: payload.total };
+        renderBudget();
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Plan terminal events
+  if (type === 'PLAN_COMPLETED' || type === 'PLAN_CANCELLED') {
+    document.getElementById('dag-status-text').textContent = type === 'PLAN_COMPLETED' ? 'COMPLETED' : 'CANCELLED';
+    document.getElementById('status-badge').textContent = type === 'PLAN_COMPLETED' ? 'COMPLETED' : 'CANCELLED';
+    scheduleDagRerender(planId);
+  }
+}
+
+// ── Event feed ────────────────────────────────────────────────────────────────
+function appendEventRow(type, event) {
+  const feed = document.getElementById('event-feed');
+  const row = document.createElement('div');
+  row.className = 'event-row';
+
+  const badgeClass = `badge-${type}`;
+  const taskInfo = event.taskKey ? `<span style="color:#89b4fa">${event.taskKey}</span>` : '';
+  const extra = event.extraJson ? `<span style="color:#585b70"> ${event.extraJson.substring(0,80)}</span>` : '';
+
+  row.innerHTML = `<span class="badge ${badgeClass}">${type.replace(/_/g,' ')}</span>${taskInfo}${extra}`;
+  feed.prepend(row);
+
+  // Trim to 300 events
+  while (feed.children.length > 300) feed.removeChild(feed.lastChild);
+}
+
+// ── Worker detail ─────────────────────────────────────────────────────────────
+async function showWorkerDetail(item) {
+  const el = document.getElementById('detail-content');
+  const statusCls = `status-${item.status}`;
+  el.innerHTML = `
+    <div class="field"><div class="label">Task Key</div><div class="value">${item.taskKey}</div></div>
+    <div class="field"><div class="label">Worker Type</div><div class="value">${item.workerType}</div></div>
+    <div class="field"><div class="label">Worker Profile</div><div class="value">${item.workerProfile || '—'}</div></div>
+    <div class="field"><div class="label">Status</div><div class="value ${statusCls}">${item.status}</div></div>
+    <div class="field"><div class="label">Description</div><div class="value">${item.description || '—'}</div></div>
+    <div class="label" style="margin-top:0.5rem">Attempt History</div>
+    <div id="attempts-list"><em style="color:#585b70;font-size:0.75rem">Loading…</em></div>
+  `;
+
+  if (!currentPlanId || !item.id) return;
+  try {
+    const res = await fetch(`${API}/api/v1/plans/${currentPlanId}/items/${item.id}/attempts`);
+    const attempts = res.ok ? await res.json() : [];
+    const listEl = document.getElementById('attempts-list');
+    if (attempts.length === 0) {
+      listEl.innerHTML = '<em style="color:#585b70;font-size:0.75rem">No attempts yet.</em>';
+      return;
+    }
+    listEl.innerHTML = attempts.map(a => {
+      const dur = (a.durationMs != null) ? `${a.durationMs}ms` : '—';
+      const err = a.errorMessage ? `<div style="color:#f38ba8;word-break:break-all">${a.errorMessage.substring(0,120)}</div>` : '';
+      return `<div class="attempt-row">
+        <span class="att-status status-${a.status}">#${a.attemptNumber} ${a.status}</span>
+        <span>${a.dispatchedAt ? new Date(a.dispatchedAt).toLocaleTimeString() : '—'}</span>
+        <span>${dur}</span>
+      </div>${err}`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('attempts-list').innerHTML = `<em style="color:#f38ba8;font-size:0.75rem">Error: ${e.message}</em>`;
+  }
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+async function fetchPlanStats(planId) {
+  try {
+    const res = await fetch(`${API}/api/v1/plans/${planId}`);
+    if (!res.ok) return;
+    const plan = await res.json();
+    const items = plan.items || [];
+    const done = items.filter(i => ['DONE','COMPLETED','FAILED','CANCELLED'].includes(i.status)).length;
+    const total = items.length;
+    const pct = total > 0 ? Math.round(done / total * 100) : 0;
+    document.getElementById('prog-bar').style.width = pct + '%';
+    document.getElementById('prog-text').textContent = `${done} / ${total} (${pct}%)`;
+    document.getElementById('status-badge').textContent = plan.status;
+
+    // Update itemMap
+    items.forEach(item => {
+      itemMap[item.taskKey] = item;
+      statusMap[item.taskKey] = item.status;
+    });
+  } catch { /* ignore */ }
+}
+
+function renderBudget() {
+  const el = document.getElementById('budget-rows');
+  el.innerHTML = Object.entries(budgetMap).map(([wt, { consumed, total }]) => {
+    const pct = total > 0 ? Math.round(consumed / total * 100) : 0;
+    return `<div class="budget-row"><span>${wt}</span><span>${consumed.toLocaleString()} / ${total.toLocaleString()}</span></div>
+      <div class="progress-bar-wrap" style="margin-bottom:0.4rem">
+        <div class="progress-bar-fill" style="width:${pct}%;background:#cba6f7"></div>
+      </div>`;
+  }).join('') || '<span style="color:#585b70;font-size:0.75rem">No budget data yet.</span>';
+}
+
+async function fetchElo() {
+  try {
+    const res = await fetch(`${API}/api/v1/rewards/stats`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const profiles = (data.profiles || data).slice(0, 5);
+    const tbody = document.getElementById('elo-body');
+    tbody.innerHTML = profiles.map(p =>
+      `<tr><td>${p.workerProfile}</td><td>${Math.round(p.eloRating ?? p.elo ?? 0)}</td><td>${p.wins ?? 0}</td></tr>`
+    ).join('');
+  } catch { /* rewards API optional */ }
+}
+
+// ── Cancel plan ───────────────────────────────────────────────────────────────
+async function cancelCurrentPlan() {
+  if (!currentPlanId) return;
+  if (!confirm(`Cancel plan ${currentPlanId.substring(0,8)}…?`)) return;
+  try {
+    const res = await fetch(`${API}/api/v1/plans/${currentPlanId}/cancel`, { method: 'POST' });
+    if (res.ok || res.status === 204) {
+      document.getElementById('status-badge').textContent = 'CANCELLED';
+    } else {
+      const body = await res.json().catch(() => ({}));
+      alert('Cancel failed: ' + (body.error || res.status));
+    }
+  } catch (e) {
+    alert('Cancel error: ' + e.message);
+  }
+}
+
+// ── Hover scroll lock ─────────────────────────────────────────────────────────
+const feedEl = document.getElementById('event-feed');
+feedEl.addEventListener('mouseenter', () => { autoScroll = false; });
+feedEl.addEventListener('mouseleave', () => { autoScroll = true; });
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadRecentPlans();
+</script>
+</body>
+</html>

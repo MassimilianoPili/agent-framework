@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.common.policy.CompensationMode;
 import com.agentframework.common.policy.HookPolicy;
 import com.agentframework.common.policy.RiskLevel;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
@@ -18,6 +19,7 @@ import com.agentframework.orchestrator.event.TaskCompletedSideEffectEvent;
 import com.agentframework.orchestrator.eventsourcing.PlanEventStore;
 import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.orchestrator.messaging.AgentTaskProducer;
+import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.messaging.dto.AgentResult;
 import com.agentframework.orchestrator.planner.PlannerService;
 import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
@@ -68,6 +70,7 @@ class OrchestrationServiceTest {
     @Mock private ArtifactStore artifactStore;
     @Mock private WorkspaceManager workspaceManager;
     @Mock private ContextCacheService contextCacheService;
+    @Mock private OrchestratorMetrics metrics;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private OrchestrationService service;
@@ -87,6 +90,8 @@ class OrchestrationServiceTest {
                 new EnrichmentInjectorService(new EnrichmentProperties(false, false, false, false)),
                 new EnrichmentProperties(false, false, false, false),
                 contextCacheService,
+                Optional.empty(),
+                metrics,
                 Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
@@ -785,6 +790,95 @@ class OrchestrationServiceTest {
         // FAILED -> RUNNING is a legal transition in PlanStatus
         assertThat(plan.getStatus()).isEqualTo(PlanStatus.RUNNING);
         assertThat(plan.getCompletedAt()).isNull();
+    }
+
+    // ── compensatePlan ───────────────────────────────────────────────────────
+
+    @Test
+    void compensatePlan_undo_createsCompensatorTaskForEachDoneItem() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+        plan.transitionTo(PlanStatus.COMPLETED);
+
+        PlanItem doneItem1 = new PlanItem(UUID.randomUUID(), 0, "BE-001", "Build API", "desc",
+                WorkerType.BE, "be-java", List.of(), List.of());
+        PlanItem doneItem2 = new PlanItem(UUID.randomUUID(), 1, "FE-001", "Build UI", "desc",
+                WorkerType.FE, null, List.of(), List.of());
+        plan.addItem(doneItem1);
+        plan.addItem(doneItem2);
+        doneItem1.forceStatus(ItemStatus.DONE);
+        doneItem2.forceStatus(ItemStatus.DONE);
+
+        when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(doneItem1, doneItem2));
+        when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of());
+
+        var summary = service.compensatePlan(planId, CompensationMode.UNDO, "wrong approach");
+
+        assertThat(summary.mode()).isEqualTo(CompensationMode.UNDO);
+        assertThat(summary.affectedItems()).isEqualTo(2);
+        assertThat(summary.createdTaskIds()).hasSize(2);
+        long compensatorCount = plan.getItems().stream()
+                .filter(i -> i.getWorkerType() == WorkerType.COMPENSATOR_MANAGER)
+                .count();
+        assertThat(compensatorCount).isEqualTo(2);
+    }
+
+    @Test
+    void compensatePlan_retry_resetFailedItemsToWaiting() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+        plan.transitionTo(PlanStatus.FAILED);
+
+        PlanItem failedItem = new PlanItem(UUID.randomUUID(), 0, "BE-001", "Build API", "desc",
+                WorkerType.BE, "be-java", List.of(), List.of());
+        plan.addItem(failedItem);
+        failedItem.forceStatus(ItemStatus.FAILED);
+        failedItem.setFailureReason("LLM timeout");
+
+        when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(failedItem));
+        when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of());
+
+        var summary = service.compensatePlan(planId, CompensationMode.RETRY, "retry after fix");
+
+        assertThat(summary.mode()).isEqualTo(CompensationMode.RETRY);
+        assertThat(summary.affectedItems()).isEqualTo(1);
+        assertThat(summary.createdTaskIds()).isEmpty();
+        assertThat(failedItem.getStatus()).isEqualTo(ItemStatus.WAITING);
+        assertThat(failedItem.getFailureReason()).isNull();
+        assertThat(plan.getStatus()).isEqualTo(PlanStatus.RUNNING);
+    }
+
+    @Test
+    void compensatePlan_amendment_reopensPlanWithoutTouchingItems() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+        plan.transitionTo(PlanStatus.COMPLETED);
+
+        PlanItem doneItem = new PlanItem(UUID.randomUUID(), 0, "BE-001", "Build API", "desc",
+                WorkerType.BE, "be-java", List.of(), List.of());
+        plan.addItem(doneItem);
+        doneItem.forceStatus(ItemStatus.DONE);
+
+        when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
+        when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var summary = service.compensatePlan(planId, CompensationMode.AMENDMENT, "adding new feature");
+
+        assertThat(summary.mode()).isEqualTo(CompensationMode.AMENDMENT);
+        assertThat(summary.affectedItems()).isEqualTo(0);
+        assertThat(summary.createdTaskIds()).isEmpty();
+        assertThat(plan.getStatus()).isEqualTo(PlanStatus.RUNNING);
+        // Existing DONE items must not be touched
+        assertThat(doneItem.getStatus()).isEqualTo(ItemStatus.DONE);
+        verify(planItemRepository, never()).save(any(PlanItem.class));
     }
 
     // ── onChildPlanCompleted ────────────────────────────────────────────────

@@ -109,8 +109,13 @@ public class ManifestLoader {
         if (spec.getPrompts().getInstructions() == null || spec.getPrompts().getInstructions().isBlank()) {
             throw new ManifestValidationException(fileName, "spec.prompts.instructions is required");
         }
-        if (spec.getTools() == null || spec.getTools().getAllowlist() == null || spec.getTools().getAllowlist().isEmpty()) {
-            throw new ManifestValidationException(fileName, "spec.tools.allowlist is required and must not be empty");
+        if (!spec.isProgrammatic()
+                && (spec.getTools() == null
+                    || spec.getTools().getAllowlist() == null
+                    || spec.getTools().getAllowlist().isEmpty())) {
+            throw new ManifestValidationException(fileName,
+                "spec.tools.allowlist is required and must not be empty " +
+                "(set programmatic: true to skip for programmatic workers with no MCP tools)");
         }
     }
 

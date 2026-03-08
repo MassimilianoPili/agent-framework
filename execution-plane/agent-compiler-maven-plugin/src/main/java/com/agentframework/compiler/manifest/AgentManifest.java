@@ -67,6 +67,15 @@ public class AgentManifest {
         private int maxContextRetries = 1;
         public int getMaxContextRetries() { return maxContextRetries; }
         public void setMaxContextRetries(int maxContextRetries) { this.maxContextRetries = maxContextRetries; }
+
+        /**
+         * If {@code true}, this worker is fully programmatic (no LLM, no MCP tools).
+         * Skips the {@code tools.allowlist} non-empty validation in {@link ManifestLoader}.
+         * Default: {@code false}.
+         */
+        private boolean programmatic = false;
+        public boolean isProgrammatic() { return programmatic; }
+        public void setProgrammatic(boolean programmatic) { this.programmatic = programmatic; }
     }
 
     public static class Model {

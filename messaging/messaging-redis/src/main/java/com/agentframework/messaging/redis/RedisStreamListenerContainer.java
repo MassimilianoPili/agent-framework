@@ -108,6 +108,11 @@ public class RedisStreamListenerContainer implements MessageListenerContainer {
         }
     }
 
+    @Override
+    public boolean isRunning() {
+        return container != null && container.isRunning();
+    }
+
     private void ensureConsumerGroup(String streamKey, String group) {
         try {
             redisTemplate.opsForStream().createGroup(streamKey, ReadOffset.from("0"), group);

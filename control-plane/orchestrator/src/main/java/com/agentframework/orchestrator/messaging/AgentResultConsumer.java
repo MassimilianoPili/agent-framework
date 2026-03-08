@@ -2,6 +2,9 @@ package com.agentframework.orchestrator.messaging;
 
 import com.agentframework.messaging.MessageAcknowledgment;
 import com.agentframework.messaging.MessageListenerContainer;
+import com.agentframework.orchestrator.leader.LeaderAcquiredEvent;
+import com.agentframework.orchestrator.leader.LeaderElectionService;
+import com.agentframework.orchestrator.leader.LeaderLostEvent;
 import com.agentframework.orchestrator.messaging.dto.AgentResult;
 import com.agentframework.orchestrator.orchestration.OrchestrationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,10 +13,13 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
+
+import java.util.Optional;
 
 @Component
 public class AgentResultConsumer {
@@ -24,6 +30,7 @@ public class AgentResultConsumer {
     private final OrchestrationService orchestrationService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final LeaderElectionService leaderElectionService;
 
     @Value("${messaging.agent-results.topic:agent-results}")
     private String resultsTopic;
@@ -34,24 +41,53 @@ public class AgentResultConsumer {
     public AgentResultConsumer(MessageListenerContainer listenerContainer,
                                OrchestrationService orchestrationService,
                                ObjectMapper objectMapper,
-                               TransactionTemplate transactionTemplate) {
+                               TransactionTemplate transactionTemplate,
+                               Optional<LeaderElectionService> leaderElectionService) {
         this.listenerContainer = listenerContainer;
         this.orchestrationService = orchestrationService;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
+        this.leaderElectionService = leaderElectionService.orElse(null);
     }
 
     @PostConstruct
     public void start() {
         listenerContainer.subscribe(resultsTopic, resultsSubscription, this::handleMessage);
-        listenerContainer.start();
-        log.info("AgentResult consumer started — listening on '{}'", resultsTopic);
+        // Only start consuming if we are currently the leader (or if leader election is disabled)
+        boolean active = leaderElectionService == null || leaderElectionService.isLeader();
+        if (active) {
+            listenerContainer.start();
+            log.info("AgentResult consumer started — listening on '{}'", resultsTopic);
+        } else {
+            log.info("AgentResult consumer deferred — waiting for leader election (instanceId={})",
+                     leaderElectionService.getInstanceId());
+        }
     }
 
     @PreDestroy
     public void stop() {
-        listenerContainer.stop();
-        log.info("AgentResult consumer stopped");
+        if (listenerContainer.isRunning()) {
+            listenerContainer.stop();
+            log.info("AgentResult consumer stopped");
+        }
+    }
+
+    @EventListener
+    public void onLeaderAcquired(LeaderAcquiredEvent event) {
+        if (!listenerContainer.isRunning()) {
+            listenerContainer.start();
+            log.info("AgentResult consumer started after leader acquisition (instanceId={})",
+                     event.instanceId());
+        }
+    }
+
+    @EventListener
+    public void onLeaderLost(LeaderLostEvent event) {
+        if (listenerContainer.isRunning()) {
+            listenerContainer.stop();
+            log.info("AgentResult consumer stopped after losing leadership (instanceId={})",
+                     event.instanceId());
+        }
     }
 
     /**

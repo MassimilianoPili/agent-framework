@@ -10,7 +10,9 @@ import com.agentframework.orchestrator.analytics.RootCauseAnalyzer;
 import com.agentframework.orchestrator.budget.CovarianceMatrix;
 import com.agentframework.orchestrator.budget.PortfolioOptimizer;
 import com.agentframework.orchestrator.gp.TaskOutcomeRepository;
+import com.agentframework.orchestrator.domain.PlanStatus;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
+import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.domain.IllegalStateTransitionException;
 import com.agentframework.orchestrator.domain.ItemStatus;
 import com.agentframework.orchestrator.domain.Plan;
@@ -52,6 +54,7 @@ public class PlanController {
     private final SpectralAnalyzer spectralAnalyzer;
     private final SseEmitterRegistry sseEmitterRegistry;
     private final PlanItemRepository planItemRepository;
+    private final PlanRepository planRepository;
     private final Optional<TaskOutcomeRepository> taskOutcomeRepository;
     private final Optional<RootCauseAnalyzer> rootCauseAnalyzer;
     private final ObjectMapper objectMapper;
@@ -64,6 +67,7 @@ public class PlanController {
                           SpectralAnalyzer spectralAnalyzer,
                           SseEmitterRegistry sseEmitterRegistry,
                           PlanItemRepository planItemRepository,
+                          PlanRepository planRepository,
                           Optional<TaskOutcomeRepository> taskOutcomeRepository,
                           Optional<RootCauseAnalyzer> rootCauseAnalyzer,
                           ObjectMapper objectMapper) {
@@ -75,9 +79,61 @@ public class PlanController {
         this.spectralAnalyzer = spectralAnalyzer;
         this.sseEmitterRegistry = sseEmitterRegistry;
         this.planItemRepository = planItemRepository;
+        this.planRepository = planRepository;
         this.taskOutcomeRepository = taskOutcomeRepository;
         this.rootCauseAnalyzer = rootCauseAnalyzer;
         this.objectMapper = objectMapper;
+    }
+
+    /**
+     * GET /api/v1/plans
+     * Lists recent plans, ordered by createdAt DESC.
+     * Optionally filters by status; always capped to {@code limit} results (default 20).
+     */
+    @GetMapping
+    public ResponseEntity<List<PlanResponse>> listPlans(
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(required = false) String status) {
+
+        List<Plan> plans;
+        if (status != null && !status.isBlank()) {
+            PlanStatus planStatus;
+            try {
+                planStatus = PlanStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().build();
+            }
+            plans = planRepository.findByStatusOrderByCreatedAtDesc(planStatus);
+        } else {
+            plans = planRepository.findAllByOrderByCreatedAtDesc();
+        }
+
+        List<PlanResponse> result = plans.stream()
+                .limit(Math.max(1, limit))
+                .map(PlanResponse::from)
+                .toList();
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * POST /api/v1/plans/{id}/cancel
+     * Cancels a RUNNING or PAUSED plan. WAITING/AWAITING_APPROVAL items are
+     * immediately moved to CANCELLED; DISPATCHED items continue until they complete.
+     * Returns 204 No Content on success, 404 if plan not found, 400 if already terminal.
+     */
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<?> cancelPlan(@PathVariable UUID id) {
+        try {
+            orchestrationService.cancelPlan(id);
+            log.info("Plan {} cancelled by operator", id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalStateException e) {
+            if (e.getMessage().contains("Unknown plan")) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /**
