@@ -26,6 +26,7 @@ e tracking della provenance.
 | Metodo | Descrizione |
 |--------|-------------|
 | `recordTokenUsage(Usage)` | Registra token consumati (ThreadLocal, cross-task safe) |
+| `captureReasoning(String text)` | Cattura il primo blocco testo LLM prima del primo tool call (idempotente, truncate 2000 char, ThreadLocal) |
 | `buildStandardUserPrompt(context, instructions)` | Assembla prompt utente standard: title, taskKey, description, spec, dependency results, instructions |
 
 ## Template Method: `process(AgentTask)`
@@ -45,7 +46,7 @@ Entry point invocato dal consumer. Sequenza garantita:
 9.  Compute SHA-256 hashes (prompt, skills)
 10. Assemble Provenance record
 11. Publish AgentResult (success/failure)
-12. Cleanup ThreadLocal (tool names, token usage, TASK_POLICY, context files)
+12. Cleanup ThreadLocal (tool names, token usage, REASONING, TASK_POLICY, context files)
 ```
 
 In caso di eccezione al punto 6, viene eseguita la catena `onError()` degli interceptor
@@ -227,6 +228,7 @@ Ogni `AgentResult` include un record `Provenance` con metadati di esecuzione:
 | promptHashValue | SHA-256 del system prompt |
 | skillsHashValue | SHA-256 del contenuto skills |
 | tokenUsage | Token consumati (input + output) |
+| reasoning | Primo blocco testo LLM prima di qualsiasi tool call (max 2000 char; null se non catturato) |
 
 ## File chiave
 

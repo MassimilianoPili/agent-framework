@@ -201,6 +201,7 @@ Migrazioni consolidate per argomento (6 file). Ogni migrazione include `COMMENT 
 | V7 | (alter) `plan_items` | Ralph-Loop: `ralph_loop_count` + `last_quality_gate_feedback` per quality gate feedback loop |
 | V8 | `task_outcomes` | GP training data: embedding pgvector(1024), ELO snapshot, predizione GP (mu, sigma2), actual reward. Indici HNSW + worker + created_at |
 | V9 | (alter) `preference_pairs` | DPO GP Residual: `gp_residual FLOAT` nullable + indice DESC NULLS LAST per coppie ordinate per informatività |
+| V20 | `audit_events` | Audit eventi persistenti (PostgreSQL): id, taskKey, tool, worker, session, occurredAt (TIMESTAMPTZ), raw (JSONB). Indici su task_key e occurred_at. Cleanup nightly (30 gg) |
 
 ## Feature avanzate
 
@@ -245,6 +246,25 @@ Dispatch di un item con `riskLevel=CRITICAL` non va sul broker: l'orchestrator l
 
 Con `requiredHumanApproval=NOTIFY_TIMEOUT`, un job schedulato controlla `approvalTimeoutMinutes`
 e fa scadere l'approvazione in FAILED se non arriva risposta.
+
+### Stale Task Detector
+
+`StaleTaskDetectorScheduler` rileva task rimasti in stato `DISPATCHED` oltre il timeout configurabile
+e li marca `FAILED` con `failureReason: "stale_timeout"`.
+
+Configurazione in `application.yml`:
+```yaml
+agent.stale-detector:
+  timeout-minutes: 30        # timeout default per tutti i worker type
+  per-type:
+    BE: 60                   # override per BE (task più lunghi)
+```
+
+Endpoint operativo per forzare la terminazione manuale:
+`DELETE /api/v1/plans/{planId}/items/{itemId}` — transita DISPATCHED o WAITING → FAILED.
+
+File chiave: `config/StaleDetectorProperties.java`, `config/StaleDetectorAutoConfiguration.java`,
+`orchestration/StaleTaskDetectorScheduler.java`, `api/PlanController.java` (+`killItem`).
 
 ### Context Cache (SPI)
 
@@ -346,7 +366,7 @@ mvn spring-boot:run -pl control-plane/orchestrator -Dspring-boot.run.profiles=de
 | `reward/RewardController.java` | REST `/api/v1/rewards/*` — 3 endpoint NDJSON export (reward records, ELO stats, DPO pairs) |
 | `hooks/HookManagerService.java` | Cache policy per-plan; `storePolicies` / `resolvePolicy` / `evictPlan` |
 | `hooks/HookPolicyResolver.java` | Fallback statico: risolve `HookPolicy` per `WorkerType` da `WorkerProfileRegistry` |
-| `hooks/AuditManagerService.java` | `@RestController` `/audit` — riceve e storicizza eventi audit da `audit-log.sh` |
+| `hooks/AuditManagerService.java` | `@RestController` `/audit` — riceve e storicizza eventi audit da `audit-log.sh` su PostgreSQL (`AuditEventRepository`); cleanup `@Scheduled` nightly (30 gg); `GET /events?taskKey=` per filtro |
 | `hooks/EventManagerService.java` | `@RestController` `/events` — tracker violazioni hook per task; `POST /violation`, `GET /violations` |
 | `eventsourcing/PlanEvent.java` | Entity append-only per event sourcing + SSE replay |
 | `eventsourcing/PlanEventStore.java` | `append()` con `Propagation.MANDATORY`; `findByPlanId()` per replay |
