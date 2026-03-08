@@ -1211,3 +1211,94 @@ rag:
 - **Record immutability**: aggiungere `extraJson` al record `SpringPlanEvent` ha richiesto aggiornare tutti i call site dei costruttori diretti (trovato 1 in `SseEmitterRegistryTest`).
 - **DISPATCHED items nel cancel**: `DISPATCHED` non ha `CANCELLED` nelle transizioni consentite → il worker continua naturalmente fino al completamento, il piano passa comunque a CANCELLED.
 - **Plugin version mismatch**: `build.sh` usava `1.0.0-SNAPSHOT` mentre il plugin è `1.1.0-SNAPSHOT` → corretto.
+
+---
+
+## S13 — Round 4: Persistent Audit + Provenance Reasoning + Stale Task Detector (2026-03-08)
+
+### Feature G5 — Persistent Audit (PostgreSQL)
+
+**Problema risolto**: `AuditManagerService` perdeva tutti gli eventi audit al restart
+del container orchestratore (in-memory CopyOnWriteArrayList, max 10k eventi).
+
+**Implementazione**:
+- `AuditEvent` — JPA entity con campi: id (BIGSERIAL), taskKey, tool, worker, session,
+  occurredAt (TIMESTAMPTZ), raw (JSONB con payload completo)
+- `AuditEventRepository` — Spring Data JPA con query derivata `findByTaskKeyOrderByOccurredAtDesc`
+  e `@Transactional deleteByOccurredAtBefore(Instant)` per cleanup
+- `V20__audit_events.sql` — DDL + 2 indici (task_key, occurred_at)
+- `AuditManagerService` — riscritta: da CopyOnWriteArrayList a JPA;
+  `@Scheduled(cron = "0 0 3 * * *")` cleanup eventi > 30 giorni;
+  `GET /audit/events` ora legge da DB (filtrabile per taskKey)
+
+**File creati** (3):
+- `orchestrator/src/main/java/.../orchestrator/audit/AuditEvent.java`
+- `orchestrator/src/main/java/.../orchestrator/audit/AuditEventRepository.java`
+- `orchestrator/src/main/resources/db/migration/V20__audit_events.sql`
+
+**File modificati** (1):
+- `orchestrator/src/main/java/.../orchestrator/hooks/AuditManagerService.java`
+
+---
+
+### Feature G2 — Decision Provenance (reasoning)
+
+**Problema risolto**: Il ragionamento LLM (primo blocco testo prima di qualsiasi tool call)
+veniva perso — visibile nell'output ma non catturato nel result. Utile per audit, GP reward, debug.
+
+**Implementazione**:
+- Campo `String reasoning` aggiunto come 13° campo al record `Provenance` (max 2000 char, null se
+  non catturato). Aggiunto simmetricamente in entrambi i moduli per compatibilità JSON.
+- `ThreadLocal<String> REASONING` in `AbstractWorker` — stesso pattern di `TOKEN_USAGE`;
+  cleanup in `finally` con `REASONING.remove()`
+- Helper `protected void captureReasoning(String text)` — idempotente (solo prima chiamata
+  non-blank per task); truncate a 2000 char; usabile dai worker generati in `execute()`
+- Success path: `REASONING.get()` come 13° argomento del costruttore `Provenance`
+- Error path: `null` come 13° argomento (nessun reasoning in caso di eccezione)
+
+**File modificati** (3):
+- `worker-sdk/src/main/java/.../worker/dto/Provenance.java` (+ reasoning, 13° campo)
+- `orchestrator/src/main/java/.../messaging/dto/Provenance.java` (mirror)
+- `worker-sdk/src/main/java/.../worker/AbstractWorker.java` (+REASONING ThreadLocal, +captureReasoning)
+
+---
+
+### Stale Task Detector
+
+Task rimasti DISPATCHED oltre il timeout configurabile vengono rilevati e marcati FAILED.
+
+**File creati** (2):
+- `orchestrator/src/main/java/.../orchestrator/config/StaleDetectorProperties.java`
+- `orchestrator/src/main/java/.../orchestrator/config/StaleDetectorAutoConfiguration.java`
+
+**File modificati** (2):
+- `orchestrator/src/main/java/.../orchestrator/orchestration/StaleTaskDetectorScheduler.java`
+- `orchestrator/src/main/java/.../orchestrator/api/PlanController.java` (+ killItem endpoint)
+
+---
+
+### Fix bug
+
+- `OrchestrationService.killItem()`: `IllegalStateTransitionException` chiamato con firma errata
+  (1 arg stringa vs 4 arg richiesti: entityType, id, from, to). Corretto.
+- Test analytics (5 file): `List.<Object[]>of()` con type hint esplicito per risolvere
+  inferenza generica Mockito 5.x con native query `Object[]`
+- `StaleTaskDetectorSchedulerTest`: aggiornato costruttore con `StaleDetectorProperties`
+  (rimosso `ReflectionTestUtils.setField`)
+
+---
+
+### Test
+
+| Modulo | Tests run | Failures |
+|--------|-----------|----------|
+| worker-sdk (tutti) | 39 | 0 |
+| orchestrator (OrchestrationService + OrchestratorMetrics) | 45 | 0 |
+
+**Nuovi test** (4):
+- `ProvenanceModelTest.java` — serializzazione JSON campo reasoning
+- `KillItemTest.java` — killItem su stati DISPATCHED/WAITING/terminali
+- `CostEstimationModelTest.java` — stima costi token
+- `StaleDetectorPropertiesTest.java` — properties configurazione stale detector
+
+**Commit**: `67008c1`, `0e21aef`, `827814d`
