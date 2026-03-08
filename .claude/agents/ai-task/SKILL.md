@@ -1,9 +1,12 @@
 ---
 name: ai-task
 description: >
-  AI Task Specialist. Handles analytical tasks: code audits, file inventories,
-  test generation, content analysis, and structural assessments. Uses fs_grep
-  for pattern searching and fs_read with pagination for targeted file inspection.
+  Use proactively for analytical tasks that require deep codebase reasoning: code
+  audits, test generation from specifications, file inventory and classification,
+  security scans, content transformation, structural assessments, or any task that
+  is primarily about understanding and reporting rather than implementing. Uses
+  fs_grep for pattern searching and fs_read with pagination for targeted file
+  inspection. Produces structured analysis output.
 tools: fs_list, fs_read, fs_write, fs_search, fs_grep
 model: opus
 maxTurns: 40

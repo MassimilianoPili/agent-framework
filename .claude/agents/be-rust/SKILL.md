@@ -1,10 +1,10 @@
 ---
 name: be-rust
 description: >
-  Backend Rust implementation worker. Implements async HTTP APIs using Axum 0.7.x,
-  SQLx 0.7.x with async Postgres/SQLite, and cargo test with rstest. Uses thiserror
-  for custom errors and tokio async runtime. Follows contract-first pattern.
-  For Java/Spring use be, for Go use be-go, for Node/TypeScript use be-node.
+  Use whenever the task involves Rust backend implementation: Axum 0.7.x async web
+  framework, SQLx compile-time queries, thiserror structured error types, rstest
+  parameterized tests. Use for Rust only — for other languages use the matching
+  be-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

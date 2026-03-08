@@ -1,10 +1,10 @@
 ---
 name: be-node
 description: >
-  Backend Node.js/TypeScript implementation worker. Implements REST APIs using
-  NestJS 10.x, Prisma 5.x ORM, Jest + supertest for tests. Follows contract-first
-  pattern. Depends on context-manager and schema-manager output. For Java/Spring
-  use be, for Go use be-go, for Rust use be-rust.
+  Use whenever the task involves Node.js/TypeScript backend implementation: NestJS
+  10.x modules and decorators, Prisma 5.x ORM schemas and migrations, class-validator
+  DTOs, Jest + supertest integration tests. Use for Node/TypeScript backend — for
+  frontend TypeScript use fe.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

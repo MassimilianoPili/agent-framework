@@ -1,10 +1,11 @@
 ---
 name: schema-manager
 description: >
-  API and contract specialist. Extracts and normalises interfaces, data models,
-  enums, and architectural constraints from the codebase for a specific task.
-  Runs as a dependency before domain workers (BE/FE/AI_TASK) so they receive
-  complete contract awareness. Does not write files.
+  Use proactively before BE and FE workers whenever shared data models, interfaces,
+  enums, or API types need to be extracted from the codebase. Use whenever domain
+  workers must share a common type vocabulary to prevent BE/FE divergence. Produces
+  normalised interfaces, DTOs, enums, and architectural constraints.
+  Read-only — does not write files.
 tools: Read, Glob, Grep
 model: sonnet
 permissionMode: plan

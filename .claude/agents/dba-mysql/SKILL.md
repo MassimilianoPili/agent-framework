@@ -1,9 +1,9 @@
 ---
 name: dba-mysql
 description: >
-  MySQL/MariaDB database administration worker. Designs InnoDB schemas, writes migrations,
-  creates indexes (B-tree, full-text, spatial), optimizes queries via EXPLAIN FORMAT=TREE,
-  configures partitioning, replication, and user management.
+  Use whenever the task involves MySQL 8.0/MariaDB 11 database design or administration:
+  InnoDB schema design, Flyway migrations, EXPLAIN FORMAT=TREE analysis, full-text search,
+  covering indexes, replication. Use for MySQL/MariaDB — for PostgreSQL use dba-postgres.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

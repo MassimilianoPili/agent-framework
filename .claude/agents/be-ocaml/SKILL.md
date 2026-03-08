@@ -1,9 +1,10 @@
 ---
 name: be-ocaml
 description: >
-  Backend OCaml implementation worker. Implements Dream/Eio HTTP handlers, modules,
-  functors, ADTs, Dune build, and Alcotest tests. Depends on context-manager
-  and schema-manager output.
+  Use whenever the task involves OCaml backend implementation: Dream HTTP framework
+  handlers, Dune build system configuration, Alcotest test suites, functional
+  programming patterns, type-safe data modelling. Use for OCaml only — for other
+  languages use the matching be-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

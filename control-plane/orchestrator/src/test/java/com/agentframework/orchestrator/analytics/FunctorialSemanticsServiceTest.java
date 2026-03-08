@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -65,9 +66,9 @@ class FunctorialSemanticsServiceTest {
 
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item1, item2));
         when(taskOutcomeRepository.findOutcomeByPlanItemId(id1))
-                .thenReturn(List.of(outcomeRow(0.8, 0.9)));
+                .thenReturn(outcomeRow(0.8, 0.9));
         when(taskOutcomeRepository.findOutcomeByPlanItemId(id2))
-                .thenReturn(List.of(outcomeRow(0.7, 0.6)));
+                .thenReturn(outcomeRow(0.7, 0.6));
 
         FunctorialReport report = service.compute(planId);
 
@@ -90,9 +91,9 @@ class FunctorialSemanticsServiceTest {
         PlanItem item1 = makeItem(id1, 1, "T1", List.of());
 
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item1));
-        // Exactly 1 item → below MIN_ITEMS (2) → null
-        when(taskOutcomeRepository.findOutcomeByPlanItemId(id1))
-                .thenReturn(List.of(outcomeRow(0.8, 0.9)));
+        // Exactly 1 item → below MIN_ITEMS (2) → null (stub unused because compute returns early)
+        lenient().when(taskOutcomeRepository.findOutcomeByPlanItemId(id1))
+                .thenReturn(outcomeRow(0.8, 0.9));
 
         FunctorialReport report = service.compute(planId);
 
@@ -125,11 +126,11 @@ class FunctorialSemanticsServiceTest {
 
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(itemA, itemB, itemC));
         when(taskOutcomeRepository.findOutcomeByPlanItemId(idA))
-                .thenReturn(List.of(outcomeRow(0.0, 0.0)));
+                .thenReturn(outcomeRow(0.0, 0.0));
         when(taskOutcomeRepository.findOutcomeByPlanItemId(idB))
-                .thenReturn(List.of(outcomeRow(0.5, 0.5)));
+                .thenReturn(outcomeRow(0.5, 0.5));
         when(taskOutcomeRepository.findOutcomeByPlanItemId(idC))
-                .thenReturn(List.of(outcomeRow(1.0, 1.0)));
+                .thenReturn(outcomeRow(1.0, 1.0));
 
         FunctorialReport report = service.compute(planId);
 
@@ -151,11 +152,13 @@ class FunctorialSemanticsServiceTest {
         PlanItem item2 = makeItem(id2, 2, "T2", List.of());
 
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item1, item2));
-        // actual_reward = null (row[2] = null)
-        when(taskOutcomeRepository.findOutcomeByPlanItemId(id1))
-                .thenReturn(List.of(new Object[]{UUID.randomUUID(), 0.8, null}));
-        when(taskOutcomeRepository.findOutcomeByPlanItemId(id2))
-                .thenReturn(List.of(new Object[]{UUID.randomUUID(), 0.7, null}));
+        // actual_reward = null (row[2] = null) — using ArrayList to preserve type info
+        List<Object[]> nullRow1 = new ArrayList<>();
+        nullRow1.add(new Object[]{UUID.randomUUID(), 0.8, null});
+        List<Object[]> nullRow2 = new ArrayList<>();
+        nullRow2.add(new Object[]{UUID.randomUUID(), 0.7, null});
+        when(taskOutcomeRepository.findOutcomeByPlanItemId(id1)).thenReturn(nullRow1);
+        when(taskOutcomeRepository.findOutcomeByPlanItemId(id2)).thenReturn(nullRow2);
 
         FunctorialReport report = service.compute(planId);
 

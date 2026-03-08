@@ -1,5 +1,7 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.artifact.ArtifactStore;
+import com.agentframework.orchestrator.workspace.WorkspaceManager;
 import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.config.EnrichmentProperties;
@@ -53,6 +55,8 @@ class MissingContextPropagationTest {
     @Mock private CouncilService councilService;
     @Mock private CouncilProperties councilProperties;
     @Mock private RewardComputationService rewardComputationService;
+    @Mock private ArtifactStore artifactStore;
+    @Mock private WorkspaceManager workspaceManager;
     @Mock private EnrichmentInjectorService enrichmentInjectorService;
     @Mock private EnrichmentProperties enrichmentProperties;
 
@@ -69,6 +73,7 @@ class MissingContextPropagationTest {
                 councilProperties, rewardComputationService,
                 Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(),
+                artifactStore, workspaceManager,
                 enrichmentInjectorService, enrichmentProperties);
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);

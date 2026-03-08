@@ -11,7 +11,7 @@
     },
     "BE": {
       "mcpServers": ["bash", "git", "openapi", "python", "repo-fs", "test"],
-      "ownsPaths": ["backend/", "execution-plane/workers/be-cpp-worker/", "execution-plane/workers/be-dotnet-worker/", "execution-plane/workers/be-elixir-worker/", "execution-plane/workers/be-go-worker/", "execution-plane/workers/be-java-worker/", "execution-plane/workers/be-kotlin-worker/", "execution-plane/workers/be-laravel-worker/", "execution-plane/workers/be-node-worker/", "execution-plane/workers/be-ocaml-worker/", "execution-plane/workers/be-python-worker/", "execution-plane/workers/be-quarkus-worker/", "execution-plane/workers/be-rust-worker/", "templates/be/"]
+      "ownsPaths": ["backend/", "execution-plane/workers/be-cpp-worker/", "execution-plane/workers/be-dotnet-worker/", "execution-plane/workers/be-elixir-worker/", "execution-plane/workers/be-go-worker/", "execution-plane/workers/be-java-worker/", "execution-plane/workers/be-kotlin-worker/", "execution-plane/workers/be-laravel-worker/", "execution-plane/workers/be-lua-worker/", "execution-plane/workers/be-node-worker/", "execution-plane/workers/be-ocaml-worker/", "execution-plane/workers/be-python-worker/", "execution-plane/workers/be-quarkus-worker/", "execution-plane/workers/be-rust-worker/", "lua/", "openresty/", "scripts/", "templates/be/"]
     },
     "COMPENSATOR_MANAGER": {
       "mcpServers": ["git", "repo-fs"],
@@ -41,9 +41,17 @@
       "mcpServers": [],
       "ownsPaths": ["execution-plane/workers/hook-manager-worker/"]
     },
+    "INTEGRATION_MANAGER": {
+      "mcpServers": ["bash", "repo-fs"],
+      "ownsPaths": ["execution-plane/workers/integration-manager-worker/"]
+    },
     "MOBILE": {
       "mcpServers": ["bash", "git", "repo-fs"],
       "ownsPaths": ["android/", "execution-plane/workers/mobile-kotlin-worker/", "execution-plane/workers/mobile-swift-worker/", "ios/", "mobile/", "templates/mobile/"]
+    },
+    "RESEARCH_MANAGER": {
+      "mcpServers": ["bash", "repo-fs"],
+      "ownsPaths": ["execution-plane/workers/research-manager-worker/"]
     },
     "REVIEW": {
       "mcpServers": ["git", "openapi", "repo-fs", "test"],

@@ -1,9 +1,11 @@
 ---
 name: be-lua
 description: >
-  Backend Lua implementation worker. Implements Lua scripts, OpenResty/Nginx modules,
-  Redis EVAL scripts, CLI tools, and busted tests. Supports Lua 5.4 and LuaJIT.
-  For Python use be-python, for Go use be-go, for Node use be-node.
+  Use whenever the task involves Lua scripting in any context: OpenResty/Nginx Lua
+  modules (ngx.* cosocket API), Redis EVAL atomic scripts (KEYS[]/ARGV[] pattern),
+  standalone Lua 5.4 CLI tools, LuaJIT applications, or busted test suites. Use for
+  Lua/OpenResty/Redis scripting — for Python use be-python, for Go use be-go, for
+  Node use be-node.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 35

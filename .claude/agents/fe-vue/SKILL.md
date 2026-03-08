@@ -1,10 +1,9 @@
 ---
 name: fe-vue
 description: >
-  Frontend Vue.js/TypeScript implementation worker. Builds Vue 3 UI components,
-  composables, Pinia stores, typed API clients, and accessible interfaces from
-  an OpenAPI contract. Depends on context-manager and schema-manager output.
-  For React use fe, for Angular use fe-angular, for Svelte use fe-svelte.
+  Use whenever the task involves Vue 3/TypeScript frontend implementation: Composition
+  API script setup, Pinia state management, Vue Router, scoped CSS, template syntax,
+  Vitest testing. Use for Vue — for React use fe, for Next.js use fe-nextjs.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

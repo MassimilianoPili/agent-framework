@@ -1,11 +1,10 @@
 ---
 name: be-go
 description: >
-  Backend Go implementation worker. Implements HTTP handlers, services, repositories,
-  and tests using Go 1.22+, chi or gin router, sqlx + database/sql, and go test
-  with testify. Follows contract-first pattern. Depends on context-manager and
-  schema-manager output. For Java/Spring use be, for Node/TypeScript use be-node,
-  for Rust use be-rust.
+  Use whenever the task involves Go 1.22+ backend implementation: HTTP API with chi
+  or gin, database queries with sqlx, error wrapping with fmt.Errorf, idiomatic Go
+  patterns, table-driven tests. Use for Go only — for other languages use the
+  matching be-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

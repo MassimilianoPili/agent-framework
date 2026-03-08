@@ -1,9 +1,10 @@
 ---
 name: be-elixir
 description: >
-  Backend Elixir/Phoenix implementation worker. Implements controllers, contexts,
-  Ecto schemas, migrations, LiveView, GenServer, and ExUnit tests. Depends on
-  context-manager and schema-manager output.
+  Use whenever the task involves Elixir/Phoenix 1.7 backend implementation: contexts,
+  Ecto schemas and changesets, ExUnit tests, protocol-based design, OTP supervision
+  trees, LiveView. Use for Elixir/BEAM stack only — for other languages use the
+  matching be-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

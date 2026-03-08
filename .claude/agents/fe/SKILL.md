@@ -1,10 +1,10 @@
 ---
 name: fe
 description: >
-  Frontend React/TypeScript implementation worker. Builds React 19 UI components,
-  pages, typed API clients, and accessible interfaces from an OpenAPI contract.
-  Depends on context-manager and schema-manager output. Always generates a
-  typed TypeScript API client from the OpenAPI spec before writing any UI code.
+  Use whenever the task involves React 19/TypeScript frontend implementation: UI
+  components, typed API clients generated from OpenAPI specs, accessible interfaces
+  (WCAG AA), responsive layouts, form validation. Use for React SPA — for Next.js
+  SSR/SSG use fe-nextjs, for Vue use fe-vue.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

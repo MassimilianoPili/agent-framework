@@ -1,10 +1,11 @@
 ---
 name: context-manager
 description: >
-  Codebase analysis worker. Explores the repository and produces a structured context
-  briefing (relevant_files, world_state, key_constraints) for downstream implementation
-  workers. Always runs before BE/FE/AI_TASK tasks. Does not write files. Use this agent
-  to identify which files are relevant for a given task description.
+  Use proactively before every domain worker task (BE, FE, DBA, MOBILE, AI_TASK) to
+  identify which files are relevant. Use whenever a worker needs to know which files
+  exist, what the current project state is, or which existing code to extend rather than
+  rewrite. Produces: relevant_files list, world_state summary, key_constraints.
+  Read-only — does not write files.
 tools: Read, Glob, Grep
 model: sonnet
 permissionMode: plan

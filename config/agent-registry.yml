@@ -202,6 +202,29 @@ workers:
       - backend/
       - templates/be/
 
+  be-lua-worker:
+    displayName: Backend Lua Worker
+    workerProfile: be-lua
+    topic: agent-tasks
+    subscription: be-lua-worker-sub
+    image: agent-framework/be-lua-worker:latest
+    description: >-
+      Handles Lua backend tasks — standalone scripts, OpenResty/Nginx Lua modules, Redis EVAL scripts, LuaJIT applications, CLI tools, and busted tests.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - bash_execute
+    maxConcurrentCalls: 2
+    skillPaths:
+      - skills/crosscutting/
+    ownsPaths:
+      - lua/
+      - scripts/
+      - openresty/
+
   be-node-worker:
     displayName: Backend Node.js Worker
     workerProfile: be-node
@@ -792,6 +815,24 @@ workers:
     skillPaths:
       - skills/crosscutting/
 
+  integration-manager-worker:
+    displayName: Integration Manager Worker
+    topic: agent-tasks
+    subscription: integration-manager-worker-sub
+    image: agent-framework/integration-manager-worker:latest
+    description: >-
+      Verifies end-to-end integration of all artifacts produced by domain workers in a plan. Checks BE-FE API contract alignment, DB migration-entity consistency, cross-module compilation, and interface boundaries. Runs after all domain workers complete, before REVIEW. Can fix minor integration mismatches.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - bash_execute
+    maxConcurrentCalls: 1
+    skillPaths:
+      - skills/crosscutting/
+
   mobile-kotlin-worker:
     displayName: Mobile Android (Kotlin) Worker
     workerProfile: mobile-kotlin
@@ -837,6 +878,22 @@ workers:
       - ios/
       - mobile/
       - templates/mobile/
+
+  research-manager-worker:
+    displayName: Research Manager Worker
+    topic: agent-tasks
+    subscription: research-manager-worker-sub
+    image: agent-framework/research-manager-worker:latest
+    description: >-
+      Fetches and synthesises external technical knowledge — library documentation, API references, RFC specifications, arXiv papers, and engineering best-practice guides — relevant to a task. Runs as a dependency before domain workers that need up-to-date information beyond the local codebase.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_grep
+      - bash_execute
+    maxConcurrentCalls: 5
+    skillPaths:
+      - skills/crosscutting/
 
   review-worker:
     displayName: Review Worker

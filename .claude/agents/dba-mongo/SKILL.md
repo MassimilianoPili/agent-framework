@@ -1,9 +1,10 @@
 ---
 name: dba-mongo
 description: >
-  MongoDB database administration worker. Designs document schemas, writes migration scripts,
-  creates indexes (single field, compound, multikey, text, geospatial, TTL, wildcard),
-  optimizes aggregation pipelines, configures sharding, replica sets, and schema validation.
+  Use whenever the task involves MongoDB 7+ database design or administration: document
+  schema design, ESR index rule, aggregation pipeline construction, sharding strategy,
+  Atlas Search, change streams. Use for MongoDB — for relational databases use the
+  appropriate dba-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

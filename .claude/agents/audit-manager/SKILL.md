@@ -1,10 +1,11 @@
 ---
 name: audit-manager
 description: >
-  Audit Log Reader and Report Writer. Reads structured audit event logs from
-  audit/events/ and produces human-readable Markdown reports in audit/reports/.
-  Aggregates events by plan, worker type, and violation category. Writes only
-  to the audit/ directory. Use to generate post-plan audit trails.
+  Use proactively after plan completion or on-demand whenever audit/events/ contains
+  new logs that need human-readable summarisation. Use to generate post-plan audit
+  trails, compliance reports, or incident analysis after hook violations. Reads
+  structured audit events and produces Markdown reports in audit/reports/ grouped by
+  plan, worker type, and violation category. Writes only to audit/.
 tools: Read, Write, Edit, Glob, Grep
 model: sonnet
 maxTurns: 20

@@ -1,10 +1,10 @@
 ---
 name: be-kotlin
 description: >
-  Backend Kotlin/Spring Boot implementation worker. Implements controllers, services,
-  repositories, coroutines, data classes, and unit/slice tests from an OpenAPI contract.
-  Depends on context-manager and schema-manager output. For Java/Spring use be, for
-  Go use be-go, for Node/TypeScript use be-node, for Rust use be-rust.
+  Use whenever the task involves Kotlin/Spring Boot backend implementation: controllers,
+  Kotlin data classes and sealed classes, coroutines, constructor injection, MockK
+  testing, RFC 7807 error responses. Use for JVM/Kotlin stack — for Java use be, for
+  Android use mobile-kotlin.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

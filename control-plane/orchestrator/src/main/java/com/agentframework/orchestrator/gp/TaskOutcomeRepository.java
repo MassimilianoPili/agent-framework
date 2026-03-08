@@ -224,4 +224,50 @@ public interface TaskOutcomeRepository extends JpaRepository<TaskOutcome, UUID> 
             LIMIT 1
             """, nativeQuery = true)
     List<Object[]> findOutcomeByPlanItemId(@Param("planItemId") UUID planItemId);
+
+    /**
+     * Loads all outcomes with plan context for superrationality analysis.
+     * Returns rows: [plan_id_text(String), worker_type(String), actual_reward(Number)].
+     * Used to detect cooperation gain between worker types that co-appear in plans.
+     */
+    @Query(value = """
+            SELECT plan_id::text, worker_type, actual_reward
+            FROM task_outcomes
+            WHERE actual_reward IS NOT NULL
+            ORDER BY plan_id, worker_type
+            """, nativeQuery = true)
+    List<Object[]> findPlanWorkerRewardSummary();
+
+    /**
+     * Loads recent reward timeseries for edge-of-chaos Lyapunov estimation.
+     * Returns rows: [worker_type(String), actual_reward(Number)], ordered by created_at.
+     */
+    @Query(value = """
+            SELECT worker_type, actual_reward
+            FROM task_outcomes
+            WHERE actual_reward IS NOT NULL
+              AND worker_type = :workerType
+            ORDER BY created_at ASC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findRewardTimeseriesByWorkerType(@Param("workerType") String workerType,
+                                                     @Param("limit") int limit);
+
+    /**
+     * Loads outcomes with embedding text for information-bottleneck / persistent homology.
+     * Returns rows: [task_key(String), worker_profile(String), actual_reward(Number),
+     *                gp_mu(Number), task_embedding_text(String)].
+     */
+    @Query(value = """
+            SELECT task_key, worker_profile, actual_reward, gp_mu,
+                   task_embedding::text as embedding_text
+            FROM task_outcomes
+            WHERE actual_reward IS NOT NULL
+              AND task_embedding IS NOT NULL
+              AND worker_type = :workerType
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findOutcomesWithEmbeddingByWorkerType(@Param("workerType") String workerType,
+                                                          @Param("limit") int limit);
 }
