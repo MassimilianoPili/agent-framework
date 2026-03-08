@@ -1,0 +1,12 @@
+# Sandbox image for Python 3.12 syntax check/test
+# Security: runs as non-root (UID 1000), no network, read-only root filesystem
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd -m -u 1000 sandbox && \
+    mkdir -p /code /out && \
+    chown 1000:1000 /code /out
+
+USER 1000:1000
+WORKDIR /code

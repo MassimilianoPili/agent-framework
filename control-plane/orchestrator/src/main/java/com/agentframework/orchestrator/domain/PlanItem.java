@@ -294,6 +294,21 @@ public class PlanItem {
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ── Model routing (#20) ──────────────────────────────────────────────────
+
+    /**
+     * Optional LLM model ID override for this task.
+     * Null means the worker uses its default model (e.g. claude-sonnet-4-6).
+     * Example values: 'claude-haiku-4-5-20251001', 'claude-opus-4-6'.
+     */
+    @Column(name = "model_id", length = 100)
+    private String modelId;
+
+    public String getModelId() { return modelId; }
+    public void setModelId(String modelId) { this.modelId = modelId; }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ── Cost tracking fields (#26L1) ────────────────────────────────────────
 
     /** Input tokens consumed by this task. Null if the worker did not report token usage. */

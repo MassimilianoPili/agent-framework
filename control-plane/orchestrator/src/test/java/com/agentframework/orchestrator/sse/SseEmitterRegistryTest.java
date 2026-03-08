@@ -47,7 +47,7 @@ class SseEmitterRegistryTest {
     void subscribe_noPastEvents_returnsEmitter() {
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
 
-        SseEmitter emitter = registry.subscribe(PLAN_A);
+        SseEmitter emitter = registry.subscribe(PLAN_A, null);
 
         assertThat(emitter).isNotNull();
     }
@@ -56,7 +56,7 @@ class SseEmitterRegistryTest {
     void subscribe_returnsEmitterWithCorrectTimeout() {
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
 
-        SseEmitter emitter = registry.subscribe(PLAN_A);
+        SseEmitter emitter = registry.subscribe(PLAN_A, null);
 
         // SseEmitter stores the timeout; verify it was created with 5 minutes
         assertThat(emitter.getTimeout()).isEqualTo(5 * 60 * 1000L);
@@ -75,7 +75,7 @@ class SseEmitterRegistryTest {
             // subscribe creates a real SseEmitter — we verify indirectly via onPlanEvent
         };
 
-        SseEmitter emitter = spyRegistry.subscribe(PLAN_A);
+        SseEmitter emitter = spyRegistry.subscribe(PLAN_A, null);
 
         // The emitter is returned successfully (no exception during replay).
         // The fact that it doesn't throw means both events were sent.
@@ -90,7 +90,7 @@ class SseEmitterRegistryTest {
         // Return in sequence order (as the store guarantees)
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of(ev1, ev2, ev3));
 
-        SseEmitter emitter = registry.subscribe(PLAN_A);
+        SseEmitter emitter = registry.subscribe(PLAN_A, null);
 
         // All three events were replayed without error
         assertThat(emitter).isNotNull();
@@ -106,7 +106,7 @@ class SseEmitterRegistryTest {
         // subscribe() creates its own SseEmitter internally — we can't inject a broken one.
         // Instead, verify that subscribe() returns cleanly with past events present
         // (the IOException path would be triggered by a real servlet container disconnect).
-        SseEmitter emitter = registry.subscribe(PLAN_A);
+        SseEmitter emitter = registry.subscribe(PLAN_A, null);
         assertThat(emitter).isNotNull();
     }
 
@@ -116,8 +116,8 @@ class SseEmitterRegistryTest {
     void subscribe_twoClientsForSamePlan_bothRegistered() {
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
 
-        SseEmitter emitter1 = registry.subscribe(PLAN_A);
-        SseEmitter emitter2 = registry.subscribe(PLAN_A);
+        SseEmitter emitter1 = registry.subscribe(PLAN_A, null);
+        SseEmitter emitter2 = registry.subscribe(PLAN_A, null);
 
         assertThat(emitter1).isNotNull();
         assertThat(emitter2).isNotNull();
@@ -132,8 +132,8 @@ class SseEmitterRegistryTest {
     void subscribe_differentPlans_isolatedLists() {
         when(eventStore.findByPlanId(any())).thenReturn(List.of());
 
-        SseEmitter emitterA = registry.subscribe(PLAN_A);
-        SseEmitter emitterB = registry.subscribe(PLAN_B);
+        SseEmitter emitterA = registry.subscribe(PLAN_A, null);
+        SseEmitter emitterB = registry.subscribe(PLAN_B, null);
 
         assertThat(emitterA).isNotNull();
         assertThat(emitterB).isNotNull();
@@ -160,8 +160,8 @@ class SseEmitterRegistryTest {
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
 
         // Subscribe two spied emitters so we can verify send() is called
-        SseEmitter realEmitter1 = registry.subscribe(PLAN_A);
-        SseEmitter realEmitter2 = registry.subscribe(PLAN_A);
+        SseEmitter realEmitter1 = registry.subscribe(PLAN_A, null);
+        SseEmitter realEmitter2 = registry.subscribe(PLAN_A, null);
 
         // Build and broadcast an event
         SpringPlanEvent event = planEvent("TASK_COMPLETED", PLAN_A);
@@ -174,7 +174,7 @@ class SseEmitterRegistryTest {
     void onPlanEvent_differentPlan_notSent() {
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
 
-        registry.subscribe(PLAN_A);
+        registry.subscribe(PLAN_A, null);
 
         // Event for PLAN_B — no subscribers for B, so nothing happens
         SpringPlanEvent eventForB = planEvent("PLAN_STARTED", PLAN_B);
@@ -194,7 +194,7 @@ class SseEmitterRegistryTest {
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
 
         // Subscribe a real (alive) emitter
-        registry.subscribe(PLAN_A);
+        registry.subscribe(PLAN_A, null);
 
         // Inject a broken emitter that throws IOException on send
         SseEmitter brokenEmitter = new SseEmitter(300_000L) {
@@ -215,7 +215,7 @@ class SseEmitterRegistryTest {
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
 
         // Subscribe a real alive emitter
-        registry.subscribe(PLAN_A);
+        registry.subscribe(PLAN_A, null);
 
         // Inject a broken emitter that throws IOException
         SseEmitter brokenEmitter = new SseEmitter(300_000L) {
@@ -247,7 +247,7 @@ class SseEmitterRegistryTest {
                 new SseEmitterRegistry(brokenMapper, eventStore);
 
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
-        registryWithBrokenMapper.subscribe(PLAN_A);
+        registryWithBrokenMapper.subscribe(PLAN_A, null);
 
         SpringPlanEvent event = planEvent("PLAN_STARTED", PLAN_A);
 
@@ -265,7 +265,7 @@ class SseEmitterRegistryTest {
     void subscribe_thenManualCleanup_removesEmitter() {
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
 
-        SseEmitter emitter = registry.subscribe(PLAN_A);
+        SseEmitter emitter = registry.subscribe(PLAN_A, null);
 
         // Manually remove from list (simulates what onCompletion callback does)
         List<SseEmitter> list = getEmitterList(PLAN_A);
@@ -281,13 +281,13 @@ class SseEmitterRegistryTest {
     void subscribe_lastEmitterRemoved_resubscribeWorks() {
         when(eventStore.findByPlanId(PLAN_A)).thenReturn(List.of());
 
-        SseEmitter emitter = registry.subscribe(PLAN_A);
+        SseEmitter emitter = registry.subscribe(PLAN_A, null);
 
         // Manually remove to simulate onCompletion callback
         getEmitterList(PLAN_A).remove(emitter);
 
         // Subscribe again — should work cleanly (computeIfAbsent creates a fresh list)
-        SseEmitter newEmitter = registry.subscribe(PLAN_A);
+        SseEmitter newEmitter = registry.subscribe(PLAN_A, null);
         assertThat(newEmitter).isNotNull();
 
         // Broadcast works to the new subscriber

@@ -17,6 +17,8 @@ import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
+import com.agentframework.orchestrator.cache.ContextCacheService;
+import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +61,7 @@ class MissingContextPropagationTest {
     @Mock private WorkspaceManager workspaceManager;
     @Mock private EnrichmentInjectorService enrichmentInjectorService;
     @Mock private EnrichmentProperties enrichmentProperties;
+    @Mock private ContextCacheService contextCacheService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private OrchestrationService service;
@@ -74,7 +77,9 @@ class MissingContextPropagationTest {
                 Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(),
                 artifactStore, workspaceManager,
-                enrichmentInjectorService, enrichmentProperties);
+                enrichmentInjectorService, enrichmentProperties,
+                contextCacheService,
+                Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);

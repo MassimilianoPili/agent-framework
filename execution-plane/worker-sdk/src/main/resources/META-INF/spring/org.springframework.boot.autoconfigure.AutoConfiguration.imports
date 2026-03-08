@@ -1,2 +1,3 @@
 com.agentframework.worker.config.WorkerAutoConfiguration
 com.agentframework.worker.policy.PolicyAutoConfiguration
+com.agentframework.worker.sandbox.SandboxAutoConfiguration

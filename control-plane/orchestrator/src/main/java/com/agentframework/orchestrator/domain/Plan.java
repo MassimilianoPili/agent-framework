@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.domain;
 
+import com.agentframework.common.policy.CompensationMode;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -93,6 +94,14 @@ public class Plan {
     @Column(name = "workspace_volume", length = 100)
     private String workspaceVolume;
 
+    /**
+     * Records the last compensation mode applied to this plan (nullable — no compensation yet).
+     * Set by {@code OrchestrationService.compensatePlan()} for auditability.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "compensation_mode", length = 20)
+    private CompensationMode compensationMode;
+
     @Version
     private Long version;
 
@@ -171,6 +180,9 @@ public class Plan {
 
     public String getWorkspaceVolume() { return workspaceVolume; }
     public void setWorkspaceVolume(String workspaceVolume) { this.workspaceVolume = workspaceVolume; }
+
+    public CompensationMode getCompensationMode() { return compensationMode; }
+    public void setCompensationMode(CompensationMode compensationMode) { this.compensationMode = compensationMode; }
 
     public Long getVersion() { return version; }
 

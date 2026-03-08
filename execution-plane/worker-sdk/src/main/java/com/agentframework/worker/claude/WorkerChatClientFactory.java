@@ -7,6 +7,7 @@ import com.agentframework.worker.policy.PolicyProperties;
 import com.agentframework.worker.policy.ToolAuditLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.anthropic.AnthropicChatOptions;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
@@ -70,7 +71,30 @@ public class WorkerChatClientFactory {
      * @param policy     the tool selection policy
      */
     public ChatClient create(String workerType, ToolAllowlist policy) {
+        return buildWithTools(ChatClient.builder(chatModel), workerType, policy);
+    }
+
+    /**
+     * Creates a ChatClient with optional per-request model override (#20).
+     *
+     * <p>If {@code modelId} is non-null, sets {@link AnthropicChatOptions} as default options
+     * so every {@code .call()} through this client uses the specified model instead of the
+     * configured default. Useful for routing lightweight tasks to haiku and intensive tasks
+     * to opus within the same plan.</p>
+     *
+     * @param workerType the worker type identifier (for logging)
+     * @param policy     the tool selection policy
+     * @param modelId    optional LLM model ID override (null = use worker default)
+     */
+    public ChatClient create(String workerType, ToolAllowlist policy, String modelId) {
         ChatClient.Builder builder = ChatClient.builder(chatModel);
+        if (modelId != null && !modelId.isBlank()) {
+            builder.defaultOptions(AnthropicChatOptions.builder().model(modelId).build());
+        }
+        return buildWithTools(builder, workerType, policy);
+    }
+
+    private ChatClient buildWithTools(ChatClient.Builder builder, String workerType, ToolAllowlist policy) {
         boolean policyActive = isPolicyActive();
         String profile = policyProperties != null ? policyProperties.getWorkerProfile() : null;
 

@@ -20,6 +20,7 @@ import com.agentframework.orchestrator.graph.CriticalPathCalculator;
 import com.agentframework.orchestrator.graph.PlanGraphService;
 import com.agentframework.orchestrator.graph.SpectralAnalyzer;
 import com.agentframework.orchestrator.graph.SpectralMetrics;
+import com.agentframework.common.policy.CompensationMode;
 import com.agentframework.orchestrator.orchestration.OrchestrationService;
 import com.agentframework.orchestrator.repository.QualityGateReportRepository;
 import com.agentframework.orchestrator.service.PlanSnapshotService;
@@ -279,6 +280,57 @@ public class PlanController {
     }
 
     /**
+     * POST /api/v1/plans/{id}/compensate
+     * Plan-level compensation with explicit semantic intent.
+     *
+     * <p>Request body (required):</p>
+     * <pre>
+     * {
+     *   "mode":   "UNDO | RETRY | AMENDMENT",
+     *   "reason": "optional human-readable explanation"
+     * }
+     * </pre>
+     * <ul>
+     *   <li>{@code UNDO} — creates COMPENSATOR_MANAGER tasks for all DONE items (saga rollback)</li>
+     *   <li>{@code RETRY} — resets all FAILED items to WAITING and redispatches</li>
+     *   <li>{@code AMENDMENT} — reopens a terminal plan for the operator to add new tasks</li>
+     * </ul>
+     */
+    @PostMapping("/{id}/compensate")
+    public ResponseEntity<?> compensatePlan(@PathVariable UUID id,
+                                            @RequestBody Map<String, String> body) {
+        String modeStr = body != null ? body.get("mode") : null;
+        if (modeStr == null || modeStr.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Request body must contain 'mode': UNDO, RETRY, or AMENDMENT"));
+        }
+
+        CompensationMode mode;
+        try {
+            mode = CompensationMode.valueOf(modeStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Unknown compensation mode '" + modeStr + "'. Valid values: UNDO, RETRY, AMENDMENT"));
+        }
+
+        String reason = body.getOrDefault("reason", null);
+
+        try {
+            var summary = orchestrationService.compensatePlan(id, mode, reason);
+            log.info("Plan compensation applied: plan={} mode={} affectedItems={}",
+                     id, mode, summary.affectedItems());
+            return ResponseEntity.accepted().body(Map.of(
+                    "status",          "compensation_applied",
+                    "planId",          id.toString(),
+                    "mode",            mode.name(),
+                    "affectedItems",   summary.affectedItems(),
+                    "createdTaskIds",  summary.createdTaskIds().stream().map(UUID::toString).toList()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
      * POST /api/v1/plans/{id}/items/{itemId}/compensate
      * Creates a COMPENSATOR_MANAGER task to undo the effects of the specified item.
      * The compensation task is added to the plan and dispatched immediately.
@@ -405,11 +457,25 @@ public class PlanController {
      * Each event carries a JSON-serialized SpringPlanEvent.
      * The connection stays open until the plan reaches a terminal state or the client disconnects.
      * Timeout: 5 minutes (after which the client should reconnect).
+     *
+     * <p>Resume support: if the client sends a {@code Last-Event-ID} header (set automatically
+     * by the browser EventSource on reconnect), only events after that sequence number are
+     * replayed. Without this header, the full event history is sent on connect.</p>
      */
     @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamPlanEvents(@PathVariable UUID id) {
-        log.info("SSE client connected to plan {}", id);
-        return sseEmitterRegistry.subscribe(id);
+    public SseEmitter streamPlanEvents(
+            @PathVariable UUID id,
+            @RequestHeader(name = "Last-Event-ID", required = false) String lastEventId) {
+        Long lastSeenSeqNum = null;
+        if (lastEventId != null && !lastEventId.isBlank()) {
+            try {
+                lastSeenSeqNum = Long.parseLong(lastEventId.trim());
+            } catch (NumberFormatException e) {
+                log.warn("Invalid Last-Event-ID header '{}' for plan {} — replaying full history", lastEventId, id);
+            }
+        }
+        log.info("SSE client connected to plan {} (lastSeenSeqNum={})", id, lastSeenSeqNum);
+        return sseEmitterRegistry.subscribe(id, lastSeenSeqNum);
     }
 
     /**

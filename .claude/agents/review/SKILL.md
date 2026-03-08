@@ -34,6 +34,7 @@ Follow these steps precisely, in order:
   - **FE tasks**: `files_created`, `files_modified`, `git_commit`.
   - **AI_TASK tasks**: `tests_created`, `tests_passed`, `tests_failed`, `coverage`.
 - Build a complete inventory of all files that were created or modified during the plan execution.
+- **If `workspacePath` is available** (shared workspace feature), use filesystem tools (`fs_list`, `fs_read`, `fs_search`, `fs_grep`) to read the actual generated source files directly from the workspace directory. This is the preferred method — review the real files, not just the JSON summaries in dependency results.
 
 ### Step 2 -- Read the original specification
 - Read the `specSnippet` and the full `spec` from the task context.
@@ -148,8 +149,13 @@ Every artifact MUST be functional and usable as-is. The principle: **an artifact
 - For backend artifacts: verify the class/function signature matches what the contract (OpenAPI) or tests expect. A class that exists but has wrong method signatures is a functional failure.
 - For config files: verify all required environment variables are documented (in `.env.example` or equivalent).
 
-### Step 8 -- Run full test suite
-- Use `Bash: mvn test` or `Bash: npm test` (via Bash, read-only observation) to verify the test suite passes.
+### Step 8 -- Verify build results
+- Check dependency results for sandbox build output fields: `build_exit_code`, `build_success`, `build_stdout`, `build_stderr`, `build_timed_out`.
+- If build results are available from the sandbox:
+  - `build_exit_code !== 0` or `build_success === false` → Record as a FAIL finding (Gate Rule 10).
+  - `build_timed_out === true` → Record as a WARN finding (possible infinite loop or excessive build time).
+  - Review `build_stderr` for warnings that may indicate quality issues.
+- If no sandbox build results are available, use `Bash: mvn test` or `Bash: npm test` (via Bash, read-only observation) to verify the test suite passes.
 - Record the results in the metrics.
 - If any tests fail that previously passed, this indicates a regression -- record as a critical finding.
 

@@ -252,7 +252,7 @@ public abstract class AbstractWorker {
                 log.info("[{}] Task {} served from context cache", workerType(), task.taskKey());
                 resultJson = cachedResult;
             } else {
-                ChatClient chatClient = chatClientFactory.create(workerType(), resolveToolAllowlist(task));
+                ChatClient chatClient = chatClientFactory.create(workerType(), resolveToolAllowlist(task), task.modelId());
                 resultJson = execute(context, chatClient);
             }
 

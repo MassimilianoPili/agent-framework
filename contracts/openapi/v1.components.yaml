@@ -158,6 +158,13 @@ components:
           description: |
             JSON breakdown of individual reward source values and their effective weights.
             Example: {"review":0.8,"process":0.6,"quality_gate":null,"weights":{"review":0.625,...}}
+        modelId:
+          type: string
+          nullable: true
+          description: |
+            Optional LLM model ID override for this task. Null means the worker uses its default model.
+            Set by the planner to route lightweight tasks to haiku and complex tasks to opus.
+          example: "claude-haiku-4-5-20251001"
 
     QualityGateReportResponse:
       type: object

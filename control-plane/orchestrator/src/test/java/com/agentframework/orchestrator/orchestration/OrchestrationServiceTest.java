@@ -24,6 +24,8 @@ import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
+import com.agentframework.orchestrator.cache.ContextCacheService;
+import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,6 +67,7 @@ class OrchestrationServiceTest {
     @Mock private RewardComputationService rewardComputationService;
     @Mock private ArtifactStore artifactStore;
     @Mock private WorkspaceManager workspaceManager;
+    @Mock private ContextCacheService contextCacheService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private OrchestrationService service;
@@ -82,7 +85,9 @@ class OrchestrationServiceTest {
                 artifactStore,
                 workspaceManager,
                 new EnrichmentInjectorService(new EnrichmentProperties(false, false, false, false)),
-                new EnrichmentProperties(false, false, false, false));
+                new EnrichmentProperties(false, false, false, false),
+                contextCacheService,
+                Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);
@@ -148,7 +153,8 @@ class OrchestrationServiceTest {
         String spec = "Build a REST API";
         CouncilReport report = new CouncilReport(
                 List.of("be-manager"), List.of("Use Repository pattern"),
-                null, null, null, null, null, Map.of());
+                null, null, null, null, null, Map.of(),
+                null, null, null);
 
         when(councilProperties.enabled()).thenReturn(true);
         when(councilProperties.prePlanningEnabled()).thenReturn(true);
@@ -564,7 +570,8 @@ class OrchestrationServiceTest {
 
         CouncilReport report = new CouncilReport(
                 List.of("security-specialist"), List.of("Use OAuth2"),
-                null, null, null, null, null, Map.of());
+                null, null, null, null, null, Map.of(),
+                null, null, null);
 
         when(councilProperties.enabled()).thenReturn(true);
         when(councilProperties.taskSessionEnabled()).thenReturn(true);

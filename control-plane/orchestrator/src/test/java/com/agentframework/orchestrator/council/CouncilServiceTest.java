@@ -44,7 +44,7 @@ class CouncilServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CouncilService(chatClient, promptLoader, DEFAULT_PROPS, objectMapper, Optional.empty());
+        service = new CouncilService(chatClient, promptLoader, DEFAULT_PROPS, objectMapper, Optional.empty(), Optional.empty());
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callResponse = mock(ChatClient.CallResponseSpec.class);
     }
@@ -277,7 +277,7 @@ class CouncilServiceTest {
     @Test
     void selectMembers_respectsMaxMembers_passesMaxToPrompt() {
         CouncilProperties smallProps = new CouncilProperties(true, 2, true, true, false);
-        CouncilService smallService = new CouncilService(chatClient, promptLoader, smallProps, objectMapper, Optional.empty());
+        CouncilService smallService = new CouncilService(chatClient, promptLoader, smallProps, objectMapper, Optional.empty(), Optional.empty());
 
         stubPromptLoader();
         stubChatClientChain();
