@@ -157,6 +157,24 @@
                 </dependency>
             </dependencies>
         </profile>
+        <!-- Phase 2 (#29): Hybrid — managers in-process, heavy workers in separate JVMs -->
+        <profile>
+            <id>hybrid</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.agentframework</groupId>
+                    <artifactId>workers-managers</artifactId>
+                    <version>${project.version}</version>
+                    <type>pom</type>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>com.agentframework</groupId>
+                    <artifactId>messaging-hybrid</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
     </profiles>
 
     <build>

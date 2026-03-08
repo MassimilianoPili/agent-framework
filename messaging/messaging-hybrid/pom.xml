@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.agentframework</groupId>
+        <artifactId>agent-framework</artifactId>
+        <version>1.1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>messaging-hybrid</artifactId>
+    <name>Agent Framework :: Messaging :: Hybrid</name>
+    <description>Hybrid messaging provider for Phase 2 (#29): routes tasks to in-process broker
+        for lightweight managers and to remote worker JVMs via REST for heavy workers.</description>
+
+    <dependencies>
+        <!-- Messaging SPI -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>messaging-api</artifactId>
+        </dependency>
+
+        <!-- In-process broker (reused for local manager workers) -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>messaging-inprocess</artifactId>
+        </dependency>
+
+        <!-- Spring Boot auto-configuration support -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- Jackson (for serializing tasks to JSON in REST calls) -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+    </dependencies>
+</project>

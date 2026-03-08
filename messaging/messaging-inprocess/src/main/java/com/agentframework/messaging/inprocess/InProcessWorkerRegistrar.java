@@ -7,10 +7,14 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Discovers all {@link AbstractWorker} beans and registers each as a handler
@@ -32,9 +36,13 @@ import java.util.List;
  *     → handler lambda → shouldProcess(worker, task) → worker.process(task)
  *       → WorkerResultProducer → InProcessMessageSender → broker → AgentResultConsumer
  * </pre>
+ *
+ * <p><strong>Hybrid mode (#29 Phase 2)</strong>: when {@code worker-runtime.remote-types}
+ * is configured, workers of those types are skipped (they run in separate JVMs).
+ * Only manager workers (not in the remote-types list) are registered in-process.
  */
 @Component
-@ConditionalOnProperty(name = "messaging.provider", havingValue = "in-process")
+@ConditionalOnBean(InProcessMessageBroker.class)
 public class InProcessWorkerRegistrar {
 
     private static final Logger log = LoggerFactory.getLogger(InProcessWorkerRegistrar.class);
@@ -44,13 +52,21 @@ public class InProcessWorkerRegistrar {
     private final InProcessMessageBroker broker;
     private final ObjectProvider<List<AbstractWorker>> workersProvider;
     private final ObjectMapper objectMapper;
+    private final Set<String> remoteTypes;
 
     public InProcessWorkerRegistrar(InProcessMessageBroker broker,
                                      ObjectProvider<List<AbstractWorker>> workersProvider,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     @Value("${worker-runtime.remote-types:}") String remoteTypesCSV) {
         this.broker = broker;
         this.workersProvider = workersProvider;
         this.objectMapper = objectMapper;
+        this.remoteTypes = (remoteTypesCSV == null || remoteTypesCSV.isBlank())
+                ? Set.of()
+                : Arrays.stream(remoteTypesCSV.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toUnmodifiableSet());
     }
 
     @PostConstruct
@@ -61,7 +77,16 @@ public class InProcessWorkerRegistrar {
             return;
         }
 
+        int skipped = 0;
         for (AbstractWorker worker : workers) {
+            // In hybrid mode, skip workers whose type is handled by remote JVMs
+            if (remoteTypes.contains(worker.workerType())) {
+                log.info("InProcess: skipping remote worker type={} profile={} (handled by remote JVM)",
+                        worker.workerType(), worker.workerProfile());
+                skipped++;
+                continue;
+            }
+
             String group = worker.workerType() + "-" + worker.workerProfile() + "-worker-group";
             broker.register(TASK_TOPIC, group, (body, ack) -> {
                 try {
@@ -86,7 +111,9 @@ public class InProcessWorkerRegistrar {
                     worker.workerType(), worker.workerProfile(), group);
         }
 
-        log.info("InProcess: {} workers registered with broker", workers.size());
+        int registered = workers.size() - skipped;
+        log.info("InProcess: {} workers registered with broker ({} skipped as remote)",
+                registered, skipped);
     }
 
     /**
