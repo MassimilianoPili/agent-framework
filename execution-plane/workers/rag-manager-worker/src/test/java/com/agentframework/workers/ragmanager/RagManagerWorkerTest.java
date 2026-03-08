@@ -170,7 +170,7 @@ class RagManagerWorkerTest {
         return new AgentContext(
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 "RAG-001", title, description, null, "system prompt",
-                Map.of(), null, null, null, null
+                Map.of(), null, null, null, null, null
         );
     }
 }

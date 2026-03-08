@@ -3,6 +3,8 @@ package com.agentframework.orchestrator.orchestration;
 import com.agentframework.common.policy.HookPolicy;
 import com.agentframework.common.policy.RiskLevel;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
+import com.agentframework.orchestrator.artifact.ArtifactStore;
+import com.agentframework.orchestrator.workspace.WorkspaceManager;
 import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.budget.TokenBudgetService.BudgetDecision;
@@ -61,6 +63,8 @@ class OrchestrationServiceTest {
     @Mock private CouncilService councilService;
     @Mock private CouncilProperties councilProperties;
     @Mock private RewardComputationService rewardComputationService;
+    @Mock private ArtifactStore artifactStore;
+    @Mock private WorkspaceManager workspaceManager;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private OrchestrationService service;
@@ -75,6 +79,8 @@ class OrchestrationServiceTest {
                 councilProperties, rewardComputationService,
                 Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(),
+                artifactStore,
+                workspaceManager,
                 new EnrichmentInjectorService(new EnrichmentProperties(false, false, false, false)),
                 new EnrichmentProperties(false, false, false, false));
 
@@ -207,6 +213,43 @@ class OrchestrationServiceTest {
         assertThat(item.getStatus()).isEqualTo(ItemStatus.DONE);
         assertThat(item.getResult()).isEqualTo("{\"code\": \"ok\"}");
         assertThat(item.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    void onTaskCompleted_success_storesArtifactInCAS() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        item.transitionTo(ItemStatus.DISPATCHED);
+        String resultJson = "{\"code\": \"ok\"}";
+
+        AgentResult result = successResult(planId, item.getId(), "BE-001", resultJson);
+
+        stubOnTaskCompletedCommon(item, planId);
+        when(artifactStore.save(resultJson)).thenReturn("abc123hash");
+
+        service.onTaskCompleted(result);
+
+        verify(artifactStore).save(resultJson);
+        assertThat(item.getResultHash()).isEqualTo("abc123hash");
+    }
+
+    @Test
+    void onTaskCompleted_success_casFailureDoesNotBlockCompletion() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        item.transitionTo(ItemStatus.DISPATCHED);
+        String resultJson = "{\"code\": \"ok\"}";
+
+        AgentResult result = successResult(planId, item.getId(), "BE-001", resultJson);
+
+        stubOnTaskCompletedCommon(item, planId);
+        when(artifactStore.save(resultJson)).thenThrow(new RuntimeException("DB down"));
+
+        service.onTaskCompleted(result);
+
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.DONE);
+        assertThat(item.getResult()).isEqualTo(resultJson);
+        assertThat(item.getResultHash()).isNull();
     }
 
     @Test

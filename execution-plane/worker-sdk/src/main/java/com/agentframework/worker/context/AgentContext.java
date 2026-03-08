@@ -31,7 +31,8 @@ public record AgentContext(
     String skillsContent,
     List<String> relevantFiles,
     HookPolicy policy,
-    String councilGuidance         // JSON CouncilReport from pre-planning or task-level council session (nullable)
+    String councilGuidance,        // JSON CouncilReport from pre-planning or task-level council session (nullable)
+    String workspacePath           // plan-scoped workspace directory path (nullable, e.g. "/workspace/a1b2c3d4")
 ) {
     /** Returns true if this context carries an explicit file allowlist from CONTEXT_MANAGER. */
     public boolean hasRelevantFiles() {

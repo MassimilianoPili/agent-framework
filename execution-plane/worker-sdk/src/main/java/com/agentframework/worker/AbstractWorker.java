@@ -208,6 +208,13 @@ public abstract class AbstractWorker {
             prompt.add(depSection.toString());
         }
 
+        // Workspace path for shared file access (#44)
+        if (context.workspacePath() != null && !context.workspacePath().isBlank()) {
+            prompt.add("## Workspace\nWrite all generated files under: " + context.workspacePath()
+                + "\nThis directory is shared with other workers in this plan. "
+                + "Use absolute paths when calling file system tools.");
+        }
+
         prompt.add("## Instructions\n" + instructions);
 
         return prompt.toString();
