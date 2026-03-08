@@ -2,6 +2,7 @@ package com.agentframework.worker.messaging;
 
 import com.agentframework.messaging.MessageAcknowledgment;
 import com.agentframework.messaging.MessageListenerContainer;
+import com.agentframework.messaging.TaskLockService;
 import com.agentframework.worker.AbstractWorker;
 import com.agentframework.worker.config.WorkerProperties;
 import com.agentframework.worker.dto.AgentTask;
@@ -10,6 +11,8 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Optional;
 
 /**
  * Consumes AgentTask messages from the worker-type-specific topic.
@@ -25,15 +28,18 @@ public class WorkerTaskConsumer {
     private final AbstractWorker worker;
     private final ObjectMapper objectMapper;
     private final WorkerProperties properties;
+    private final Optional<TaskLockService> taskLockService;
 
     public WorkerTaskConsumer(MessageListenerContainer listenerContainer,
                               AbstractWorker worker,
                               ObjectMapper objectMapper,
-                              WorkerProperties properties) {
+                              WorkerProperties properties,
+                              Optional<TaskLockService> taskLockService) {
         this.listenerContainer = listenerContainer;
         this.worker = worker;
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.taskLockService = taskLockService;
     }
 
     @PostConstruct
@@ -44,8 +50,9 @@ public class WorkerTaskConsumer {
                 this::handleMessage
         );
         listenerContainer.start();
-        log.info("Task consumer started for worker type: {} on topic '{}'",
-                 worker.workerType(), properties.getTaskTopic());
+        log.info("Task consumer started for worker type: {} on topic '{}' (lock={})",
+                 worker.workerType(), properties.getTaskTopic(),
+                 taskLockService.isPresent() ? "enabled" : "disabled");
     }
 
     @PreDestroy
@@ -61,6 +68,11 @@ public class WorkerTaskConsumer {
      * <p>Filtering is necessary because Redis Streams delivers all messages to every consumer
      * group on the same stream. Unlike Azure Service Bus (which supports server-side subscription
      * filters), Redis requires application-level filtering.</p>
+     *
+     * <p>When a {@link TaskLockService} is available, acquires a distributed lock before
+     * processing. If the lock cannot be acquired (another instance is already processing this
+     * task), the message is acknowledged without processing — preventing double processing
+     * when a worker restarts and reclaims its PEL entries.</p>
      */
     private void handleMessage(String body, MessageAcknowledgment ack) {
         try {
@@ -74,11 +86,28 @@ public class WorkerTaskConsumer {
                 return;
             }
 
+            if (taskLockService.isPresent() && !taskLockService.get().acquire(task.taskKey())) {
+                log.warn("Task {} already locked by another consumer — skipping to prevent double processing",
+                         task.taskKey());
+                ack.complete();
+                return;
+            }
+
             log.info("Received task {} for worker {} (plan={})",
                      task.taskKey(), worker.workerType(), task.planId());
 
-            worker.process(task);
-            ack.complete();
+            try {
+                worker.process(task);
+                ack.complete();
+            } finally {
+                taskLockService.ifPresent(ls -> {
+                    try {
+                        ls.release(task.taskKey());
+                    } catch (Exception ex) {
+                        log.warn("Failed to release task lock for {}: {}", task.taskKey(), ex.getMessage());
+                    }
+                });
+            }
 
         } catch (Exception e) {
             log.error("Failed to handle AgentTask message: {}", e.getMessage(), e);

@@ -2,6 +2,7 @@ package com.agentframework.worker.config;
 
 import com.agentframework.messaging.MessageListenerContainer;
 import com.agentframework.messaging.MessageSender;
+import com.agentframework.messaging.TaskLockService;
 import com.agentframework.worker.AbstractWorker;
 import com.agentframework.worker.claude.WorkerChatClientFactory;
 import com.agentframework.worker.context.AgentContextBuilder;
@@ -15,6 +16,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+
+import java.util.Optional;
 
 /**
  * Auto-configuration for the worker-sdk.
@@ -53,8 +56,9 @@ public class WorkerAutoConfiguration {
             MessageListenerContainer listenerContainer,
             AbstractWorker worker,
             ObjectMapper objectMapper,
-            WorkerProperties props) {
-        return new WorkerTaskConsumer(listenerContainer, worker, objectMapper, props);
+            WorkerProperties props,
+            Optional<TaskLockService> taskLockService) {
+        return new WorkerTaskConsumer(listenerContainer, worker, objectMapper, props, taskLockService);
     }
 
     @Bean
