@@ -600,6 +600,37 @@ vsm:
   enabled: true
   max-samples: 2000                 # max task_outcomes rows for variety analysis
 
+# Actor Model Supervisor (Hewitt 1973) — worker crash detection + backpressure analysis
+actor-model:
+  enabled: true
+  backpressure-threshold: 10        # max message count before actor is flagged as backpressured
+  crash-rate-threshold: 0.3         # fraction of zero-reward tasks to flag actor as crashed
+
+# Chandy-Lamport Snapshotter (1985) — consistent distributed snapshot of in-flight tasks
+chandy-lamport:
+  enabled: true
+
+# LTL Policy Verifier (Linear Temporal Logic) — safety + liveness verification of plan traces
+ltl-verifier:
+  enabled: true
+  max-context-requests: 3           # max CONTEXT_REQUESTED events per task before L2 violation
+
+# Description Logic Matcher (ALC) — capability subsumption matching for worker selection
+description-logic:
+  enabled: true
+
+# Information Foraging Service (Pirolli & Card 1999) — Marginal Value Theorem for RAG retrieval
+information-foraging:
+  enabled: true
+  stop-threshold-sigma: 1.0         # σ multiplier for IR stop threshold (below mean - σ = skip)
+
+# Stigmergy Coordinator (Grassé 1959 + Dorigo ACO) — pheromone-based indirect routing
+stigmergy:
+  enabled: true
+  evaporation-rate: 0.1             # ρ: pheromone decay per update cycle
+  pheromone-alpha: 1.0              # α: pheromone exponent in selection probability
+  deposit-q: 1.0                    # Q: pheromone deposit quantity per unit reward
+
 logging:
   level:
     com.agentframework: INFO

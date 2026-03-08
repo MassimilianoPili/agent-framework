@@ -125,6 +125,22 @@ public enum WorkerType {
     TASK_MANAGER,
 
     /**
+     * TOOL_MANAGER produces a precise MCP tool allowlist for a specific domain task.
+     *
+     * <p>Lightweight (Haiku-class) per-task analyst. Receives the output of
+     * CONTEXT_MANAGER and RAG_MANAGER as dependency results and outputs a
+     * {@code HookPolicy} JSON that specifies the minimum set of tools the target
+     * task actually needs. Auto-injected by {@code EnrichmentInjectorService} as
+     * a dependency of every domain worker (BE, FE, DBA, MOBILE, AI_TASK,
+     * CONTRACT, REVIEW).</p>
+     *
+     * <p>Output JSON: {@code {"target_task_key":"BE-001","allowedTools":[...],"ownedPaths":[...],"allowedMcpServers":[...],"rationale":"..."}}</p>
+     *
+     * <p>TaskKey prefix: {@code TM-}</p>
+     */
+    TOOL_MANAGER,
+
+    /**
      * COMPENSATOR_MANAGER executes rollback operations (git revert, file restore)
      * to undo the effect of a previously completed task. Uses the {@code git-mcp}
      * tool set to operate on the workspace.

@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static java.util.Map.entry;
+
 /**
  * Static fallback policy resolver.
  *
@@ -33,17 +35,18 @@ public class HookPolicyResolver {
      * Default tool allowlist per worker type, using MCP tool bean names.
      * Manager types are read-only by default.
      */
-    private static final Map<WorkerType, List<String>> DEFAULT_TOOL_ALLOWLISTS = Map.of(
-        WorkerType.BE,              ToolNames.ALL_FS_TOOLS,
-        WorkerType.FE,              ToolNames.ALL_FS_TOOLS,
-        WorkerType.AI_TASK,         ToolNames.ALL_FS_TOOLS,
-        WorkerType.CONTRACT,        ToolNames.ALL_FS_TOOLS,
-        WorkerType.REVIEW,          ToolNames.READONLY_FS_TOOLS,
-        WorkerType.CONTEXT_MANAGER, ToolNames.READONLY_FS_TOOLS,
-        WorkerType.SCHEMA_MANAGER,  ToolNames.READONLY_FS_TOOLS,
-        WorkerType.HOOK_MANAGER,    ToolNames.READONLY_FS_TOOLS,
-        WorkerType.AUDIT_MANAGER,   List.of(ToolNames.FS_LIST, ToolNames.FS_READ, ToolNames.FS_WRITE, ToolNames.FS_GREP),
-        WorkerType.EVENT_MANAGER,   List.of(ToolNames.FS_LIST, ToolNames.FS_READ)
+    private static final Map<WorkerType, List<String>> DEFAULT_TOOL_ALLOWLISTS = Map.ofEntries(
+        entry(WorkerType.BE,              ToolNames.ALL_FS_TOOLS),
+        entry(WorkerType.FE,              ToolNames.ALL_FS_TOOLS),
+        entry(WorkerType.AI_TASK,         ToolNames.ALL_FS_TOOLS),
+        entry(WorkerType.CONTRACT,        ToolNames.ALL_FS_TOOLS),
+        entry(WorkerType.REVIEW,          ToolNames.READONLY_FS_TOOLS),
+        entry(WorkerType.CONTEXT_MANAGER, ToolNames.READONLY_FS_TOOLS),
+        entry(WorkerType.SCHEMA_MANAGER,  ToolNames.READONLY_FS_TOOLS),
+        entry(WorkerType.HOOK_MANAGER,    ToolNames.READONLY_FS_TOOLS),
+        entry(WorkerType.TOOL_MANAGER,    ToolNames.READONLY_FS_TOOLS),
+        entry(WorkerType.AUDIT_MANAGER,   List.of(ToolNames.FS_LIST, ToolNames.FS_READ, ToolNames.FS_WRITE, ToolNames.FS_GREP)),
+        entry(WorkerType.EVENT_MANAGER,   List.of(ToolNames.FS_LIST, ToolNames.FS_READ))
     );
 
     private final WorkerProfileRegistry profileRegistry;

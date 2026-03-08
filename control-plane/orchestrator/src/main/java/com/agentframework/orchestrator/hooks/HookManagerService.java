@@ -1,6 +1,8 @@
 package com.agentframework.orchestrator.hooks;
 
+import com.agentframework.common.policy.ApprovalMode;
 import com.agentframework.common.policy.HookPolicy;
+import com.agentframework.common.policy.RiskLevel;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,6 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -120,6 +124,70 @@ public class HookManagerService {
         fallback.ifPresent(p ->
             log.debug("Using static HookPolicy fallback for task {} (workerType={})", taskKey, workerType));
         return fallback;
+    }
+
+    /**
+     * Parses and stores a per-task HookPolicy from a TOOL_MANAGER worker result.
+     *
+     * <p>Unlike {@link #storePolicies(UUID, String)}, which replaces the entire plan-level
+     * policy map, this method performs a <em>per-task merge</em>: only the target task's
+     * entry is written. Policies for other tasks (e.g., set by a previous HOOK_MANAGER
+     * result) are preserved. This allows TOOL_MANAGER results to coexist with and
+     * override HOOK_MANAGER results on a per-task basis.</p>
+     *
+     * <p>Expected result format:</p>
+     * <pre>{@code
+     * {
+     *   "target_task_key":   "BE-001",
+     *   "allowedTools":      ["fs_read", "fs_write", "fs_list"],
+     *   "ownedPaths":        ["/workspace/plan/src/"],
+     *   "allowedMcpServers": ["repo-fs"],
+     *   "rationale":         "BE task generates Java files — needs read + write access"
+     * }
+     * }</pre>
+     *
+     * @param planId     the plan this TM result belongs to
+     * @param resultJson the TOOL_MANAGER worker's AgentResult.resultJson
+     */
+    public void storeToolManagerResult(UUID planId, String resultJson) {
+        if (resultJson == null || resultJson.isBlank()) {
+            log.warn("ToolManager result for plan {} is empty — no policy stored", planId);
+            return;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(resultJson);
+            String targetTaskKey = root.path("target_task_key").asText(null);
+            if (targetTaskKey == null || targetTaskKey.isBlank()) {
+                log.warn("ToolManager result for plan {} has no 'target_task_key' — no policy stored", planId);
+                return;
+            }
+
+            List<String> allowedTools      = parseStringList(root, "allowedTools");
+            List<String> ownedPaths        = parseStringList(root, "ownedPaths");
+            List<String> allowedMcpServers = parseStringList(root, "allowedMcpServers");
+
+            HookPolicy policy = new HookPolicy(
+                    allowedTools, ownedPaths, allowedMcpServers, true,
+                    null, List.of(), ApprovalMode.NONE, 0, RiskLevel.LOW, null, false);
+
+            policiesByPlan.computeIfAbsent(planId, k -> new ConcurrentHashMap<>())
+                          .put(targetTaskKey, policy);
+
+            log.info("Tool Manager policy stored for task {} (plan {}): {} tools, {} paths",
+                     targetTaskKey, planId, allowedTools.size(), ownedPaths.size());
+
+        } catch (Exception e) {
+            log.warn("Failed to parse ToolManager result for plan {} — policy not stored: {}",
+                     planId, e.getMessage());
+        }
+    }
+
+    private List<String> parseStringList(JsonNode root, String fieldName) {
+        JsonNode node = root.get(fieldName);
+        if (node == null || !node.isArray()) return List.of();
+        List<String> result = new ArrayList<>();
+        node.forEach(n -> result.add(n.asText()));
+        return result;
     }
 
     /**
