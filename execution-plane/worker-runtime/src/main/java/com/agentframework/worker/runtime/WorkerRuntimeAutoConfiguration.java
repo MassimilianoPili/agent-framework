@@ -1,4 +1,4 @@
-package com.agentframework.messaging.inprocess;
+package com.agentframework.worker.runtime;
 
 import com.agentframework.messaging.MessageSender;
 import com.agentframework.worker.claude.WorkerChatClientFactory;
@@ -8,41 +8,46 @@ import com.agentframework.worker.context.SkillLoader;
 import com.agentframework.worker.event.WorkerEventPublisher;
 import com.agentframework.worker.messaging.WorkerResultProducer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 
 /**
- * Auto-configuration for running multiple workers in a single JVM (Phase 1b of #29).
+ * Auto-configuration for the standalone worker-runtime (Phase 2 of #29).
  *
- * <p>Active when an {@link InProcessMessageBroker} bean exists (both {@code in-process}
- * and {@code hybrid} messaging modes). This replaces {@code WorkerAutoConfiguration}
- * (which handles the single-worker case) with a multi-worker setup.
+ * <p>Active when {@code worker-runtime.orchestrator-url} is set, indicating this is
+ * a remote worker JVM that receives tasks via REST and sends results via HTTP callback.
  *
- * <p>Responsibilities:
+ * <p>Key differences from other deployment modes:
  * <ul>
- *   <li>Component scan of {@code com.agentframework.workers} (via {@link InProcessWorkerScanConfig})</li>
- *   <li>Shared infrastructure beans: {@link SkillLoader}, {@link AgentContextBuilder},
- *       {@link WorkerChatClientFactory}</li>
- *   <li>Shared {@link WorkerResultProducer} and {@link WorkerEventPublisher}</li>
- *   <li>{@link CompactingToolCallingManagerPostProcessor} for tool call compaction</li>
- *   <li>Worker registration is handled by {@link InProcessWorkerRegistrar}</li>
+ *   <li>No {@code MessageListenerContainer} — tasks arrive via {@link WorkerRuntimeController}</li>
+ *   <li>No {@code WorkerTaskConsumer} — dispatch is handled by {@link LocalTaskDispatcher}</li>
+ *   <li>{@link MessageSender} posts results to the orchestrator via HTTP callback
+ *       instead of going through a message broker</li>
  * </ul>
  *
- * <p>The corresponding {@code WorkerAutoConfiguration} is disabled via
- * {@code @ConditionalOnMissingBean(type = "...InProcessMessageBroker")} when this
- * auto-configuration is active.
+ * @see com.agentframework.worker.config.WorkerAutoConfiguration
+ * @see com.agentframework.messaging.inprocess.InProcessWorkerAutoConfiguration
  */
 @AutoConfiguration
-@ConditionalOnBean(InProcessMessageBroker.class)
-@Import({SkillLoader.class, AgentContextBuilder.class, WorkerChatClientFactory.class,
-         InProcessWorkerScanConfig.class})
-public class InProcessWorkerAutoConfiguration {
+@ConditionalOnProperty(name = "worker-runtime.orchestrator-url")
+@Import({SkillLoader.class, AgentContextBuilder.class, WorkerChatClientFactory.class})
+@ComponentScan(basePackages = "com.agentframework.workers")
+public class WorkerRuntimeAutoConfiguration {
 
     private static final String RESULTS_TOPIC = "agent-results";
     private static final String EVENTS_TOPIC = "agent-events";
+
+    @Bean
+    @ConditionalOnMissingBean
+    public MessageSender messageSender(
+            @Value("${worker-runtime.orchestrator-url}") String orchestratorUrl) {
+        return new ResultCallbackMessageSender(orchestratorUrl);
+    }
 
     @Bean
     @ConditionalOnMissingBean

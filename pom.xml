@@ -54,6 +54,8 @@
         <module>execution-plane/worker-sdk</module>
         <!-- messaging-inprocess after worker-sdk (optional dependency for Phase 1b JVM consolidation) -->
         <module>messaging/messaging-inprocess</module>
+        <!-- messaging-hybrid after messaging-inprocess (depends on it) -->
+        <module>messaging/messaging-hybrid</module>
         <!-- Control Plane -->
         <module>control-plane/orchestrator</module>
         <!-- Worker parent POM (shared dependencies for all generated workers) -->
@@ -110,8 +112,11 @@
         <module>execution-plane/workers/be-lua-worker</module>
         <module>execution-plane/workers/research-manager-worker</module>
         <module>execution-plane/workers/integration-manager-worker</module>
-        <!-- Workers aggregator (Phase 1b: JVM consolidation) -->
+        <!-- Workers aggregators -->
         <module>execution-plane/workers-all</module>
+        <module>execution-plane/workers-managers</module>
+        <!-- Standalone worker-runtime for hybrid deployment (#29 Phase 2) -->
+        <module>execution-plane/worker-runtime</module>
     </modules>
 
     <dependencyManagement>
@@ -153,6 +158,11 @@
             <dependency>
                 <groupId>com.agentframework</groupId>
                 <artifactId>messaging-inprocess</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.agentframework</groupId>
+                <artifactId>messaging-hybrid</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

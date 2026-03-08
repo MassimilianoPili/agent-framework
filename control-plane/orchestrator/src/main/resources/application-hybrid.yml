@@ -1,0 +1,25 @@
+# Hybrid deployment profile (#29 Phase 2)
+#
+# Manager workers (11) run in-process in the orchestrator JVM.
+# Heavy workers (BE, FE, DBA, AI_TASK, REVIEW, MOBILE, CONTRACT, SDK_SCAFFOLD)
+# run in separate JVMs via the worker-runtime module.
+#
+# Activate: mvn spring-boot:run -Dspring-boot.run.profiles=hybrid -Phybrid
+
+messaging:
+  provider: hybrid
+
+worker-runtime:
+  remote-types: BE, FE, DBA, AI_TASK, REVIEW, MOBILE, CONTRACT, SDK_SCAFFOLD
+  endpoints:
+    BE: ${WORKER_BE_URL:http://be-worker:8100}
+    FE: ${WORKER_FE_URL:http://fe-worker:8100}
+    DBA: ${WORKER_DBA_URL:http://dba-worker:8100}
+    AI_TASK: ${WORKER_AI_TASK_URL:http://ai-task-worker:8100}
+    REVIEW: ${WORKER_REVIEW_URL:http://review-worker:8100}
+    MOBILE: ${WORKER_MOBILE_URL:http://mobile-worker:8100}
+    CONTRACT: ${WORKER_CONTRACT_URL:http://contract-worker:8100}
+    SDK_SCAFFOLD: ${WORKER_SDK_SCAFFOLD_URL:http://sdk-scaffold-worker:8100}
+  connect-timeout: 5000
+  read-timeout: 300000
+  health-check-interval-seconds: 30

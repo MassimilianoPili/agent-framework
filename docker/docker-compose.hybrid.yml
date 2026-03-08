@@ -1,0 +1,160 @@
+version: '3.8'
+
+# Hybrid deployment overlay for Phase 2 (#29) — Worker Lifecycle Management.
+#
+# Manager workers (11) run in-process in the orchestrator JVM.
+# Heavy workers (BE, FE, DBA, AI_TASK, REVIEW, MOBILE, CONTRACT, SDK_SCAFFOLD)
+# run in separate JVMs via worker-runtime containers.
+#
+# Usage (overlay on top of docker-compose.sol.yml):
+#   docker compose -f docker/docker-compose.sol.yml \
+#                  -f docker/docker-compose.hybrid.yml \
+#                  --env-file docker/sol.env up -d
+#
+# This overlay:
+#   1. Switches orchestrator to 'hybrid' Spring profile (manager workers in-process)
+#   2. Disables standalone worker containers (replaced by worker-runtime per type)
+#   3. Adds worker-runtime containers grouped by workerType
+#
+# Each worker-runtime container hosts all profiles for its type:
+#   - be-worker hosts be-java, be-go, be-python, be-rust, etc. (13 profiles)
+#   - fe-worker hosts fe-react, fe-angular, fe-vue, etc. (6 profiles)
+#   - The internal LocalTaskDispatcher routes by workerProfile.
+
+x-worker-runtime-defaults: &worker-runtime-defaults
+  image: agentframework/worker-runtime:latest
+  restart: unless-stopped
+  networks:
+    - shared
+  volumes:
+    - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+    - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+    - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+    - /data/massimiliano/agent-framework/data/workspaces:/workspace
+  environment:
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    ORCHESTRATOR_URL: http://orchestrator:8080
+
+services:
+
+  # ── Override: Orchestrator with hybrid profile (manager workers in-process) ──
+  orchestrator:
+    environment:
+      SPRING_PROFILES_ACTIVE: hybrid
+    mem_limit: 1024m
+    memswap_limit: 1024m
+
+  # ── Disable standalone worker containers (replaced by worker-runtime) ────────
+  be-java-worker:
+    deploy:
+      replicas: 0
+  fe-react-worker:
+    deploy:
+      replicas: 0
+  contract-worker:
+    deploy:
+      replicas: 0
+  review-worker:
+    deploy:
+      replicas: 0
+  context-manager-worker:
+    deploy:
+      replicas: 0
+  schema-manager-worker:
+    deploy:
+      replicas: 0
+  rag-manager-worker:
+    deploy:
+      replicas: 0
+  ai-task-worker:
+    deploy:
+      replicas: 0
+  mobile-kotlin-worker:
+    deploy:
+      replicas: 0
+
+  # ── Worker-runtime containers (one per workerType, all profiles inside) ──────
+
+  be-worker:
+    <<: *worker-runtime-defaults
+    container_name: be-worker
+    environment:
+      WORKER_TYPE: BE
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ORCHESTRATOR_URL: http://orchestrator:8080
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  fe-worker:
+    <<: *worker-runtime-defaults
+    container_name: fe-worker
+    environment:
+      WORKER_TYPE: FE
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ORCHESTRATOR_URL: http://orchestrator:8080
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  dba-worker:
+    <<: *worker-runtime-defaults
+    container_name: dba-worker
+    environment:
+      WORKER_TYPE: DBA
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ORCHESTRATOR_URL: http://orchestrator:8080
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  ai-task-worker-runtime:
+    <<: *worker-runtime-defaults
+    container_name: ai-task-worker-runtime
+    environment:
+      WORKER_TYPE: AI_TASK
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ORCHESTRATOR_URL: http://orchestrator:8080
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  review-worker-runtime:
+    <<: *worker-runtime-defaults
+    container_name: review-worker-runtime
+    environment:
+      WORKER_TYPE: REVIEW
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ORCHESTRATOR_URL: http://orchestrator:8080
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  mobile-worker:
+    <<: *worker-runtime-defaults
+    container_name: mobile-worker
+    environment:
+      WORKER_TYPE: MOBILE
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ORCHESTRATOR_URL: http://orchestrator:8080
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  contract-worker-runtime:
+    <<: *worker-runtime-defaults
+    container_name: contract-worker-runtime
+    environment:
+      WORKER_TYPE: CONTRACT
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ORCHESTRATOR_URL: http://orchestrator:8080
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  sdk-scaffold-worker-runtime:
+    <<: *worker-runtime-defaults
+    container_name: sdk-scaffold-worker-runtime
+    environment:
+      WORKER_TYPE: SDK_SCAFFOLD
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ORCHESTRATOR_URL: http://orchestrator:8080
+    mem_limit: 512m
+    memswap_limit: 512m
+
+networks:
+  shared:
+    external: true

@@ -1,0 +1,21 @@
+server:
+  port: ${SERVER_PORT:8100}
+
+worker-runtime:
+  orchestrator-url: ${ORCHESTRATOR_URL:http://orchestrator:8080}
+
+spring:
+  application:
+    name: worker-runtime-${WORKER_TYPE:unknown}
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: ${LLM_MODEL:claude-sonnet-4-6}
+          max-tokens: 8192
+
+logging:
+  level:
+    com.agentframework: INFO
+    com.agentframework.worker.runtime: DEBUG
