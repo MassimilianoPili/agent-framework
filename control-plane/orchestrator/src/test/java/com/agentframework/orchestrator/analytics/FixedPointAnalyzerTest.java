@@ -63,7 +63,7 @@ class FixedPointAnalyzerTest {
     @DisplayName("no historical data returns null")
     void analyse_noData_returnsNull() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType("be-java", 500))
-                .thenReturn(List.of());
+                .thenReturn(List.<Object[]>of());
 
         assertThat(analyzer.analyse("be-java")).isNull();
     }
@@ -82,7 +82,7 @@ class FixedPointAnalyzerTest {
     @DisplayName("converges for typical rewards — fixed point equals sample mean")
     void analyse_typicalRewards_convergesAndFixedPointEqualsMean() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType("be-java", 500))
-                .thenReturn(List.of(row(0.8), row(0.9), row(0.7), row(0.8), row(0.8)));
+                .thenReturn(List.<Object[]>of(row(0.8), row(0.9), row(0.7), row(0.8), row(0.8)));
 
         FixedPointAnalyzer.FixedPointReport report = analyzer.analyse("be-java");
 
@@ -100,7 +100,7 @@ class FixedPointAnalyzerTest {
     @DisplayName("Brouwer condition always true — T: [0,1]→[0,1] continuous")
     void analyse_brouwerConditionAlwaysTrue() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType("fe-react", 500))
-                .thenReturn(List.of(row(0.3), row(0.4)));
+                .thenReturn(List.<Object[]>of(row(0.3), row(0.4)));
 
         FixedPointAnalyzer.FixedPointReport report = analyzer.analyse("fe-react");
 
@@ -113,7 +113,7 @@ class FixedPointAnalyzerTest {
     @DisplayName("convergence curve is non-empty and errors are non-negative")
     void analyse_convergenceCurve_nonNegativeErrors() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType("dba-postgres", 500))
-                .thenReturn(List.of(row(0.5), row(0.5), row(0.5)));
+                .thenReturn(List.<Object[]>of(row(0.5), row(0.5), row(0.5)));
 
         FixedPointAnalyzer.FixedPointReport report = analyzer.analyse("dba-postgres");
 
@@ -128,7 +128,7 @@ class FixedPointAnalyzerTest {
     @DisplayName("single observation → fixed point equals that observation")
     void analyse_singleObservation_fixedPointEqualsValue() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType("ops-k8s", 500))
-                .thenReturn(List.of(row(0.6)));
+                .thenReturn(List.<Object[]>of(row(0.6)));
 
         FixedPointAnalyzer.FixedPointReport report = analyzer.analyse("ops-k8s");
 
@@ -142,7 +142,7 @@ class FixedPointAnalyzerTest {
     @DisplayName("all rewards = 0 → fixed point is 0, still converges")
     void analyse_allZeroRewards_fixedPointZero() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType("be-go", 500))
-                .thenReturn(List.of(row(0.0), row(0.0), row(0.0)));
+                .thenReturn(List.<Object[]>of(row(0.0), row(0.0), row(0.0)));
 
         FixedPointAnalyzer.FixedPointReport report = analyzer.analyse("be-go");
 

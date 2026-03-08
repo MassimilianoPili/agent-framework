@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.config.StaleDetectorProperties;
 import com.agentframework.orchestrator.domain.*;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -7,10 +8,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,8 +30,9 @@ class StaleTaskDetectorSchedulerTest {
 
     @BeforeEach
     void setUp() {
-        scheduler = new StaleTaskDetectorScheduler(planItemRepository);
-        ReflectionTestUtils.setField(scheduler, "timeoutMinutes", 30);
+        // Default 30 min timeout for all worker types (no per-type overrides)
+        var staleProps = new StaleDetectorProperties(30, Map.of());
+        scheduler = new StaleTaskDetectorScheduler(planItemRepository, staleProps);
     }
 
     @Test
@@ -69,7 +71,7 @@ class StaleTaskDetectorSchedulerTest {
         );
         plan.addItem(item);
         item.transitionTo(ItemStatus.DISPATCHED);
-        item.setDispatchedAt(Instant.now().minusSeconds(3600)); // 1 hour ago
+        item.setDispatchedAt(Instant.now().minusSeconds(3600)); // 1 hour ago (> 30 min default)
         return item;
     }
 }

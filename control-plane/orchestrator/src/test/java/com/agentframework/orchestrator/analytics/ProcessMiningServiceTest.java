@@ -48,7 +48,7 @@ class ProcessMiningServiceTest {
     @Test
     @DisplayName("no data returns null")
     void discover_noData_returnsNull() {
-        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.of());
+        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.<Object[]>of());
 
         assertThat(service.discover()).isNull();
     }
@@ -59,7 +59,7 @@ class ProcessMiningServiceTest {
     @DisplayName("sequential A→B across multiple traces → causal relation A→B")
     void discover_sequentialProcess_causalRelationDiscovered() {
         // Two traces, both A then B → direct-follows A>B but never B>A → causality A→B
-        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.of(
+        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.<Object[]>of(
                 summaryRow("plan-1", "be-java"),
                 summaryRow("plan-1", "fe-react"),
                 summaryRow("plan-2", "be-java"),
@@ -87,7 +87,7 @@ class ProcessMiningServiceTest {
     @DisplayName("A→B and B→A across traces → parallel pair A ∥ B, no causality")
     void discover_parallelActivities_detectedAsBothDirections() {
         // trace-1: A then B; trace-2: B then A → both directions observed → parallel
-        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.of(
+        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.<Object[]>of(
                 summaryRow("plan-1", "be-java"),
                 summaryRow("plan-1", "dba-postgres"),
                 summaryRow("plan-2", "dba-postgres"),
@@ -113,7 +113,7 @@ class ProcessMiningServiceTest {
         // Actually, if both A→B and B→A exist, they'd be parallel, not causal.
         // For a true loop we need: A→B causal AND B→A causal → they'd conflict (both can't be causal)
         // The way to test loop detection: need 3 activities A→B→C→A
-        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.of(
+        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.<Object[]>of(
                 summaryRow("plan-1", "be-java"),
                 summaryRow("plan-1", "fe-react"),
                 summaryRow("plan-1", "be-go"),
@@ -139,7 +139,7 @@ class ProcessMiningServiceTest {
     @DisplayName("all traces match discovered model → fitness = 1.0")
     void discover_consistentTraces_fitnessOne() {
         // All traces follow exactly A→B→C
-        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.of(
+        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.<Object[]>of(
                 summaryRow("plan-1", "be-java"),
                 summaryRow("plan-1", "fe-react"),
                 summaryRow("plan-1", "dba-postgres"),
@@ -160,7 +160,7 @@ class ProcessMiningServiceTest {
     @Test
     @DisplayName("discovered sequences contain human-readable arrows")
     void discover_discoveredSequences_containArrows() {
-        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.of(
+        when(taskOutcomeRepository.findPlanWorkerRewardSummary()).thenReturn(List.<Object[]>of(
                 summaryRow("plan-1", "be-java"),
                 summaryRow("plan-1", "fe-react")
         ));
