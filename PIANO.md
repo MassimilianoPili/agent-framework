@@ -3910,7 +3910,7 @@ Per retention: truncare a N turni (es. ultimi 50) se la conversazione e' troppo 
 
 **Sforzo**: 1g. **Pattern collegati**: P4 (session resume), P3 (persistent memory), P1 (auto-compacting).
 
-### G2 — Decision reasoning (❌ mancante)
+### G2 — Decision reasoning (✅ → S13 PIANO_HISTORY.md)
 
 **Problema**: nessun chain-of-thought salvato. Il Provenance ha `toolsUsed` (cosa) ma non `reasoning` (perche').
 Il GP Engine (#11) non ha accesso al reasoning del worker per calcolare reward piu' precisi.
@@ -3968,7 +3968,7 @@ Endpoint: `/actuator/prometheus` → scrape da Prometheus esistente → dashboar
 
 **Sforzo**: 0.5g. **Pattern collegati**: monitoring stack server SOL (Prometheus + Grafana gia' operativi).
 
-### G5 — Persistent audit (❌ mancante — AuditManagerService in-memory)
+### G5 — Persistent audit (✅ → S13 PIANO_HISTORY.md)
 
 **Problema**: `AuditManagerService` usa `CopyOnWriteArrayList` in-memory (max 10k eventi).
 Al restart del servizio, tutti gli audit event sono persi. Con ring-buffer, gli eventi piu' vecchi vengono eliminati.
@@ -4060,10 +4060,10 @@ li legge e li aggrega con gli eventi del framework (PlanEvent + ToolAudit) per u
 | Gap | Sforzo | Priorita' | Dipendenze |
 |-----|--------|-----------|------------|
 | G1 Conversation history | 1g | ALTA | — |
-| G2 Decision reasoning | 0.5g | MEDIA | — |
+| G2 Decision reasoning | ✅ S13 | — | — |
 | G3 File modification tracking | 1.5g | ALTA | — |
 | G4 Prometheus metrics | 0.5g | ALTA | actuator+micrometer deps |
-| G5 Persistent audit | 0.5g | MEDIA | — |
+| G5 Persistent audit | ✅ S13 | — | — |
 | G6 MCP server audit logging | 1g | ALTA | header propagation nel worker SDK |
 | **Totale** | **5g** | | |
 
