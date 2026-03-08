@@ -18,7 +18,8 @@ public record Provenance(
     List<String> toolsUsed,     // null if no tools called
     String promptHash,          // SHA-256 hex of system prompt
     String skillsHash,          // SHA-256 hex of concatenated skill content
-    TokenUsage tokenUsage       // null if not captured
+    TokenUsage tokenUsage,      // null if not captured
+    String reasoning            // first LLM text block before any tool call (max 2000 chars); null if not captured
 ) {
     public record TokenUsage(Long inputTokens, Long outputTokens, Long totalTokens) {}
 }
