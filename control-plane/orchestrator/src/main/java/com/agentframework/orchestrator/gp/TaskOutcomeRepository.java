@@ -270,4 +270,20 @@ public interface TaskOutcomeRepository extends JpaRepository<TaskOutcome, UUID> 
             """, nativeQuery = true)
     List<Object[]> findOutcomesWithEmbeddingByWorkerType(@Param("workerType") String workerType,
                                                           @Param("limit") int limit);
+
+    /**
+     * Loads completion timestamps for queuing-theory (M/G/1) capacity analysis.
+     * Returns rows: [created_at(Timestamp), actual_reward(Double)], ordered by created_at ASC.
+     * Inter-completion intervals proxy service times when the server is continuously busy.
+     */
+    @Query(value = """
+            SELECT created_at, actual_reward
+            FROM task_outcomes
+            WHERE actual_reward IS NOT NULL
+              AND worker_type = :workerType
+            ORDER BY created_at ASC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findCompletionTimestampsByWorkerType(@Param("workerType") String workerType,
+                                                         @Param("limit") int limit);
 }
