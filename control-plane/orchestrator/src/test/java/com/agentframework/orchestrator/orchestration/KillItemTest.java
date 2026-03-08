@@ -123,7 +123,7 @@ class KillItemTest {
         assertThat(item.getFailureReason()).isEqualTo("killed_by_operator");
         assertThat(item.getCompletedAt()).isNotNull();
         verify(planItemRepository).save(item);
-        verify(eventPublisher, atLeastOnce()).publishEvent(any());
+        verify(eventPublisher, atLeastOnce()).publishEvent(any(Object.class));
     }
 
     @Test
@@ -170,7 +170,7 @@ class KillItemTest {
 
         assertThatThrownBy(() -> service.killItem(itemId))
                 .isInstanceOf(IllegalStateTransitionException.class)
-                .hasMessageContaining("Cannot kill item in status DONE");
+                .hasMessageContaining("cannot transition from DONE to FAILED");
 
         // No save should have been called
         verify(planItemRepository, never()).save(any());

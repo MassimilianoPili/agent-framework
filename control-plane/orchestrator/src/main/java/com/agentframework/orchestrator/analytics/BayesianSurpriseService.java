@@ -86,7 +86,7 @@ public class BayesianSurpriseService {
                       + (postVar + Math.pow(postMu - PRIOR_MU, 2)) / (2.0 * PRIOR_VAR)
                       - 0.5;
 
-        double zScore = (postMu - PRIOR_MU) / sigma0;
+        double zScore = (postMu - PRIOR_MU) / sigma1;
 
         SurpriseCategory category;
         if      (zScore >=  SURPRISE_Z) category = SurpriseCategory.POSITIVE_SURPRISE;
