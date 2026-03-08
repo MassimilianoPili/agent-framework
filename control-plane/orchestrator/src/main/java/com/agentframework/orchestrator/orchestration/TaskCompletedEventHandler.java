@@ -37,6 +37,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *   <li>Serendipity file outcome collection</li>
  *   <li>Review score distribution (for REVIEW worker type)</li>
  *   <li>Hook Manager policy storage (for HOOK_MANAGER worker type)</li>
+ *   <li>Tool Manager policy storage (for TOOL_MANAGER worker type — per-task, overrides HM)</li>
  * </ol>
  */
 @Component
@@ -102,6 +103,12 @@ public class TaskCompletedEventHandler {
         if (item.getWorkerType() == WorkerType.HOOK_MANAGER) {
             runSafely("storePolicies", result.taskKey(), () ->
                     hookManagerService.storePolicies(result.planId(), result.resultJson()));
+        }
+
+        // 6. Store precise per-task tool policy from Tool Manager (overrides HM result for target task)
+        if (item.getWorkerType() == WorkerType.TOOL_MANAGER && result.resultJson() != null) {
+            runSafely("storeToolManagerResult", result.taskKey(), () ->
+                    hookManagerService.storeToolManagerResult(result.planId(), result.resultJson()));
         }
     }
 

@@ -45,6 +45,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - /data/massimiliano/agent-framework/data/postgres:/var/lib/postgresql/data
+    mem_limit: 256m
+    memswap_limit: 256m
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agentframework"]
@@ -74,6 +76,8 @@ services:
     depends_on:
       agentfw-postgres:
         condition: service_healthy
+    mem_limit: 768m
+    memswap_limit: 768m
     restart: unless-stopped
 
   # ── Domain Workers ───────────────────────────────────────────────────────────
@@ -96,6 +100,8 @@ services:
       - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
       - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
     restart: unless-stopped
 
   fe-react-worker:
@@ -118,6 +124,8 @@ services:
       - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
       - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
     restart: unless-stopped
 
   contract-worker:
@@ -134,6 +142,8 @@ services:
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       FS_SKILLS_DIR: /skills
     volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
     restart: unless-stopped
 
   review-worker:
@@ -154,6 +164,8 @@ services:
       - /data/massimiliano/agent-framework/skills:/skills/skills:ro
       - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
       - /data/massimiliano/agent-framework/data/workspaces:/workspace:ro
+    mem_limit: 384m
+    memswap_limit: 384m
     restart: unless-stopped
 
   # ── Middle-layer Workers ─────────────────────────────────────────────────────
@@ -171,6 +183,8 @@ services:
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       FS_SKILLS_DIR: /skills
     volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
     restart: unless-stopped
 
   schema-manager-worker:
@@ -187,6 +201,8 @@ services:
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       FS_SKILLS_DIR: /skills
     volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
     restart: unless-stopped
 
   rag-manager-worker:
@@ -207,6 +223,7 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       # Non richiede ANTHROPIC_API_KEY: worker programmatico (no LLM)
     mem_limit: 512m
+    memswap_limit: 512m
     depends_on:
       agentfw-postgres:
         condition: service_healthy
@@ -227,6 +244,8 @@ services:
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
       FS_SKILLS_DIR: /skills
     volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
     restart: unless-stopped
 
   # ── Mobile Workers ─────────────────────────────────────────────────────────
@@ -250,6 +269,8 @@ services:
       - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
       - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
     restart: unless-stopped
 
   # ── Ollama ─────────────────────────────────────────────────────────────────
@@ -268,3 +289,826 @@ services:
   #       limits:
   #         memory: 3G
   #   restart: unless-stopped
+
+  # ── Backend Language Workers (profiles: optional) ─────────────────────────
+  # Avvio selettivo: docker compose -f docker-compose.sol.yml up -d be-python-worker
+  # Non partono con 'up -d' senza --profile optional.
+
+  be-cpp-worker:
+    build:
+      context: ../execution-plane/workers/be-cpp-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-cpp-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-dotnet-worker:
+    build:
+      context: ../execution-plane/workers/be-dotnet-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-dotnet-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-elixir-worker:
+    build:
+      context: ../execution-plane/workers/be-elixir-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-elixir-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-go-worker:
+    build:
+      context: ../execution-plane/workers/be-go-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-go-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-kotlin-worker:
+    build:
+      context: ../execution-plane/workers/be-kotlin-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-kotlin-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-laravel-worker:
+    build:
+      context: ../execution-plane/workers/be-laravel-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-laravel-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-lua-worker:
+    build:
+      context: ../execution-plane/workers/be-lua-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-lua-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-node-worker:
+    build:
+      context: ../execution-plane/workers/be-node-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-node-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-ocaml-worker:
+    build:
+      context: ../execution-plane/workers/be-ocaml-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-ocaml-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-python-worker:
+    build:
+      context: ../execution-plane/workers/be-python-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-python-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-quarkus-worker:
+    build:
+      context: ../execution-plane/workers/be-quarkus-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-quarkus-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  be-rust-worker:
+    build:
+      context: ../execution-plane/workers/be-rust-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-be-rust-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  # ── Frontend Language Workers (profiles: optional) ────────────────────────
+
+  fe-angular-worker:
+    build:
+      context: ../execution-plane/workers/fe-angular-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-fe-angular-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  fe-nextjs-worker:
+    build:
+      context: ../execution-plane/workers/fe-nextjs-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-fe-nextjs-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  fe-svelte-worker:
+    build:
+      context: ../execution-plane/workers/fe-svelte-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-fe-svelte-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  fe-vanillajs-worker:
+    build:
+      context: ../execution-plane/workers/fe-vanillajs-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-fe-vanillajs-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  fe-vue-worker:
+    build:
+      context: ../execution-plane/workers/fe-vue-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-fe-vue-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  # ── Mobile Workers (profiles: optional) ──────────────────────────────────
+
+  mobile-swift-worker:
+    build:
+      context: ../execution-plane/workers/mobile-swift-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-mobile-swift-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+      AGENT_WORKER_SANDBOX_ENABLED: "true"
+    volumes:
+      - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+      - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+      - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  # ── DBA Workers (profiles: optional) ─────────────────────────────────────
+
+  dba-cassandra-worker:
+    build:
+      context: ../execution-plane/workers/dba-cassandra-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-cassandra-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  dba-graphdb-worker:
+    build:
+      context: ../execution-plane/workers/dba-graphdb-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-graphdb-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  dba-mongo-worker:
+    build:
+      context: ../execution-plane/workers/dba-mongo-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-mongo-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  dba-mssql-worker:
+    build:
+      context: ../execution-plane/workers/dba-mssql-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-mssql-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  dba-mysql-worker:
+    build:
+      context: ../execution-plane/workers/dba-mysql-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-mysql-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  dba-oracle-worker:
+    build:
+      context: ../execution-plane/workers/dba-oracle-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-oracle-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  dba-postgres-worker:
+    build:
+      context: ../execution-plane/workers/dba-postgres-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-postgres-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  dba-redis-worker:
+    build:
+      context: ../execution-plane/workers/dba-redis-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-redis-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  dba-sqlite-worker:
+    build:
+      context: ../execution-plane/workers/dba-sqlite-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-sqlite-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  dba-vectordb-worker:
+    build:
+      context: ../execution-plane/workers/dba-vectordb-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-dba-vectordb-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  # ── Manager / Coordinator Workers (profiles: optional) ────────────────────
+
+  advisory-worker:
+    build:
+      context: ../execution-plane/workers/advisory-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-advisory-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 512m
+    memswap_limit: 512m
+    restart: unless-stopped
+
+  audit-manager-worker:
+    build:
+      context: ../execution-plane/workers/audit-manager-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-audit-manager-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 512m
+    memswap_limit: 512m
+    restart: unless-stopped
+
+  compensator-manager-worker:
+    build:
+      context: ../execution-plane/workers/compensator-manager-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-compensator-manager-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 512m
+    memswap_limit: 512m
+    restart: unless-stopped
+
+  event-manager-worker:
+    build:
+      context: ../execution-plane/workers/event-manager-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-event-manager-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 512m
+    memswap_limit: 512m
+    restart: unless-stopped
+
+  hook-manager-worker:
+    build:
+      context: ../execution-plane/workers/hook-manager-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-hook-manager-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 512m
+    memswap_limit: 512m
+    restart: unless-stopped
+
+  integration-manager-worker:
+    build:
+      context: ../execution-plane/workers/integration-manager-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-integration-manager-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 512m
+    memswap_limit: 512m
+    restart: unless-stopped
+
+  research-manager-worker:
+    build:
+      context: ../execution-plane/workers/research-manager-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-research-manager-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 512m
+    memswap_limit: 512m
+    restart: unless-stopped
+
+  sdk-scaffold-worker:
+    build:
+      context: ../execution-plane/workers/sdk-scaffold-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-sdk-scaffold-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 384m
+    memswap_limit: 384m
+    restart: unless-stopped
+
+  task-manager-worker:
+    build:
+      context: ../execution-plane/workers/task-manager-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-task-manager-worker
+    networks: [shared]
+    profiles: [optional]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    mem_limit: 512m
+    memswap_limit: 512m
+    restart: unless-stopped
