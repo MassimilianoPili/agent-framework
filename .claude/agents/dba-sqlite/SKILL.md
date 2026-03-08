@@ -1,9 +1,10 @@
 ---
 name: dba-sqlite
 description: >
-  SQLite/libSQL database administration worker. Designs schemas with PRAGMA optimization,
-  writes migrations, configures WAL mode, FTS5 full-text search, R*Tree spatial indexes,
-  JSON1 virtual tables, and libSQL replication.
+  Use whenever the task involves SQLite or libSQL database design: PRAGMA optimization
+  (WAL mode, cache size, synchronous), FTS5 full-text search, R*Tree spatial indexes,
+  UPSERT syntax, serverless embedded deployment, Turso/sqld HTTP API. Use for
+  SQLite/libSQL — for server databases use the matching dba-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

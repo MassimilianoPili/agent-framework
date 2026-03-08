@@ -1,9 +1,10 @@
 ---
 name: dba-oracle
 description: >
-  Oracle Database administration worker. Designs schemas with PL/SQL, writes migrations,
-  creates indexes (B-tree, bitmap, function-based), optimizes queries via DBMS_XPLAN,
-  configures partitioning, Data Guard, Flashback, and RMAN operations.
+  Use whenever the task involves Oracle 19c+ database design or administration: PL/SQL
+  packages and functions, AWR/ASH performance analysis, Data Guard replication
+  configuration, partitioning strategy, optimizer hints. Use for Oracle — for other
+  databases use the matching dba-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

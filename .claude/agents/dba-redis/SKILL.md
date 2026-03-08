@@ -1,9 +1,10 @@
 ---
 name: dba-redis
 description: >
-  Redis/Valkey database administration worker. Designs data structures (strings, hashes,
-  sorted sets, streams), implements key naming conventions, configures persistence
-  (RDB/AOF), writes Lua scripts, manages Sentinel failover and Cluster sharding.
+  Use whenever the task involves Redis 7/Valkey data structure design or administration:
+  streams, sorted sets, HyperLogLog, Lua atomic scripting, Sentinel failover
+  configuration, Cluster sharding, AOF/RDB persistence tuning. Use for Redis/Valkey
+  — for other databases use the matching dba-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40
