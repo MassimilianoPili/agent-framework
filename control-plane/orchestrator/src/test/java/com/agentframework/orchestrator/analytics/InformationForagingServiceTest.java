@@ -68,10 +68,9 @@ class InformationForagingServiceTest {
     @Test
     @DisplayName("high-IR patch gets chunks; low-IR patch below stop threshold gets 0")
     void forage_highAndLowIR_lowGetsZeroChunks() {
-        // Patch A: IR = 0.9/1.0 = 0.9 (high)
-        // Patch B: IR = 0.1/1.0 = 0.1 (low)
-        // globalIR = 0.5, stdIR = 0.4, stopThreshold = 0.5 - 1.0*0.4 = 0.1
-        // Patch A IR=0.9 > 0.1 → gets chunks; Patch B IR=0.1 = stopThreshold → 0 (not strictly >)
+        // sigma=0 → stopThreshold = globalIR = (0.9+0.1)/2 = 0.5
+        // high IR=0.9 > 0.5 → gets chunks; low IR=0.1 < 0.5 → 0 chunks (no floating-point boundary)
+        ReflectionTestUtils.setField(service, "stopThresholdSigma", 0.0);
         InformationForagingService.ForagingPatch high =
                 new InformationForagingService.ForagingPatch("high-doc", 0.9, 1.0, 10);
         InformationForagingService.ForagingPatch low =

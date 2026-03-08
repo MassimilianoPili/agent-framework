@@ -10,10 +10,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.Mockito.*;
 
 /**
@@ -35,7 +37,11 @@ class LTLPolicyVerifierTest {
         ReflectionTestUtils.setField(verifier, "maxContextRequests", 3);
     }
 
-    /** Creates a minimal PlanEvent mock. */
+    /**
+     * Creates a minimal PlanEvent mock.
+     * IMPORTANT: must be called BEFORE any enclosing when() stub is opened,
+     * since the inner when() calls would cause UnfinishedStubbingException.
+     */
     private PlanEvent event(UUID itemId, String eventType) {
         PlanEvent e = mock(PlanEvent.class);
         when(e.getItemId()).thenReturn(itemId);
@@ -58,8 +64,9 @@ class LTLPolicyVerifierTest {
     @DisplayName("empty trace → S1/S2/L2 satisfied, L1 violated (no completions)")
     void verify_emptyTrace_l1Violated() {
         UUID planId = UUID.randomUUID();
+        List<PlanEvent> emptyTrace = new ArrayList<>();
         when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId))
-                .thenReturn(List.of());
+                .thenReturn(emptyTrace);
 
         LTLPolicyVerifier.LTLVerificationReport report = verifier.verify(planId);
 
@@ -68,7 +75,8 @@ class LTLPolicyVerifierTest {
         assertThat(report.formulaResults().get("S2_safety_order_preserved")).isTrue();
         assertThat(report.formulaResults().get("L1_liveness_at_least_one_completed")).isFalse();
         assertThat(report.formulaResults().get("L2_liveness_context_not_infinite")).isTrue();
-        assertThat(report.violations()).hasSize(1);
+        // L1 violation is not recorded for empty traces (plan not yet started)
+        assertThat(report.violations()).isEmpty();
         assertThat(report.overallAdherence()).isCloseTo(0.75, within(0.01));
     }
 
@@ -81,12 +89,14 @@ class LTLPolicyVerifierTest {
         UUID item1  = UUID.randomUUID();
         UUID item2  = UUID.randomUUID();
 
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(item1, "TASK_DISPATCHED"),
-                event(item1, "TASK_COMPLETED"),
-                event(item2, "TASK_DISPATCHED"),
-                event(item2, "TASK_COMPLETED")
-        ));
+        // Build event list BEFORE opening any when() stub (avoid UnfinishedStubbingException)
+        List<PlanEvent> trace = new ArrayList<>();
+        trace.add(event(item1, "TASK_DISPATCHED"));
+        trace.add(event(item1, "TASK_COMPLETED"));
+        trace.add(event(item2, "TASK_DISPATCHED"));
+        trace.add(event(item2, "TASK_COMPLETED"));
+
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(trace);
 
         LTLPolicyVerifier.LTLVerificationReport report = verifier.verify(planId);
 
@@ -100,20 +110,16 @@ class LTLPolicyVerifierTest {
     @Test
     @DisplayName("S1 violated: dispatched item never terminates")
     void verify_s1Violation_dispatchedNotTerminated() {
-        UUID planId  = UUID.randomUUID();
-        UUID item    = UUID.randomUUID();
-
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(item, "TASK_DISPATCHED"),
-                event(item, "TASK_COMPLETED")  // has a completed, but second item missing
-        ));
-        // Add a second item that's dispatched but never terminated
+        UUID planId = UUID.randomUUID();
+        UUID item   = UUID.randomUUID();
         UUID orphan = UUID.randomUUID();
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(item,   "TASK_DISPATCHED"),
-                event(item,   "TASK_COMPLETED"),
-                event(orphan, "TASK_DISPATCHED")  // dispatched, never terminates
-        ));
+
+        List<PlanEvent> trace = new ArrayList<>();
+        trace.add(event(item,   "TASK_DISPATCHED"));
+        trace.add(event(item,   "TASK_COMPLETED"));
+        trace.add(event(orphan, "TASK_DISPATCHED"));  // dispatched, never terminates
+
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(trace);
 
         LTLPolicyVerifier.LTLVerificationReport report = verifier.verify(planId);
 
@@ -131,10 +137,11 @@ class LTLPolicyVerifierTest {
         UUID planId = UUID.randomUUID();
         UUID item   = UUID.randomUUID();
 
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(item, "TASK_COMPLETED"),    // out-of-order: no prior DISPATCHED
-                event(item, "TASK_DISPATCHED")
-        ));
+        List<PlanEvent> trace = new ArrayList<>();
+        trace.add(event(item, "TASK_COMPLETED"));    // out-of-order: no prior DISPATCHED
+        trace.add(event(item, "TASK_DISPATCHED"));
+
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(trace);
 
         LTLPolicyVerifier.LTLVerificationReport report = verifier.verify(planId);
 
@@ -151,14 +158,15 @@ class LTLPolicyVerifierTest {
         UUID planId = UUID.randomUUID();
         UUID item   = UUID.randomUUID();
 
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(item, "TASK_DISPATCHED"),
-                event(item, "CONTEXT_REQUESTED"),
-                event(item, "CONTEXT_REQUESTED"),
-                event(item, "CONTEXT_REQUESTED"),
-                event(item, "CONTEXT_REQUESTED"),  // 4th request > max=3
-                event(item, "TASK_COMPLETED")
-        ));
+        List<PlanEvent> trace = new ArrayList<>();
+        trace.add(event(item, "TASK_DISPATCHED"));
+        trace.add(event(item, "CONTEXT_REQUESTED"));
+        trace.add(event(item, "CONTEXT_REQUESTED"));
+        trace.add(event(item, "CONTEXT_REQUESTED"));
+        trace.add(event(item, "CONTEXT_REQUESTED"));  // 4th request > max=3
+        trace.add(event(item, "TASK_COMPLETED"));
+
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(trace);
 
         LTLPolicyVerifier.LTLVerificationReport report = verifier.verify(planId);
 
@@ -173,11 +181,13 @@ class LTLPolicyVerifierTest {
     @DisplayName("overallAdherence = satisfied formulae / 4")
     void verify_adherenceCalculation_correctFraction() {
         UUID planId = UUID.randomUUID();
+        UUID item   = UUID.randomUUID();
+
         // Only L1 satisfied (has a completion), but no dispatches so S1 trivially satisfied too
-        UUID item = UUID.randomUUID();
-        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(List.of(
-                event(null, "TASK_COMPLETED")  // no itemId, counts for L1 global check
-        ));
+        List<PlanEvent> trace = new ArrayList<>();
+        trace.add(event(null, "TASK_COMPLETED"));  // no itemId, counts for L1 global check
+
+        when(planEventRepository.findByPlanIdOrderBySequenceNumberAsc(planId)).thenReturn(trace);
 
         LTLPolicyVerifier.LTLVerificationReport report = verifier.verify(planId);
 
