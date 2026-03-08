@@ -66,6 +66,21 @@ public enum WorkerType {
     SCHEMA_MANAGER,
 
     /**
+     * RESEARCH_MANAGER fetches and synthesises external technical knowledge
+     * (library docs, API references, best-practice guides, arXiv papers, RFCs)
+     * relevant to a task. Runs as a dependency before domain workers that need
+     * up-to-date information beyond the local codebase.
+     *
+     * <p>Output contains: {@code sources} (URL + summary), {@code key_findings}
+     * (structured insights), {@code recommendations} (actionable steps),
+     * {@code code_examples} (relevant snippets), {@code search_metadata}
+     * (query terms used, sources consulted).</p>
+     *
+     * <p>TaskKey prefix: {@code RS-}</p>
+     */
+    RESEARCH_MANAGER,
+
+    /**
      * HOOK_MANAGER analyzes the full plan and produces contextual {@code HookPolicy}
      * for every downstream task. Runs after CM and SM, before domain workers.
      * Its result JSON contains a {@code "policies"} map of taskKey → HookPolicy.

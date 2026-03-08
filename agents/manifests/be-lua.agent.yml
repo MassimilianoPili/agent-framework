@@ -1,0 +1,67 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+metadata:
+  name: be-lua-worker
+  displayName: "Backend Lua Worker"
+  description: >
+    Handles Lua backend tasks — standalone scripts, OpenResty/Nginx Lua modules,
+    Redis EVAL scripts, LuaJIT applications, CLI tools, and busted tests.
+
+spec:
+  workerType: BE
+  workerProfile: be-lua
+  topic: agent-tasks
+  subscription: be-lua-worker-sub
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.2
+  prompts:
+    systemPromptFile: .claude/agents/be-lua/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Implement the backend task using Lua.
+      Detect the runtime context from the project structure:
+      - OpenResty/Nginx: Lua scripts embedded in nginx.conf or separate *.lua modules
+      - Redis scripting: EVAL scripts in *.lua files loaded via SCRIPT LOAD / evalsha
+      - Standalone Lua 5.4: general scripts with luarocks-managed dependencies
+      Use the available tools to read existing code, understand the project,
+      and write the implementation. Run tests with busted before reporting success.
+    resultSchema: |
+      {
+        "files_created": ["list of new files created"],
+        "files_modified": ["list of existing files modified"],
+        "git_commit": "suggested commit message",
+        "summary": "brief description of what was implemented",
+        "test_results": {
+          "total": 0,
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0
+        }
+      }
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-bash-tool
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - bash_execute
+    mcpServers:
+      - git
+      - repo-fs
+      - bash
+  ownership:
+    ownsPaths:
+      - lua/
+      - scripts/
+      - openresty/
+    readOnlyPaths: []
+  concurrency:
+    maxConcurrentCalls: 2

@@ -102,6 +102,9 @@
         <!-- Mobile workers (2026-03-07) -->
         <module>execution-plane/workers/mobile-swift-worker</module>
         <module>execution-plane/workers/mobile-kotlin-worker</module>
+        <!-- New workers (2026-03-08) -->
+        <module>execution-plane/workers/be-lua-worker</module>
+        <module>execution-plane/workers/research-manager-worker</module>
     </modules>
 
     <dependencyManagement>
