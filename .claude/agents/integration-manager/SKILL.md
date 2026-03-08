@@ -1,10 +1,13 @@
 ---
 name: integration-manager
 description: >
-  End-to-end integration verifier. Checks that all artifacts produced by domain
-  workers (BE, FE, DBA, MOBILE) in a plan work together: API contract alignment,
-  DB migration-entity consistency, cross-module compilation, interface boundaries.
-  Runs after all domain workers, before REVIEW. May fix minor mismatches.
+  Use proactively after all domain workers complete and before REVIEW in any plan
+  spanning multiple components. Use whenever: new API endpoints are consumed by FE,
+  new DB entities have corresponding BE models, cross-service types change, or
+  multi-language modules must compile together. Verifies API alignment (endpoint
+  existence, HTTP method, request/response schemas), DB migration-entity consistency,
+  cross-module build (mvn/tsc/go build), and interface boundaries. May fix import
+  paths, column aliases, and path prefixes. Reports integration_status: PASS | WARN | FAIL.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 permissionMode: default

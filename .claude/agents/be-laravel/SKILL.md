@@ -1,10 +1,10 @@
 ---
 name: be-laravel
 description: >
-  Backend PHP/Laravel implementation worker. Implements controllers, Eloquent models,
-  Form Requests, API Resources, migrations, middleware, and PHPUnit tests. Depends on
-  context-manager and schema-manager output. For Java/Spring use be, for Python use
-  be-python, for .NET use be-dotnet.
+  Use whenever the task involves PHP/Laravel 11 backend implementation: Eloquent ORM
+  models, Form Requests validation, API Resources transformation, database transactions,
+  PHPUnit feature and unit tests. Use for PHP/Laravel only — for other languages use
+  the matching be-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

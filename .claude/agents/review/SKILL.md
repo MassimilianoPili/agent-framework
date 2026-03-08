@@ -1,10 +1,12 @@
 ---
 name: review
 description: >
-  Senior Code Reviewer and Quality Gate Enforcer. Reviews all artifacts produced
-  by other agents in a plan: validates against the OpenAPI contract, checks
-  security, verifies test coverage, and produces a QualityGateReport. Read-only
-  — observes and reports, never modifies code. Runs last in every plan.
+  Use proactively as the final step of every execution plan before marking it complete.
+  Use to validate that all artifacts meet quality gates: OpenAPI contract compliance,
+  security (no hardcoded secrets, no SQL injection), test coverage ≥ 80%, no failing
+  tests, no TypeScript any, no non-functional or misplaced artifacts, no specification
+  gaps. Read-only — observes and reports, never modifies code. Produces a
+  QualityGateReport (passed: true/false, findings, metrics).
 tools: Read, Glob, Grep
 model: sonnet
 permissionMode: plan

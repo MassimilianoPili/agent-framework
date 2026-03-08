@@ -1,9 +1,11 @@
 ---
 name: dba-postgres
 description: >
-  PostgreSQL database administration worker. Designs schemas, writes Flyway migrations,
-  creates indexes (B-tree, GIN, GiST, BRIN), optimizes queries via EXPLAIN ANALYZE,
-  configures partitioning, extensions (pgvector, pg_trgm, PostGIS, AGE), roles and RLS.
+  Use whenever the task involves PostgreSQL 16+ database design or administration:
+  schema design, Flyway migrations, index strategy (B-tree, GIN, GiST, BRIN), query
+  optimization via EXPLAIN ANALYZE, partitioning, extensions (pgvector, pg_trgm,
+  PostGIS, AGE), roles and RLS. Use for PostgreSQL — for other databases use the
+  matching dba-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

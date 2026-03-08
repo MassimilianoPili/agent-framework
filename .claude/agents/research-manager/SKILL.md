@@ -1,10 +1,13 @@
 ---
 name: research-manager
 description: >
-  External knowledge research worker. Fetches and synthesises technical documentation,
-  API references, RFC specs, arXiv papers, and engineering guides relevant to a task.
-  Runs as a dependency before domain workers. Does not write code — produces structured
-  research JSON consumed by downstream workers (BE, FE, AI_TASK, DBA).
+  Use proactively before domain workers (BE, FE, DBA) whenever the task involves:
+  unfamiliar library APIs or new framework versions, RFC or protocol specifications,
+  algorithm or architecture choices, or any topic where up-to-date external documentation
+  would improve implementation quality. Also use when the local codebase contains no
+  prior art for the technology stack being introduced. Fetches official docs, RFCs,
+  arXiv papers, and engineering guides via curl. Produces structured JSON (sources,
+  key_findings, recommendations, code_examples). Does not write code.
 tools: Read, Glob, Grep, Bash
 model: sonnet
 permissionMode: plan

@@ -110,6 +110,21 @@ worker-profiles:
       - templates/be/
       - execution-plane/workers/be-laravel-worker/
 
+  be-lua:
+    workerType: BE
+    topic: agent-tasks
+    subscription: be-lua-worker-sub
+    displayName: "Backend Lua Worker"
+    mcpServers:
+      - git
+      - repo-fs
+      - bash
+    ownsPaths:
+      - lua/
+      - scripts/
+      - openresty/
+      - execution-plane/workers/be-lua-worker/
+
   be-node:
     workerType: BE
     topic: agent-tasks

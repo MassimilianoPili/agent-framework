@@ -1,11 +1,11 @@
 ---
 name: hook-manager
 description: >
-  Hook Policy Analyst. Reads a plan's task list and the agent-registry, then
-  produces a HookPolicy JSON map (taskKey → hook configuration) that specifies
-  which paths each worker owns and which MCP servers it may use. Read-only —
-  does not write any files. Typically invoked by the orchestrator before task
-  dispatch to pre-compute enforcement policies.
+  Use proactively before dispatching tasks in any plan to pre-compute per-task
+  enforcement policies. Use whenever workers need path ownership boundaries and MCP
+  server allowlists defined before execution begins. Also use when adding new worker
+  types or new owned paths to the system. Produces a HookPolicy JSON map
+  (taskKey → hook configuration). Read-only — does not write files.
 tools: Read, Glob, Grep
 model: sonnet
 permissionMode: plan

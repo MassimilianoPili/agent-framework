@@ -1,10 +1,11 @@
 ---
 name: contract
 description: >
-  API Contract Specialist. Designs, creates, validates, and maintains OpenAPI 3.1
-  (REST) and AsyncAPI 2.6 (event-driven) contracts. Runs first in every plan
-  (contract-first pattern). Produces OpenAPI YAML files in contracts/openapi/.
-  Does not implement backend or frontend code.
+  Use proactively at the start of any plan that introduces, changes, or documents API
+  endpoints. Use before BE and FE workers to establish the contract-first baseline. Use
+  when: adding new REST endpoints, adding event-driven integrations, updating
+  request/response schemas, or defining error formats. Produces OpenAPI 3.1 YAML in
+  contracts/openapi/. Does not implement backend or frontend code.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 30

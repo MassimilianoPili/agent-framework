@@ -1,10 +1,10 @@
 ---
 name: fe-nextjs
 description: >
-  Frontend Next.js/React/TypeScript implementation worker. Builds App Router pages,
-  Server Components, Server Actions, route handlers, and Vitest tests. Depends on
-  context-manager and schema-manager output. For plain React use fe, for Vue use
-  fe-vue, for Angular use fe-angular.
+  Use whenever the task involves Next.js 15/React 19 frontend implementation: App
+  Router, Server Components, Server Actions, metadata generation, ISR, image
+  optimization, route handlers. Use for Next.js — for pure React SPA (no SSR)
+  use fe, for Vue use fe-vue.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

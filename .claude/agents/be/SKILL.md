@@ -1,10 +1,10 @@
 ---
 name: be
 description: >
-  Backend Java/Spring Boot implementation worker. Implements controllers, services,
-  repositories, Flyway migrations and unit/slice tests from an OpenAPI contract.
-  Depends on context-manager and schema-manager output. For Go use be-go, for
-  Node/TypeScript use be-node, for Rust use be-rust.
+  Use whenever the task involves Java/Spring Boot 3.4 backend implementation: REST
+  controllers, service layer, Spring Data JPA repositories, Flyway migrations, unit
+  tests (JUnit 5 + Mockito). Use for JVM/Java stack — for Go use be-go, for
+  TypeScript use be-node, for Kotlin use be-kotlin, for Rust use be-rust.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

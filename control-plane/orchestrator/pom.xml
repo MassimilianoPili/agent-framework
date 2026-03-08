@@ -94,6 +94,13 @@
             <version>0.43.1</version>
         </dependency>
 
+        <!-- Apache Commons Math — normal distribution, optimization, linear algebra -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-math3</artifactId>
+            <version>3.6.1</version>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

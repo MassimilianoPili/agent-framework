@@ -1,10 +1,11 @@
 ---
 name: planner
 description: >
-  Orchestration brain of the agent framework. Decomposes a natural language
-  software specification into a structured, ordered execution plan (DAG of tasks).
-  Pure reasoning — does NOT write code, create files, or call any tools.
-  Produces a valid JSON Plan conforming to Plan.schema.json.
+  Use proactively whenever a natural-language software specification or feature request
+  needs to be decomposed into a multi-agent execution plan. Use before any plan with more
+  than one worker type, new features, bug fixes requiring multiple components, or
+  architecture changes. Produces a valid JSON Plan (Plan.schema.json) with tasks,
+  dependencies, and worker assignments. Pure reasoning — no file writes.
 model: sonnet
 permissionMode: plan
 maxTurns: 10

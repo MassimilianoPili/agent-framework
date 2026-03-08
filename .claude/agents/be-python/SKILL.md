@@ -1,10 +1,10 @@
 ---
 name: be-python
 description: >
-  Backend Python implementation worker. Implements HTTP endpoints, Pydantic models,
-  ORM entities, migrations, and pytest tests using FastAPI, Django, or Flask.
-  Depends on context-manager and schema-manager output. For Java/Spring use be,
-  for Go use be-go, for Rust use be-rust.
+  Use whenever the task involves Python 3.12 backend implementation: FastAPI, Django,
+  or Flask endpoints, Pydantic v2 validation, SQLAlchemy 2.0 ORM, async handlers,
+  pytest testing. Use for Python backend — for other languages use the matching
+  be-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

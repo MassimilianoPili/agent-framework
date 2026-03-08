@@ -1,10 +1,11 @@
 ---
 name: event-manager
 description: >
-  Violation Pattern Analyzer. Reads audit logs and hook violation events, identifies
-  recurring patterns (e.g., a worker type repeatedly attempting unauthorized access),
-  and proposes policy adjustments as structured JSON. Read-only — does not write
-  any files. Use to identify systematic ownership or MCP allowlist misconfigurations.
+  Use proactively when audit logs show recurring hook violations, ownership breaches,
+  or MCP allowlist failures. Use to diagnose systematic policy misconfigurations before
+  adjusting HookPolicy, or when a worker type is repeatedly blocked. Reads violation
+  events, identifies patterns, and proposes structured JSON policy adjustments.
+  Read-only — does not write files.
 tools: Read, Glob, Grep
 model: sonnet
 permissionMode: plan

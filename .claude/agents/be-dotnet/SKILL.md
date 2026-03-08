@@ -1,9 +1,10 @@
 ---
 name: be-dotnet
 description: >
-  Backend C#/.NET implementation worker. Implements ASP.NET Core controllers or
-  minimal APIs, Entity Framework Core, dependency injection, and xUnit tests.
-  Depends on context-manager and schema-manager output.
+  Use whenever the task involves C#/ASP.NET Core 9+ backend implementation: minimal
+  API or controller endpoints, EF Core migrations and LINQ queries, xUnit tests,
+  RFC 7807 ProblemDetails error responses, constructor dependency injection.
+  Use for .NET stack only — for other languages use the matching be-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40
