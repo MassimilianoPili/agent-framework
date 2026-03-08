@@ -1,0 +1,67 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+metadata:
+  name: integration-manager-worker
+  displayName: "Integration Manager Worker"
+  description: >
+    Verifies end-to-end integration of all artifacts produced by domain workers
+    in a plan. Checks BE-FE API contract alignment, DB migration-entity consistency,
+    cross-module compilation, and interface boundaries. Runs after all domain workers
+    complete, before REVIEW. Can fix minor integration mismatches.
+
+spec:
+  workerType: INTEGRATION_MANAGER
+  topic: agent-tasks
+  subscription: integration-manager-worker-sub
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 16384
+    temperature: 0.1
+  prompts:
+    systemPromptFile: .claude/agents/integration-manager/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Analyse all artifacts produced by upstream workers and verify that they
+      integrate correctly. Check API contract alignment between BE and FE,
+      migration-entity consistency in DBA output, and cross-module compilation.
+      Fix minor integration mismatches (import corrections, missing DTO fields,
+      migration column names). Report all issues — do not silently ignore failures.
+    resultSchema: |
+      {
+        "integration_status": "PASS | WARN | FAIL",
+        "checks": [
+          {
+            "check": "check name",
+            "status": "PASS | WARN | FAIL",
+            "details": "description of finding"
+          }
+        ],
+        "fixes_applied": ["list of auto-corrections made"],
+        "files_modified": ["files touched during fix"],
+        "build_output": "summary of compilation result",
+        "summary": "brief overall integration assessment"
+      }
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-devops-tools
+      - io.github.massimilianopili:mcp-filesystem-tools
+      - io.github.massimilianopili:mcp-bash-tool
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_write
+      - fs_search
+      - fs_grep
+      - bash_execute
+    mcpServers:
+      - repo-fs
+      - bash
+  ownership:
+    readOnlyPaths:
+      - "."
+  concurrency:
+    maxConcurrentCalls: 1
+  retry:
+    maxAttempts: 2
+    backoffMs: 5000

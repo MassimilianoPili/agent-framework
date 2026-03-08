@@ -994,6 +994,43 @@ Commit: `57117ad` — `Fase 8d: Causal Inference (#54) + Optimal Transport (#60)
 
 ---
 
+## Sessione 10 — Research Domains Fase 9 completamento + Fase 10 (#77-#86) ✅ COMPLETATA
+
+> **Stato**: completata il 2026-03-08. Fase 9 completata al 100% (13/15 → 15/15).
+> Fase 10 (#77-#86) implementata interamente: 10 nuovi Analytics Services.
+
+### S10-A. Completamento Fase 9 (3 item mancanti)
+
+| # | Item | Servizio |
+|---|------|---------|
+| #76 | Superrationality (Hofstadter) | `SuperrationalityService` — cooperation gain tra worker type pairs |
+| #72 | TDT/FDT Reflective Dispatch | `ReflectiveDispatchService` — politica timeless via argmax reward storico |
+
+_(#63 MPC era già implementato come `MpcSchedulerService`)_
+
+### S10-B. Fase 10 — 10 nuovi Analytics Services
+
+| # | Item | Servizio | Algoritmo chiave |
+|---|------|---------|-----------------|
+| #79 | MDL (Rissanen 1978) | `MDLService` | L(DAG) + L(outcomes\|DAG), normalizzato per N |
+| #82 | H∞ Robust Control (Zhou-Doyle) | `HInfinityRobustService` | worst-case = mean − k·std (NormalDist quantile) |
+| #84 | Edge of Chaos (Langton) | `EdgeOfChaosService` | Lyapunov proxy: Var(diffs)/Var(rewards) |
+| #77 | Active Inference / FEP (Friston) | `ActiveInferenceService` | F = −GP.mu + klWeight·GP.sigma² |
+| #78 | Information Bottleneck (Tishby) | `InformationBottleneckService` | SVD via EJML, explained variance ratio |
+| #81 | Spin Glass / SA (Kirkpatrick) | `SpinGlassDispatchService` | Simulated Annealing, T_i = T₀·rate^i |
+| #83 | Byzantine Fault Tolerance (PBFT) | `ByzantineFaultToleranceService` | majority voting > 2/3, byzantine detection |
+| #80 | Renormalization Group (Wilson) | `RenormalizationGroupService` | coupling flow: fine/medium/coarse block scales |
+| #85 | Persistent Homology (Edelsbrunner) | `PersistentHomologyService` | Vietoris-Rips + Union-Find β₀ barcodes |
+| #86 | Functorial Semantics (Mac Lane) | `FunctorialSemanticsService` | Functor F: item→gp_mu, η: η(item)=actual−gp_mu |
+
+### S10-C. Infrastruttura
+
+- `pom.xml`: aggiunta dipendenza `commons-math3:3.6.1` (NormalDistribution per H∞)
+- `TaskOutcomeRepository`: aggiunto `findPlanWorkerRewardSummary()`, `findRewardTimeseriesByWorkerType()`, `findOutcomesWithEmbeddingByWorkerType()`
+- `application.yml`: 12 nuovi blocchi config (superrationality, fdt, mdl, h-infinity, edge-of-chaos, active-inference, information-bottleneck, spin-glass, bft, renormalization-group, persistent-homology, functorial-semantics)
+
+---
+
 ## Riepilogo File per Sessione
 
 | Sessione | File nuovi | File mod | Test nuovi | Test totali |
@@ -1010,6 +1047,7 @@ Commit: `57117ad` — `Fase 8d: Causal Inference (#54) + Optimal Transport (#60)
 | **S8-workers** (26 workers + build.sh) ✅ | ~30 | ~2 | — | — |
 | **S8-research** (Fasi 8a/8b/8d) ✅ | ~15 | ~5 | 22 | — |
 | **S9** (Active Token Budget #15) ✅ | ~2 | ~3 | — | — |
+| **S10** (Fase 9 ✅ 100% + Fase 10 ✅ 100%) | 24 | 4 | ~50 | — |
 
 ---
 
