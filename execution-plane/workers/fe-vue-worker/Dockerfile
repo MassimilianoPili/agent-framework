@@ -6,7 +6,7 @@ LABEL description="Frontend Vue.js Worker"
 
 WORKDIR /app
 
-COPY target/fe-vue-worker-*.jar app.jar
+COPY target/fe-vue-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

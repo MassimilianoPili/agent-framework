@@ -6,7 +6,7 @@ LABEL description="Review Worker"
 
 WORKDIR /app
 
-COPY target/review-worker-*.jar app.jar
+COPY target/review-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

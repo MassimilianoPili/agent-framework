@@ -34,5 +34,34 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
+
+        <!-- Worker SDK (optional: only needed for InProcessWorkerAutoConfiguration in consolidated JVM) -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>worker-sdk</artifactId>
+            <version>${project.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Jackson (for InProcessWorkerRegistrar JSON deserialization) -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Jakarta Annotations (for @PostConstruct in InProcessWorkerRegistrar) -->
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Spring Context (for @Component, @Configuration, @ComponentScan) -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
 </project>

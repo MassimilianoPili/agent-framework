@@ -46,15 +46,18 @@
         <module>messaging/messaging-jms</module>
         <module>messaging/messaging-redis</module>
         <module>messaging/messaging-servicebus</module>
-        <module>messaging/messaging-inprocess</module>
-        <!-- Control Plane -->
-        <module>control-plane/orchestrator</module>
         <!-- Shared Libraries -->
         <module>shared/rag-engine</module>
         <module>shared/gp-engine</module>
         <!-- Execution Plane -->
         <module>execution-plane/agent-compiler-maven-plugin</module>
         <module>execution-plane/worker-sdk</module>
+        <!-- messaging-inprocess after worker-sdk (optional dependency for Phase 1b JVM consolidation) -->
+        <module>messaging/messaging-inprocess</module>
+        <!-- Control Plane -->
+        <module>control-plane/orchestrator</module>
+        <!-- Worker parent POM (shared dependencies for all generated workers) -->
+        <module>execution-plane/worker-parent</module>
         <!-- Generated workers (from agents/manifests/*.agent.yml via agent-compiler-maven-plugin) -->
         <module>execution-plane/workers/context-manager-worker</module>
         <module>execution-plane/workers/schema-manager-worker</module>
@@ -107,6 +110,8 @@
         <module>execution-plane/workers/be-lua-worker</module>
         <module>execution-plane/workers/research-manager-worker</module>
         <module>execution-plane/workers/integration-manager-worker</module>
+        <!-- Workers aggregator (Phase 1b: JVM consolidation) -->
+        <module>execution-plane/workers-all</module>
     </modules>
 
     <dependencyManagement>

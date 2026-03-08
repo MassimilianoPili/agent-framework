@@ -143,6 +143,22 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <!-- Phase 1b (#29): JVM consolidation — all workers on orchestrator classpath -->
+        <profile>
+            <id>inprocess</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.agentframework</groupId>
+                    <artifactId>workers-all</artifactId>
+                    <version>${project.version}</version>
+                    <type>pom</type>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+
     <build>
         <plugins>
             <plugin>

@@ -6,7 +6,7 @@ LABEL description="Backend .NET Worker (C#)"
 
 WORKDIR /app
 
-COPY target/be-dotnet-worker-*.jar app.jar
+COPY target/be-dotnet-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

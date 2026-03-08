@@ -6,7 +6,7 @@ LABEL description="Backend Quarkus Worker (Java)"
 
 WORKDIR /app
 
-COPY target/be-quarkus-worker-*.jar app.jar
+COPY target/be-quarkus-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

@@ -6,7 +6,7 @@ LABEL description="Backend Python Worker"
 
 WORKDIR /app
 
-COPY target/be-python-worker-*.jar app.jar
+COPY target/be-python-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

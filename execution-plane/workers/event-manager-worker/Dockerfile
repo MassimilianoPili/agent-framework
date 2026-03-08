@@ -6,7 +6,7 @@ LABEL description="Event Manager Worker"
 
 WORKDIR /app
 
-COPY target/event-manager-worker-*.jar app.jar
+COPY target/event-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

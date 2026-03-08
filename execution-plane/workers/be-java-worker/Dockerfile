@@ -6,7 +6,7 @@ LABEL description="Backend Java Worker (Spring Boot)"
 
 WORKDIR /app
 
-COPY target/be-java-worker-*.jar app.jar
+COPY target/be-java-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

@@ -6,7 +6,7 @@ LABEL description="DBA Graph Database Worker (Neo4j/AGE)"
 
 WORKDIR /app
 
-COPY target/dba-graphdb-worker-*.jar app.jar
+COPY target/dba-graphdb-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

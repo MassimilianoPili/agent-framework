@@ -6,7 +6,7 @@ LABEL description="Schema Manager Worker"
 
 WORKDIR /app
 
-COPY target/schema-manager-worker-*.jar app.jar
+COPY target/schema-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

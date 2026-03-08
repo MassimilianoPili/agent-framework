@@ -6,7 +6,7 @@ LABEL description="DBA Redis/Valkey Worker"
 
 WORKDIR /app
 
-COPY target/dba-redis-worker-*.jar app.jar
+COPY target/dba-redis-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

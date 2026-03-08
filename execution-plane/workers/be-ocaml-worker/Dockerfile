@@ -6,7 +6,7 @@ LABEL description="Backend OCaml Worker"
 
 WORKDIR /app
 
-COPY target/be-ocaml-worker-*.jar app.jar
+COPY target/be-ocaml-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

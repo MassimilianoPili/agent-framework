@@ -1,1 +1,2 @@
 com.agentframework.messaging.inprocess.InProcessMessagingAutoConfiguration
+com.agentframework.messaging.inprocess.InProcessWorkerAutoConfiguration

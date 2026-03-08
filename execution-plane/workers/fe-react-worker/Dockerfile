@@ -6,7 +6,7 @@ LABEL description="Frontend React Worker"
 
 WORKDIR /app
 
-COPY target/fe-react-worker-*.jar app.jar
+COPY target/fe-react-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

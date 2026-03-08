@@ -6,7 +6,7 @@ LABEL description="DBA SQL Server Worker"
 
 WORKDIR /app
 
-COPY target/dba-mssql-worker-*.jar app.jar
+COPY target/dba-mssql-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

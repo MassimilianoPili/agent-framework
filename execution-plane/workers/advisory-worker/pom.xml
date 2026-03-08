@@ -7,54 +7,21 @@
 
     <parent>
         <groupId>com.agentframework</groupId>
-        <artifactId>agent-framework</artifactId>
+        <artifactId>worker-parent</artifactId>
         <version>1.1.0-SNAPSHOT</version>
-        <relativePath>../../../pom.xml</relativePath>
+        <relativePath>../worker-parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>advisory-worker</artifactId>
-    <name>Agent Framework :: Execution Plane :: Advisory Worker (MANAGER + SPECIALIST)</name>
-    <description>Read-only advisory worker for MANAGER and SPECIALIST task types. Provides domain expertise without write access — Glob, Grep, and Read tools only.</description>
+    <name>Agent Framework :: Execution Plane :: Advisory Worker (MANAGER + SPECIALIST) (Generated)</name>
+    <description>Read-only advisory worker for MANAGER and SPECIALIST task types. Provides domain expertise without write access — Glob, Grep, and Read tools only. Produces structured domain knowledge (architectural decisions, security constraints, data-modeling guidelines, test strategies) that flows to downstream implementation workers via dependency results.</description>
 
     <dependencies>
-        <!-- Worker SDK (auto-configuration for messaging, context, ChatClient) -->
-        <dependency>
-            <groupId>com.agentframework</groupId>
-            <artifactId>worker-sdk</artifactId>
-        </dependency>
-
-        <!-- Spring Boot Web (health endpoint) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <!-- Spring AI Anthropic -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-anthropic</artifactId>
-        </dependency>
-
-        <!-- MCP filesystem tools: Glob, Grep, Read (the only tools advisory workers use) -->
+        <!-- MCP Tool Starters (in-process, disabled when profile 'mcp' excludes their auto-config) -->
         <dependency>
             <groupId>io.github.massimilianopili</groupId>
             <artifactId>mcp-filesystem-tools</artifactId>
         </dependency>
 
-        <!-- Test -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
 </project>

@@ -6,7 +6,7 @@ LABEL description="DBA Vector Database Worker (pgvector)"
 
 WORKDIR /app
 
-COPY target/dba-vectordb-worker-*.jar app.jar
+COPY target/dba-vectordb-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

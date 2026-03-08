@@ -116,23 +116,25 @@ class WorkerGeneratorTest {
     }
 
     @Test
-    void generatedWorkerShouldExtendAbstractWorker(@TempDir Path tempDir) throws IOException {
+    void generatedWorkerShouldExtendLlmWorker(@TempDir Path tempDir) throws IOException {
         generator.generate(manifest, tempDir, "test.agent.yml");
 
         Path workerFile = tempDir.resolve(
             "test-worker/src/main/java/com/agentframework/workers/generated/testworker/TestWorker.java");
         String content = Files.readString(workerFile);
 
-        assertThat(content).contains("extends AbstractWorker");
+        assertThat(content).contains("extends LlmWorker");
         assertThat(content).contains("@Component");
         assertThat(content).contains("@Generated(\"agent-compiler-maven-plugin\")");
-        assertThat(content).contains("return \"BE\"");
-        assertThat(content).contains("return \"skills/test-worker.agent.md\"");
-        assertThat(content).contains("TOOL_ALLOWLIST = List.of(");
+        assertThat(content).contains("@WorkerMetadata(");
+        assertThat(content).contains("workerType = \"BE\"");
+        assertThat(content).contains("systemPromptFile = \"skills/test-worker.agent.md\"");
+        assertThat(content).contains("toolAllowlist = {");
         assertThat(content).contains("\"Read\"");
         assertThat(content).contains("\"Write\"");
         assertThat(content).contains("\"Glob\"");
-        assertThat(content).contains("buildStandardUserPrompt(context, INSTRUCTIONS)");
+        assertThat(content).contains("protected String instructions()");
+        assertThat(content).contains("protected String resultSchema()");
     }
 
     @Test
@@ -143,10 +145,10 @@ class WorkerGeneratorTest {
         String content = Files.readString(pomFile);
 
         assertThat(content).contains("<artifactId>test-worker</artifactId>");
-        assertThat(content).contains("<artifactId>worker-sdk</artifactId>");
+        // Parent POM 'worker-parent' provides: worker-sdk, spring-ai, reactive-tools, messaging-redis
+        assertThat(content).contains("<artifactId>worker-parent</artifactId>");
+        // Worker-specific tool dependencies are still in the generated POM
         assertThat(content).contains("<artifactId>mcp-filesystem-tools</artifactId>");
-        assertThat(content).contains("<artifactId>spring-ai-starter-model-anthropic</artifactId>");
-        assertThat(content).contains("<artifactId>spring-ai-reactive-tools</artifactId>");
     }
 
     @Test

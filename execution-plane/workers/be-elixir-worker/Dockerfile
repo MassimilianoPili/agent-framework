@@ -6,7 +6,7 @@ LABEL description="Backend Elixir Worker (Phoenix)"
 
 WORKDIR /app
 
-COPY target/be-elixir-worker-*.jar app.jar
+COPY target/be-elixir-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

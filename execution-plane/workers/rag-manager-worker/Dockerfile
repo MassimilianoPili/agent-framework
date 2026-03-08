@@ -6,7 +6,7 @@ LABEL description="RAG Manager Worker"
 
 WORKDIR /app
 
-COPY target/rag-manager-worker-*.jar app.jar
+COPY target/rag-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

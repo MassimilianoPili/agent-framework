@@ -6,7 +6,7 @@ LABEL description="Compensator Manager Worker"
 
 WORKDIR /app
 
-COPY target/compensator-manager-worker-*.jar app.jar
+COPY target/compensator-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

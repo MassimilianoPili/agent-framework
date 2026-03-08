@@ -17,10 +17,8 @@ agent:
     results-topic: agent-results
     policy:
       enabled: true
-      worker-profile:
+      worker-profile: 
       owns-paths: []
-      # Advisory workers are read-only — no write tools in allowlist
-      write-tool-names: []
       audit:
         enabled: true
         include-input: false

@@ -6,7 +6,7 @@ LABEL description="Mobile Android (Kotlin) Worker"
 
 WORKDIR /app
 
-COPY target/mobile-kotlin-worker-*.jar app.jar
+COPY target/mobile-kotlin-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

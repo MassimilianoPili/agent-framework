@@ -21,23 +21,34 @@ import org.springframework.context.annotation.Import;
 import java.util.Optional;
 
 /**
- * Auto-configuration for the worker-sdk.
+ * Auto-configuration for the worker-sdk (single-worker-per-JVM mode).
  *
- * Follows the same pattern as DevOpsToolsAutoConfiguration:
- * - @AutoConfiguration (not @Configuration)
- * - @Import to register SDK components
- * - @ConditionalOnProperty gate
+ * <p>Follows the same pattern as DevOpsToolsAutoConfiguration:
+ * <ul>
+ *   <li>{@code @AutoConfiguration} (not {@code @Configuration})</li>
+ *   <li>{@code @Import} to register SDK components</li>
+ *   <li>{@code @ConditionalOnProperty} gate</li>
+ * </ul>
  *
- * Worker applications only need to:
- * 1. Declare a bean extending AbstractWorker
- * 2. Set properties: agent.worker.* in application.yml
- * 3. Add MCP tool starters to their pom.xml
+ * <p>Worker applications only need to:
+ * <ol>
+ *   <li>Declare a bean extending AbstractWorker</li>
+ *   <li>Set properties: {@code agent.worker.*} in application.yml</li>
+ *   <li>Add MCP tool starters to their pom.xml</li>
+ * </ol>
  *
- * MessageSender and MessageListenerContainer beans are provided
+ * <p><strong>Disabled in consolidated JVM mode</strong> (#29 Phase 1b):
+ * When {@code InProcessMessageBroker} is present (= in-process messaging),
+ * this auto-configuration is skipped. The multi-worker registration is
+ * handled by {@code InProcessWorkerAutoConfiguration} instead, which supports
+ * multiple {@code AbstractWorker} beans on the same classpath.
+ *
+ * <p>MessageSender and MessageListenerContainer beans are provided
  * by the active messaging provider (JMS, Redis, or Service Bus).
  */
 @AutoConfiguration
 @ConditionalOnProperty(name = "agent.worker.task-topic")
+@ConditionalOnMissingBean(type = "com.agentframework.messaging.inprocess.InProcessMessageBroker")
 @EnableConfigurationProperties(WorkerProperties.class)
 @Import({SkillLoader.class, AgentContextBuilder.class, WorkerChatClientFactory.class})
 public class WorkerAutoConfiguration {

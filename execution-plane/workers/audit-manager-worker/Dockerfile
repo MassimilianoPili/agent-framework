@@ -6,7 +6,7 @@ LABEL description="Audit Manager Worker"
 
 WORKDIR /app
 
-COPY target/audit-manager-worker-*.jar app.jar
+COPY target/audit-manager-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

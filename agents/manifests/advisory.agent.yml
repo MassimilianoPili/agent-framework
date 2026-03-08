@@ -1,0 +1,52 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: advisory-worker
+  displayName: "Advisory Worker (MANAGER + SPECIALIST)"
+  description: >
+    Read-only advisory worker for MANAGER and SPECIALIST task types. Provides domain
+    expertise without write access — Glob, Grep, and Read tools only. Produces structured
+    domain knowledge (architectural decisions, security constraints, data-modeling guidelines,
+    test strategies) that flows to downstream implementation workers via dependency results.
+
+spec:
+  workerType: MANAGER
+  topic: agent-advisory
+  subscription: advisory-worker-sub
+
+  model:
+    name: claude-sonnet-4-6
+    maxTokens: 8192
+    temperature: 0.1
+
+  prompts:
+    systemPromptFile: prompts/council/managers/be-manager.agent.md
+    instructions: >
+      You are a domain advisory expert. Your role is to provide structured, actionable
+      guidance based on your area of expertise and a thorough read-only exploration of
+      the codebase. Use Glob, Grep, and Read tools to understand the existing codebase,
+      architecture, conventions, and patterns. Then produce a structured JSON response
+      containing your domain insights, decisions, and recommendations.
+    resultSchema: |
+      {
+        "summary": "...",
+        "insights": ["..."],
+        "recommendations": ["..."]
+      }
+
+  tools:
+    allowlist:
+      - Glob
+      - Grep
+      - Read
+    dependencies:
+      - "io.github.massimilianopili:mcp-filesystem-tools"
+
+  concurrency:
+    maxConcurrentCalls: 3
+
+  retry:
+    maxAttempts: 2
+    backoffMs: 3000
+    attemptsBeforePause: 2

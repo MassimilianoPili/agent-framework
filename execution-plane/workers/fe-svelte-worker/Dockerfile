@@ -6,7 +6,7 @@ LABEL description="Frontend Svelte Worker"
 
 WORKDIR /app
 
-COPY target/fe-svelte-worker-*.jar app.jar
+COPY target/fe-svelte-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

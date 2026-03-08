@@ -6,7 +6,7 @@ LABEL description="DBA Cassandra/ScyllaDB Worker"
 
 WORKDIR /app
 
-COPY target/dba-cassandra-worker-*.jar app.jar
+COPY target/dba-cassandra-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

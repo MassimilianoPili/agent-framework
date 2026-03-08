@@ -138,23 +138,44 @@ public abstract class AbstractWorker {
     /**
      * Worker type identifier. Must match WorkerType enum name in orchestrator.
      * Used to route tasks from the correct Service Bus topic.
+     *
+     * <p>Default implementation reads {@link WorkerMetadata#workerType()}.
+     * Subclasses may override for dynamic behavior.</p>
      */
-    public abstract String workerType();
+    public String workerType() {
+        WorkerMetadata meta = getClass().getAnnotation(WorkerMetadata.class);
+        if (meta != null) return meta.workerType();
+        throw new IllegalStateException(
+            "@WorkerMetadata or workerType() override required on " + getClass().getName());
+    }
 
     /**
      * Worker profile identifier (e.g., "fe-vanillajs", "be-java").
      * Used by WorkerTaskConsumer to filter incoming messages on shared topics.
      * Returns null for untyped workers (AI_TASK, REVIEW, CONTRACT).
+     *
+     * <p>Default implementation reads {@link WorkerMetadata#workerProfile()}.
+     * Returns null if the annotation value is empty.</p>
      */
     public String workerProfile() {
+        WorkerMetadata meta = getClass().getAnnotation(WorkerMetadata.class);
+        if (meta != null && !meta.workerProfile().isEmpty()) return meta.workerProfile();
         return null;
     }
 
     /**
      * Classpath path of the Markdown skill file for this agent.
      * Example: "skills/be-worker.agent.md"
+     *
+     * <p>Default implementation reads {@link WorkerMetadata#systemPromptFile()}.
+     * Subclasses may override for dynamic behavior.</p>
      */
-    protected abstract String systemPromptFile();
+    protected String systemPromptFile() {
+        WorkerMetadata meta = getClass().getAnnotation(WorkerMetadata.class);
+        if (meta != null) return meta.systemPromptFile();
+        throw new IllegalStateException(
+            "@WorkerMetadata or systemPromptFile() override required on " + getClass().getName());
+    }
 
     /**
      * Resolves the system prompt file for the given task.
@@ -182,10 +203,14 @@ public abstract class AbstractWorker {
      * MCP tool policy for this worker. Override to restrict which tools are available
      * to this worker's ChatClient.
      *
-     * <p>Defaults to {@link ToolAllowlist#ALL} (all auto-discovered tools).
-     * Generated workers override with {@link ToolAllowlist.Explicit}.</p>
+     * <p>Default implementation reads {@link WorkerMetadata#toolAllowlist()}.
+     * Falls back to {@link ToolAllowlist#ALL} if annotation has empty array.</p>
      */
     protected ToolAllowlist toolAllowlist() {
+        WorkerMetadata meta = getClass().getAnnotation(WorkerMetadata.class);
+        if (meta != null && meta.toolAllowlist().length > 0) {
+            return new ToolAllowlist.Explicit(List.of(meta.toolAllowlist()));
+        }
         return ToolAllowlist.ALL;
     }
 
@@ -211,10 +236,14 @@ public abstract class AbstractWorker {
      * (filesystem override first, then classpath). The loaded content is appended to the
      * primary system prompt separated by horizontal rules.</p>
      *
-     * <p>Defaults to empty (primary prompt only).
-     * Generated workers override with paths declared in their manifest.</p>
+     * <p>Default implementation reads {@link WorkerMetadata#skillPaths()}.
+     * Falls back to empty list if annotation has empty array.</p>
      */
     protected List<String> skillPaths() {
+        WorkerMetadata meta = getClass().getAnnotation(WorkerMetadata.class);
+        if (meta != null && meta.skillPaths().length > 0) {
+            return List.of(meta.skillPaths());
+        }
         return List.of();
     }
 

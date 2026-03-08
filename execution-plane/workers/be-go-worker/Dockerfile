@@ -6,7 +6,7 @@ LABEL description="Backend Go Worker"
 
 WORKDIR /app
 
-COPY target/be-go-worker-*.jar app.jar
+COPY target/be-go-worker-*-exec.jar app.jar
 
 EXPOSE 8080
 

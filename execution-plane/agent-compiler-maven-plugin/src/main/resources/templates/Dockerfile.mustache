@@ -6,7 +6,7 @@ LABEL description="{{displayName}}"
 
 WORKDIR /app
 
-COPY target/{{artifactId}}-*.jar app.jar
+COPY target/{{artifactId}}-*-exec.jar app.jar
 
 EXPOSE 8080
 
