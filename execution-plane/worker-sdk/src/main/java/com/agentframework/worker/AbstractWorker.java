@@ -46,10 +46,27 @@ public abstract class AbstractWorker {
     // AbstractWorker is a singleton @Component; ThreadLocal prevents cross-task contamination.
     private static final ThreadLocal<Provenance.TokenUsage> TOKEN_USAGE = new ThreadLocal<>();
 
+    // ThreadLocal to capture the first LLM reasoning text (text before the first tool call).
+    // Set by subclasses via captureReasoning(). Only the first call per task is stored (idempotent).
+    private static final ThreadLocal<String> REASONING = new ThreadLocal<>();
+
     /** Called by generated workers after each LLM response to capture token usage. */
     protected void recordTokenUsage(Usage usage) {
         TOKEN_USAGE.set(new Provenance.TokenUsage(
             toLong(usage.getPromptTokens()), toLong(usage.getCompletionTokens()), toLong(usage.getTotalTokens())));
+    }
+
+    /**
+     * Called by generated workers to capture the first reasoning text block from the LLM response,
+     * i.e., the text that appears before the first tool call. Only the first non-blank invocation
+     * per task is stored — subsequent calls are ignored (idempotent).
+     *
+     * <p>Truncated to 2000 characters to keep provenance compact.</p>
+     */
+    protected void captureReasoning(String text) {
+        if (REASONING.get() == null && text != null && !text.isBlank()) {
+            REASONING.set(text.length() > 2000 ? text.substring(0, 2000) : text);
+        }
     }
 
     private static Long toLong(Integer value) {
@@ -274,7 +291,8 @@ public abstract class AbstractWorker {
                 task.traceId() != null ? task.traceId().toString() : null,
                 null,                                       // model: reserved for future use
                 toolsUsed.isEmpty() ? null : toolsUsed,
-                promptHashValue, skillsHashValue, tokenUsage
+                promptHashValue, skillsHashValue, tokenUsage,
+                REASONING.get()                             // first LLM reasoning text (null if not captured)
             );
 
             result = new AgentResult(
@@ -320,7 +338,8 @@ public abstract class AbstractWorker {
                 task.traceId() != null ? task.traceId().toString() : null,
                 null,                                       // model: reserved for future use
                 toolsUsed.isEmpty() ? null : toolsUsed,
-                promptHashValue, null, null                 // no skillsHash or tokenUsage on failure
+                promptHashValue, null, null,                // no skillsHash or tokenUsage on failure
+                null                                        // no reasoning captured on failure path
             );
 
             result = new AgentResult(
@@ -341,6 +360,7 @@ public abstract class AbstractWorker {
         } finally {
             ContextCacheHolder.clear();                      // prevent ThreadLocal leak on cache-hit path
             TOKEN_USAGE.remove();                            // always clean up to prevent ThreadLocal leak in thread pools
+            REASONING.remove();                              // always clean up to prevent stale reasoning in reused threads
             PolicyEnforcingToolCallback.clearContextFiles(); // clear read-context allowlist
             PolicyEnforcingToolCallback.clearTaskPolicy();   // clear task-level HookPolicy
             PolicyEnforcingToolCallback.clearDynamicOwnsPaths(); // clear dynamic ownsPaths
