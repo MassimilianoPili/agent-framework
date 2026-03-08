@@ -6,3 +6,8 @@ messaging:
     port: ${REDIS_PORT:6379}
     database: 3
     cache-database: 4
+
+# Skill files directory (filesystem override for SkillLoader)
+agent:
+  worker:
+    skills-dir: /skills

@@ -14,6 +14,8 @@ import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.domain.IllegalStateTransitionException;
 import com.agentframework.orchestrator.domain.ItemStatus;
 import com.agentframework.orchestrator.domain.Plan;
+import com.agentframework.orchestrator.domain.PlanItem;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.agentframework.orchestrator.graph.CriticalPathCalculator;
 import com.agentframework.orchestrator.graph.PlanGraphService;
 import com.agentframework.orchestrator.graph.SpectralAnalyzer;
@@ -51,6 +53,7 @@ public class PlanController {
     private final PlanItemRepository planItemRepository;
     private final Optional<TaskOutcomeRepository> taskOutcomeRepository;
     private final Optional<RootCauseAnalyzer> rootCauseAnalyzer;
+    private final ObjectMapper objectMapper;
 
     public PlanController(OrchestrationService orchestrationService,
                           PlanSnapshotService snapshotService,
@@ -61,7 +64,8 @@ public class PlanController {
                           SseEmitterRegistry sseEmitterRegistry,
                           PlanItemRepository planItemRepository,
                           Optional<TaskOutcomeRepository> taskOutcomeRepository,
-                          Optional<RootCauseAnalyzer> rootCauseAnalyzer) {
+                          Optional<RootCauseAnalyzer> rootCauseAnalyzer,
+                          ObjectMapper objectMapper) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
@@ -72,6 +76,7 @@ public class PlanController {
         this.planItemRepository = planItemRepository;
         this.taskOutcomeRepository = taskOutcomeRepository;
         this.rootCauseAnalyzer = rootCauseAnalyzer;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -298,6 +303,89 @@ public class PlanController {
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    /**
+     * POST /api/v1/plans/{id}/items/{itemId}/skip
+     * Skips a WAITING or DISPATCHED plan item by transitioning it to DONE with a stub result.
+     * After marking the item as done, triggers dispatch so dependent tasks can proceed.
+     * Use case: greenfield projects where enrichment tasks (e.g. RAG_MANAGER) are irrelevant.
+     */
+    @PostMapping("/{id}/items/{itemId}/skip")
+    public ResponseEntity<?> skipItem(@PathVariable UUID id,
+                                       @PathVariable UUID itemId,
+                                       @RequestBody(required = false) Map<String, String> body) {
+        return planItemRepository.findById(itemId)
+            .map(item -> {
+                if (item.getStatus() != ItemStatus.WAITING
+                        && item.getStatus() != ItemStatus.DISPATCHED) {
+                    return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Can only skip WAITING or DISPATCHED items",
+                                     "currentStatus", item.getStatus().name()));
+                }
+                String reason = body != null
+                    ? body.getOrDefault("reason", "Skipped by operator")
+                    : "Skipped by operator";
+                item.transitionTo(ItemStatus.DONE);
+                try {
+                    item.setResult(objectMapper.writeValueAsString(
+                            Map.of("skipped", true, "reason", reason)));
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    item.setResult("{\"skipped\":true}");
+                }
+                item.setCompletedAt(Instant.now());
+                planItemRepository.save(item);
+                log.info("Item {} skipped (plan={}, reason={})", itemId, id, reason);
+                orchestrationService.triggerDispatch(id);
+                return ResponseEntity.ok(Map.of(
+                    "status", "skipped",
+                    "itemId", itemId.toString(),
+                    "planId", id.toString(),
+                    "reason", reason));
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * POST /api/v1/plans/{id}/dispatch
+     * Manually triggers dispatch of ready items for a RUNNING plan.
+     * Idempotent — safe to call multiple times. Finds WAITING items with all
+     * dependencies DONE and dispatches them, then checks plan completion.
+     */
+    @PostMapping("/{id}/dispatch")
+    public ResponseEntity<?> triggerDispatch(@PathVariable UUID id) {
+        return orchestrationService.getPlan(id)
+            .map(plan -> {
+                orchestrationService.triggerDispatch(id);
+                log.info("Manual dispatch triggered for plan {}", id);
+                return ResponseEntity.accepted().body(Map.of(
+                    "status", "dispatch_triggered",
+                    "planId", id.toString()));
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/required-workers
+     * Returns the set of worker types needed for non-terminal items in the plan.
+     * Useful for verifying which worker pods need to be running before dispatch.
+     */
+    @GetMapping("/{id}/required-workers")
+    public ResponseEntity<?> getRequiredWorkers(@PathVariable UUID id) {
+        return orchestrationService.getPlan(id)
+            .map(plan -> {
+                Map<String, List<String>> workersByType = plan.getItems().stream()
+                    .filter(item -> item.getStatus() != ItemStatus.DONE
+                                 && item.getStatus() != ItemStatus.FAILED)
+                    .collect(Collectors.groupingBy(
+                        item -> item.getWorkerType().name(),
+                        Collectors.mapping(PlanItem::getTaskKey, Collectors.toList())));
+                return ResponseEntity.ok(Map.of(
+                    "planId", id.toString(),
+                    "planStatus", plan.getStatus().name(),
+                    "requiredWorkers", workersByType));
+            })
+            .orElse(ResponseEntity.notFound().build());
     }
 
     /**

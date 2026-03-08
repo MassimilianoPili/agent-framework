@@ -64,6 +64,13 @@ class ItemStatusTest {
         assertThat(ItemStatus.AWAITING_APPROVAL.canTransitionTo(ItemStatus.TO_DISPATCH)).isFalse();
     }
 
+    // ── WAITING → DONE (operator skip) ──────────────────────────────────────
+
+    @Test
+    void waiting_canTransitionTo_done() {
+        assertThat(ItemStatus.WAITING.canTransitionTo(ItemStatus.DONE)).isTrue();
+    }
+
     // ── Existing transitions still work ─────────────────────────────────────
 
     @Test

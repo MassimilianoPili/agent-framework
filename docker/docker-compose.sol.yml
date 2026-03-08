@@ -15,6 +15,13 @@ version: '3.8'
 # Stop:    docker compose -f docker/docker-compose.sol.yml down
 # Logs:    docker compose -f docker/docker-compose.sol.yml logs -f orchestrator
 
+# Shared skill volumes — mounted read-only in all workers.
+# SkillLoader resolves files via agent.worker.skills-dir=/skills (set in application-redis.yml).
+x-skills-volumes: &skills-volumes
+  - /data/massimiliano/agent-framework/.claude:/skills/.claude:ro
+  - /data/massimiliano/agent-framework/skills:/skills/skills:ro
+  - /data/massimiliano/agent-framework/skills/patterns:/skills/patterns:ro
+
 networks:
   shared:
     external: true   # Rete Docker condivisa del server SOL
@@ -74,6 +81,7 @@ services:
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+    volumes: *skills-volumes
     restart: unless-stopped
 
   fe-react-worker:
@@ -88,6 +96,8 @@ services:
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
     restart: unless-stopped
 
   contract-worker:
@@ -102,6 +112,8 @@ services:
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
     restart: unless-stopped
 
   review-worker:
@@ -116,6 +128,8 @@ services:
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
     restart: unless-stopped
 
   # ── Middle-layer Workers ─────────────────────────────────────────────────────
@@ -131,6 +145,8 @@ services:
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
     restart: unless-stopped
 
   schema-manager-worker:
@@ -145,6 +161,25 @@ services:
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
+    restart: unless-stopped
+
+  # ── AI Task Worker ─────────────────────────────────────────────────────────
+  ai-task-worker:
+    build:
+      context: ../execution-plane/workers/ai-task-worker
+      dockerfile: Dockerfile
+    container_name: agentfw-ai-task-worker
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
     restart: unless-stopped
 
   # ── Mobile Workers ─────────────────────────────────────────────────────────
@@ -160,6 +195,8 @@ services:
       REDIS_PORT: 6379
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      FS_SKILLS_DIR: /skills
+    volumes: *skills-volumes
     restart: unless-stopped
 
   # ── Ollama ─────────────────────────────────────────────────────────────────

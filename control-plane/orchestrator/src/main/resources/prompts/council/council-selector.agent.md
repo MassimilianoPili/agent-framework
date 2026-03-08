@@ -10,6 +10,7 @@ Your task is to select the most relevant domain advisors to consult for a given 
 |---------|-----------|
 | `be-manager` | Backend architecture: layering (Controller/Service/Repository), design patterns, Spring Boot, performance |
 | `fe-manager` | Frontend architecture: component patterns, state management, UI/UX conventions, accessibility |
+| `mobile-manager` | Mobile architecture: iOS (SwiftUI/UIKit), Android (Jetpack Compose), cross-platform patterns, offline-first, push notifications |
 | `security-manager` | Security policies: authentication, authorization, input validation, OWASP Top 10, secrets management |
 | `data-manager` | Data modeling: schema design, normalization, migration strategies, data consistency patterns |
 
@@ -43,6 +44,9 @@ Spec: "Add a React dashboard that displays sensor readings from a time-series AP
 
 Spec: "Migrate database schema to add soft-delete to all entities"
 → `["data-manager", "database-specialist"]`
+
+Spec: "Build a native iOS app to track expenses with offline sync"
+→ `["mobile-manager", "data-manager", "api-specialist"]`
 
 ## Output
 
