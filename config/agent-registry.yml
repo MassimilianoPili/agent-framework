@@ -879,6 +879,16 @@ workers:
       - mobile/
       - templates/mobile/
 
+  rag-manager-worker:
+    displayName: RAG Manager Worker
+    topic: agent-tasks
+    subscription: rag-manager-worker-sub
+    image: agent-framework/rag-manager-worker:latest
+    description: >-
+      Programmatic worker (no LLM, no MCP tools) che recupera contesto semantico da pgvector e Apache AGE per i domain worker downstream. Esegue hybrid search (coseno + BM25 + RRF) e graph traversal. Dipende da CONTEXT_MANAGER. Risultati disponibili via contextJson.
+    mcpAllowlist:
+    maxConcurrentCalls: 3
+
   research-manager-worker:
     displayName: Research Manager Worker
     topic: agent-tasks
