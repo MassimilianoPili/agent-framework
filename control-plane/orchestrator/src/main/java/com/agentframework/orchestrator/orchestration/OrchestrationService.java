@@ -432,6 +432,14 @@ public class OrchestrationService {
             planRepository.save(plan);
         }
 
+        // Close any orphaned open attempts before creating the new one (B19)
+        int closedOrphans = attemptRepository.closeOrphanedAttempts(
+                item.getId(), Instant.now(), "closed-before-redispatch");
+        if (closedOrphans > 0) {
+            log.warn("Closed {} orphaned DispatchAttempt(s) for item {} before redispatch",
+                     closedOrphans, itemId);
+        }
+
         // Direct dispatch — bypass dependency resolution
         int attemptNum = attemptRepository.findMaxAttemptNumber(item.getId()).orElse(0) + 1;
         DispatchAttempt attempt = new DispatchAttempt(UUID.randomUUID(), item, attemptNum);
@@ -765,6 +773,14 @@ public class OrchestrationService {
                 }
             }
 
+            // Close any orphaned open attempts before creating the new one (B19)
+            int closedOrphans = attemptRepository.closeOrphanedAttempts(
+                    item.getId(), Instant.now(), "closed-before-dispatch");
+            if (closedOrphans > 0) {
+                log.warn("Closed {} orphaned DispatchAttempt(s) for item {} before dispatch",
+                         closedOrphans, item.getId());
+            }
+
             // Create attempt entity first so its ID can be embedded in the task message for tracing
             int attemptNum = attemptRepository.findMaxAttemptNumber(item.getId()).orElse(0) + 1;
             DispatchAttempt attempt = new DispatchAttempt(UUID.randomUUID(), item, attemptNum);
@@ -930,9 +946,20 @@ public class OrchestrationService {
 
     private String buildContextJson(PlanItem item, Map<String, String> completedResults) {
         Map<String, String> deps = new LinkedHashMap<>();
+        List<String> missing = new java.util.ArrayList<>();
         for (String depKey : item.getDependsOn()) {
-            deps.put(depKey, completedResults.getOrDefault(depKey, "{}"));
+            String result = completedResults.get(depKey);
+            deps.put(depKey, result != null ? result : "{}");
+            if (result == null) {
+                missing.add(depKey);
+            }
         }
+        // B8: diagnostic log to catch dependsOn/completedResults key mismatch
+        log.info("Context for task {}: dependsOn={}, resolvedKeys={}, missingKeys={}",
+                 item.getTaskKey(),
+                 item.getDependsOn(),
+                 completedResults.keySet(),
+                 missing);
         try {
             return objectMapper.writeValueAsString(deps);
         } catch (Exception e) {

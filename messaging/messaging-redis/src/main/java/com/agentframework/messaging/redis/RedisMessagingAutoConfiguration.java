@@ -2,6 +2,8 @@ package com.agentframework.messaging.redis;
 
 import com.agentframework.messaging.MessageListenerContainer;
 import com.agentframework.messaging.MessageSender;
+import com.agentframework.messaging.TaskLockService;
+import com.agentframework.messaging.redis.lock.RedisTaskLockService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -12,6 +14,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Auto-configuration for Redis Streams messaging provider.
@@ -21,6 +24,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @ConditionalOnProperty(name = "messaging.provider", havingValue = "redis")
 @ConditionalOnClass(RedisConnectionFactory.class)
 @EnableConfigurationProperties(RedisMessagingProperties.class)
+@EnableScheduling
 public class RedisMessagingAutoConfiguration {
 
     @Bean
@@ -46,5 +50,10 @@ public class RedisMessagingAutoConfiguration {
             StringRedisTemplate redisMessagingTemplate,
             RedisMessagingProperties properties) {
         return new RedisStreamListenerContainer(redisMessagingTemplate, properties);
+    }
+
+    @Bean
+    public TaskLockService taskLockService(StringRedisTemplate redisMessagingTemplate) {
+        return new RedisTaskLockService(redisMessagingTemplate);
     }
 }
