@@ -1,9 +1,11 @@
 ---
 name: dba-vectordb
 description: >
-  Vector database administration worker for pgvector and vector search engines.
-  Designs embedding schemas, creates HNSW/IVFFlat indexes, configures hybrid search
-  (vector + BM25), optimizes recall/speed trade-offs, and manages embedding pipelines.
+  Use whenever the task involves vector database design for semantic search or RAG:
+  pgvector HNSW/IVFFlat index configuration, hybrid search combining vector similarity
+  with BM25 text ranking, embedding pipeline design, recall/speed trade-off
+  optimization, distance function selection. Use for vector search — for general
+  PostgreSQL use dba-postgres.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

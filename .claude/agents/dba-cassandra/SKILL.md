@@ -1,9 +1,10 @@
 ---
 name: dba-cassandra
 description: >
-  Apache Cassandra/ScyllaDB database administration worker. Designs query-driven data models,
-  writes CQL schemas, selects partition/clustering keys, configures compaction strategies
-  (STCS/LCS/TWCS), consistency levels, SAI indexes, and nodetool operations.
+  Use whenever the task involves Apache Cassandra or ScyllaDB 5.0+ database design or
+  administration: query-driven data models, CQL schemas, partition and clustering key
+  design, compaction strategy (STCS/LCS/TWCS), SAI indexes, consistency level tuning.
+  Use for wide-column stores — for relational use the appropriate dba-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

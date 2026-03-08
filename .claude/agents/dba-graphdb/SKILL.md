@@ -1,9 +1,10 @@
 ---
 name: dba-graphdb
 description: >
-  Graph database administration worker for Neo4j and Apache AGE. Designs graph models,
-  writes Cypher queries, creates indexes (range, text, fulltext, composite), optimizes
-  graph traversals via PROFILE/EXPLAIN, manages APOC procedures and GDS algorithms.
+  Use whenever the task involves Neo4j 5 or Apache AGE graph database design or
+  administration: Cypher query optimization, label and relationship strategy, GDS
+  algorithms, HNSW vector indexes for graph RAG, property graph modelling. Use for
+  graph databases — for relational use the appropriate dba-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

@@ -1,9 +1,10 @@
 ---
 name: dba-mssql
 description: >
-  SQL Server database administration worker. Designs schemas with T-SQL, writes migrations,
-  creates indexes (clustered, nonclustered, columnstore, filtered), optimizes queries via
-  DMVs, configures partitioning, Always On AG, temporal tables, and TDE.
+  Use whenever the task involves SQL Server 2022+ database design or administration:
+  T-SQL stored procedures and functions, DMV performance monitoring, columnstore indexes,
+  temporal tables, Always On availability groups. Use for SQL Server — for other
+  databases use the matching dba-* worker.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

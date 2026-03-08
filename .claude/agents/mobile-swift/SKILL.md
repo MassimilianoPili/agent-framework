@@ -1,9 +1,10 @@
 ---
 name: mobile-swift
 description: >
-  iOS/Swift mobile development worker. Implements SwiftUI/UIKit views, view models,
-  networking layers, persistence (SwiftData/Core Data), async/await concurrency,
-  XCTest/Swift Testing, and Xcode project configuration.
+  Use whenever the task involves iOS/Swift mobile app implementation: SwiftUI
+  declarative UI, MVVM architecture, async/await structured concurrency, Core Data
+  or SwiftData persistence, Combine reactive patterns, XCTest unit and UI tests.
+  Use for iOS/macOS — for Android use mobile-kotlin.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40

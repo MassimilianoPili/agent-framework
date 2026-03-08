@@ -1,9 +1,11 @@
 ---
 name: mobile-kotlin
 description: >
-  Android/Kotlin mobile development worker. Implements Jetpack Compose UI, view models,
-  Room persistence, Retrofit networking, coroutines/Flow, Hilt DI, Gradle build config,
-  and JUnit 5 + MockK + Compose UI tests.
+  Use whenever the task involves Android/Kotlin mobile app implementation: Jetpack
+  Compose UI screens and navigation, MVVM view models with StateFlow, Room local
+  persistence, Retrofit networking with Kotlin Serialization, Hilt dependency injection,
+  Coroutines/Flow, JUnit 5 + MockK + Compose UI tests. Use for Android — for iOS
+  use mobile-swift.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 maxTurns: 40
