@@ -54,7 +54,7 @@ class PotentialRewardShapingServiceTest {
     @DisplayName("returns null when no data exists")
     void shape_noData_returnsNull() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType(any(), anyInt()))
-                .thenReturn(List.of());
+                .thenReturn(List.<Object[]>of());
         assertThat(service.shape("be-java")).isNull();
     }
 
@@ -133,7 +133,7 @@ class PotentialRewardShapingServiceTest {
     @DisplayName("single reward produces valid report with potentials size 2")
     void shape_singleReward_validReport() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType(any(), anyInt()))
-                .thenReturn(List.of(row("fe-ts", 0.9)));
+                .thenReturn(List.<Object[]>of(row("fe-ts", 0.9)));
 
         PotentialRewardShapingService.ShapedRewardReport report = service.shape("fe-ts");
 

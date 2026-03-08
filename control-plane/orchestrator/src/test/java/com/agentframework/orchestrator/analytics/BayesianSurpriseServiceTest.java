@@ -55,7 +55,7 @@ class BayesianSurpriseServiceTest {
     @DisplayName("returns null when no data exists")
     void analyse_noData_returnsNull() {
         when(taskOutcomeRepository.findRewardTimeseriesByWorkerType(any(), anyInt()))
-                .thenReturn(List.of());
+                .thenReturn(List.<Object[]>of());
 
         assertThat(service.analyse("be-java")).isNull();
     }

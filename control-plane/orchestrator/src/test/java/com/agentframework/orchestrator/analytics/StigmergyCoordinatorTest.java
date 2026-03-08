@@ -50,7 +50,7 @@ class StigmergyCoordinatorTest {
     @Test
     @DisplayName("no data returns null")
     void analyse_noData_returnsNull() {
-        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(List.of());
+        when(taskOutcomeRepository.findRewardsByWorkerType()).thenReturn(List.<Object[]>of());
 
         assertThat(coordinator.analyse()).isNull();
     }
