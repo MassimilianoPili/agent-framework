@@ -21,9 +21,9 @@ cd "$(dirname "$0")"
 
 echo "═══ Step 1/2: Generating worker modules + registry ═══"
 mvn -N \
-    com.agentframework:agent-compiler-maven-plugin:1.0.0-SNAPSHOT:validate-manifests \
-    com.agentframework:agent-compiler-maven-plugin:1.0.0-SNAPSHOT:generate-workers \
-    com.agentframework:agent-compiler-maven-plugin:1.0.0-SNAPSHOT:generate-registry \
+    com.agentframework:agent-compiler-maven-plugin:1.1.0-SNAPSHOT:validate-manifests \
+    com.agentframework:agent-compiler-maven-plugin:1.1.0-SNAPSHOT:generate-workers \
+    com.agentframework:agent-compiler-maven-plugin:1.1.0-SNAPSHOT:generate-registry \
     -q
 
 echo "═══ Step 2/2: Building reactor ═══"
