@@ -324,10 +324,15 @@ Il framework gira sul server SOL riusando l'infrastruttura Docker esistente.
 ```bash
 cd /data/massimiliano/agent-framework
 cat > docker/sol.env << 'EOF'
-ANTHROPIC_API_KEY=sk-ant-...
-DB_PASSWORD=<password-sicura>
+ANTHROPIC_API_KEY=claude_client
+DB_PASSWORD=agentfw_s3cure
 EOF
 ```
+
+**Nota**: `ANTHROPIC_API_KEY=claude_client` e' il client_id per il proxy-ai (`proxy-ai:8097`),
+NON una API key standard Anthropic. Il compose imposta `SPRING_AI_ANTHROPIC_BASE_URL=http://proxy-ai:8097`
+su orchestrator e worker, redirigendo tutte le chiamate Claude attraverso il reverse proxy
+che gestisce OAuth, tier enforcement e forwarding.
 
 ### Avvio completo
 
@@ -367,6 +372,12 @@ docker compose -f docker/docker-compose.sol.yml --env-file docker/sol.env up -d 
 L'Ollama del compose e' disabilitato — riusa l'istanza gia' attiva sulla rete `shared`.
 Il `OLLAMA_BASE_URL` dell'orchestrator punta a `http://ollama:11434` (DNS Docker).
 
+**Immagine Postgres**: il compose usa `sol/postgres:pg16-age` (custom, con pgvector + Apache AGE).
+L'immagine base `pgvector/pgvector:pg16` NON funziona perche' la migrazione Flyway V6 richiede AGE.
+
+**Skill files**: i worker montano `.claude/` e `skills/` come volumi read-only con `FS_SKILLS_DIR=/skills`.
+Senza questo mount, i worker falliscono con "Skill file not found".
+
 ### Verifica
 
 ```bash
@@ -377,16 +388,18 @@ docker logs agentfw-orchestrator --tail 30
 ### Sottomettere un piano
 
 ```bash
-# Dall'host SOL (o via docker exec)
-docker exec agentfw-orchestrator curl -s -X POST http://localhost:8080/api/v1/plans \
+# Dall'host SOL (via IP container sulla rete shared)
+ORCH_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' agentfw-orchestrator)
+curl -s -X POST "http://$ORCH_IP:8080/api/v1/plans" \
   -H "Content-Type: application/json" \
-  -d '{"spec":"..."}' | python3 -m json.tool
+  -d '{"spec":"...", "requiresReview": true, "riskLevel": "LOW"}' | python3 -m json.tool
 
-# Da rete Docker
-curl -s -X POST http://agentfw-orchestrator:8080/api/v1/plans \
-  -H "Content-Type: application/json" \
-  -d '{"spec":"..."}' | python3 -m json.tool
+# Stato piano
+curl -s "http://$ORCH_IP:8080/api/v1/plans/{planId}" | python3 -m json.tool
 ```
+
+**Nota**: `curl` non e' disponibile nel container orchestrator (Alpine JRE). Usare l'IP del
+container dall'host oppure un container con curl sulla stessa rete `shared`.
 
 ### Pull modello reranking (opzionale)
 
@@ -407,7 +420,9 @@ Senza il modello di reranking, la RAG pipeline funziona comunque con solo embedd
 | `REDIS_HOST` | `redis` | No | Host Redis |
 | `REDIS_PORT` | `6379` | No | Porta Redis |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | No | URL Ollama per embedding/reranking |
-| `SPRING_PROFILES_ACTIVE` | — | No | Profili: `jms` (Artemis), `mcp` (MCP client) |
+| `SPRING_AI_ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | No | Base URL per le chiamate Claude. Su SOL: `http://proxy-ai:8097` |
+| `FS_SKILLS_DIR` | — | No | Directory override per skill files (SKILL.md). Su SOL: `/skills` con volume mount |
+| `SPRING_PROFILES_ACTIVE` | — | No | Profili: `redis` (Redis Streams), `jms` (Artemis), `mcp` (MCP client) |
 | `MCP_GIT_URL` | `http://mcp-server:8080` | No | URL server MCP per tool Git (solo con profilo `mcp`) |
 | `MCP_REPO_FS_URL` | `http://mcp-server:8080` | No | URL server MCP per tool filesystem (solo con profilo `mcp`) |
 

@@ -18,7 +18,7 @@ import java.util.stream.Stream;
  * Loads Markdown skill files with filesystem override support.
  *
  * Resolution order:
- * 1. Filesystem override: {@code ${FS_SKILLS_DIR}/<path>} if the env var is set and the file exists.
+ * 1. Filesystem override: {@code ${agent.worker.skills-dir}/<path>} if the property is set and the file exists.
  * 2. Classpath fallback: files packed into the worker JAR at build time.
  * 3. If neither exists: throws RuntimeException (fail-fast at startup or first use).
  *
@@ -32,7 +32,7 @@ public class SkillLoader {
 
     private final String skillsDir;
 
-    public SkillLoader(@Value("${FS_SKILLS_DIR:}") String skillsDir) {
+    public SkillLoader(@Value("${agent.worker.skills-dir:}") String skillsDir) {
         this.skillsDir = skillsDir;
     }
 
@@ -68,8 +68,8 @@ public class SkillLoader {
         if (!resource.exists()) {
             throw new RuntimeException(
                 "Skill file not found: '" + resourcePath + "'. "
-                + "Not found on filesystem (FS_SKILLS_DIR=" + (skillsDir.isBlank() ? "<unset>" : skillsDir)
-                + ") nor on classpath. Ensure the file is in the JAR or set FS_SKILLS_DIR.");
+                + "Not found on filesystem (agent.worker.skills-dir=" + (skillsDir.isBlank() ? "<unset>" : skillsDir)
+                + ") nor on classpath. Ensure the file is in the JAR or set agent.worker.skills-dir.");
         }
         try {
             String content = resource.getContentAsString(StandardCharsets.UTF_8);

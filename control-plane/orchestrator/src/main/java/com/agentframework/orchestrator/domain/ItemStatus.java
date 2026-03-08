@@ -7,7 +7,7 @@ import java.util.Set;
  *
  * <p>Transition graph:</p>
  * <pre>
- * WAITING            → DISPATCHED, FAILED, AWAITING_APPROVAL (high-risk tasks)
+ * WAITING            → DISPATCHED, FAILED, AWAITING_APPROVAL (high-risk tasks), DONE (operator skip)
  * AWAITING_APPROVAL  → WAITING (approved), FAILED (rejected / timeout)
  * DISPATCHED         → RUNNING, DONE, FAILED, WAITING (context retry loop)
  * RUNNING            → DONE, FAILED
@@ -20,7 +20,8 @@ public enum ItemStatus {
 
     WAITING {
         @Override public Set<ItemStatus> allowedTransitions() {
-            return Set.of(DISPATCHED, FAILED, AWAITING_APPROVAL);
+            // DONE: operator skip (greenfield projects, irrelevant enrichment tasks)
+            return Set.of(DISPATCHED, FAILED, AWAITING_APPROVAL, DONE);
         }
     },
 

@@ -59,15 +59,16 @@ public class TopicCoverageFunction implements CoverageFunction<String> {
      * Returns the default topic mapping for the standard council profiles.
      */
     public static Map<String, Set<String>> defaultProfileTopics() {
-        return Map.of(
-            "be-manager",          Set.of("backend", "api", "architecture", "java", "spring"),
-            "fe-manager",          Set.of("frontend", "ui", "react", "css", "accessibility"),
-            "security-manager",    Set.of("security", "auth", "crypto", "owasp", "xss"),
-            "data-manager",        Set.of("database", "sql", "nosql", "migration", "schema"),
-            "database-specialist", Set.of("database", "sql", "indexing", "query-optimization"),
-            "auth-specialist",     Set.of("security", "auth", "oauth", "jwt", "keycloak"),
-            "api-specialist",      Set.of("api", "rest", "graphql", "openapi", "versioning"),
-            "testing-specialist",  Set.of("testing", "unit-test", "integration", "mocking", "coverage")
+        return Map.ofEntries(
+            Map.entry("be-manager",          Set.of("backend", "api", "architecture", "java", "spring")),
+            Map.entry("fe-manager",          Set.of("frontend", "ui", "react", "css", "accessibility")),
+            Map.entry("mobile-manager",      Set.of("mobile", "ios", "android", "kotlin", "swiftui", "compose")),
+            Map.entry("security-manager",    Set.of("security", "auth", "crypto", "owasp", "xss")),
+            Map.entry("data-manager",        Set.of("database", "sql", "nosql", "migration", "schema")),
+            Map.entry("database-specialist", Set.of("database", "sql", "indexing", "query-optimization")),
+            Map.entry("auth-specialist",     Set.of("security", "auth", "oauth", "jwt", "keycloak")),
+            Map.entry("api-specialist",      Set.of("api", "rest", "graphql", "openapi", "versioning")),
+            Map.entry("testing-specialist",  Set.of("testing", "unit-test", "integration", "mocking", "coverage"))
         );
     }
 }
