@@ -256,7 +256,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: when-authorized
@@ -561,6 +561,21 @@ pac-bayes:
 social-choice:
   enabled: true
   default-method: SCHULZE           # PLURALITY | BORDA | SCHULZE | APPROVAL
+
+# Council Diversity (Scott & Page DPT) — Shannon entropy + Kendall τ analysis
+council-diversity:
+  enabled: true
+
+# Ergodic Budget Analyzer (Ole Peters 2019) — time-average vs ensemble-average budget allocation
+ergodic-budget:
+  enabled: true
+  max-samples: 500                  # max task_outcomes rows per worker type
+
+# Queuing Capacity Planner (M/G/1 P-K formula) — Redis stream saturation & consumer sizing
+queuing:
+  enabled: true
+  max-samples: 1000                 # max completion records per worker type
+  target-wait-seconds: 30           # target mean queue wait for consumer sizing
 
 logging:
   level:
