@@ -83,7 +83,7 @@ class TaskCompletedEventHandlerTest {
         String policiesJson = "{\"policies\": {}}";
         UUID planId = item.getPlan().getId();
         AgentResult result = new AgentResult(planId, item.getId(), "HM-001", true,
-                policiesJson, null, 500L, "HOOK_MANAGER", null, null, null, null, null);
+                policiesJson, null, 500L, "HOOK_MANAGER", null, null, null, null, null, null, null);
 
         when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
 
@@ -140,6 +140,6 @@ class TaskCompletedEventHandlerTest {
 
     private AgentResult successResult(UUID planId, UUID itemId, String taskKey) {
         return new AgentResult(planId, itemId, taskKey, true, "{\"ok\":true}", null,
-                500L, "BE", null, null, null, null, null);
+                500L, "BE", null, null, null, null, null, null, null);
     }
 }

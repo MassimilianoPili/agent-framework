@@ -66,6 +66,15 @@ public class AgentCompilerMojo extends AbstractMojo {
                defaultValue = "${project.basedir}/mcp/registry/mcp-registry.yml")
     private String mcpRegistryFile;
 
+    /**
+     * Parent version for generated worker pom.xml files.
+     * Defaults to the current project version so generated workers always match the root.
+     */
+    @Parameter(property = "agentCompiler.parentVersion",
+               defaultValue = "${project.version}",
+               required = true)
+    private String parentVersion;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         Path manifestDir = Path.of(manifestDirectory);
@@ -89,7 +98,7 @@ public class AgentCompilerMojo extends AbstractMojo {
         }
 
         ManifestLoader loader = new ManifestLoader();
-        WorkerGenerator generator = new WorkerGenerator(mcpRegistry);
+        WorkerGenerator generator = new WorkerGenerator(mcpRegistry, parentVersion);
 
         try {
             List<AgentManifest> manifests = loader.loadAll(manifestDir);

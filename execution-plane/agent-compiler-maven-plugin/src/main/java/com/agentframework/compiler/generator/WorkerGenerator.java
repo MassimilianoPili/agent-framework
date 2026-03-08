@@ -12,6 +12,7 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Stream;
 
 /**
  * Generates a complete worker Maven module from an AgentManifest.
@@ -29,10 +30,12 @@ public class WorkerGenerator {
 
     private final MustacheFactory mustacheFactory;
     private final McpRegistryLoader mcpRegistry;
+    private final String parentVersion;
 
-    public WorkerGenerator(McpRegistryLoader mcpRegistry) {
+    public WorkerGenerator(McpRegistryLoader mcpRegistry, String parentVersion) {
         this.mustacheFactory = new DefaultMustacheFactory("templates");
         this.mcpRegistry = mcpRegistry;
+        this.parentVersion = parentVersion;
     }
 
     /**
@@ -59,11 +62,22 @@ public class WorkerGenerator {
 
         Map<String, Object> context = buildTemplateContext(manifest, className, packageName, manifestFileName);
 
-        // Generate Worker.java
-        writeTemplate("Worker.java.mustache", context, javaDir.resolve(className + ".java"));
+        // Check if hand-written Java sources exist outside the generated/ package.
+        // If so, skip generating Worker.java and WorkerApplication.java to avoid
+        // duplicate @SpringBootApplication / @Component conflicts.
+        boolean hasHandWrittenSources = hasNonGeneratedJavaSources(moduleDir);
 
-        // Generate WorkerApplication.java
-        writeTemplate("WorkerApplication.java.mustache", context, javaDir.resolve(className + "Application.java"));
+        if (hasHandWrittenSources) {
+            // Hand-written worker exists — skip code generation to avoid duplicate
+            // main class (spring-boot-maven-plugin:repackage failure) and duplicate
+            // @Component bean conflicts.
+        } else {
+            // Generate Worker.java
+            writeTemplate("Worker.java.mustache", context, javaDir.resolve(className + ".java"));
+
+            // Generate WorkerApplication.java
+            writeTemplate("WorkerApplication.java.mustache", context, javaDir.resolve(className + "Application.java"));
+        }
 
         // Generate application.yml
         writeTemplate("application.yml.mustache", context, resourcesDir.resolve("application.yml"));
@@ -101,6 +115,7 @@ public class WorkerGenerator {
 
         // Spec
         var spec = manifest.getSpec();
+        ctx.put("parentVersion", parentVersion);
         ctx.put("workerType", spec.getWorkerType());
         ctx.put("topic", spec.getTopic());
         ctx.put("subscription", spec.getSubscription());
@@ -196,6 +211,31 @@ public class WorkerGenerator {
         StringWriter writer = new StringWriter();
         mustache.execute(writer, context).flush();
         Files.writeString(outputFile, writer.toString());
+    }
+
+    /**
+     * Checks whether the worker module contains hand-written Java sources
+     * outside the {@code generated/} package.
+     *
+     * <p>If non-generated {@code .java} files exist under
+     * {@code src/main/java/}, the generator should skip producing
+     * {@code Worker.java} and {@code WorkerApplication.java} to avoid
+     * duplicate {@code @SpringBootApplication} / {@code @Component} conflicts
+     * that cause {@code spring-boot-maven-plugin:repackage} to fail.</p>
+     */
+    boolean hasNonGeneratedJavaSources(Path moduleDir) {
+        Path srcMainJava = moduleDir.resolve("src/main/java");
+        if (!Files.isDirectory(srcMainJava)) {
+            return false;
+        }
+        try (Stream<Path> walk = Files.walk(srcMainJava)) {
+            return walk
+                    .filter(p -> p.toString().endsWith(".java"))
+                    .anyMatch(p -> !p.toString().contains("/generated/"));
+        } catch (IOException e) {
+            // If we can't scan, assume no hand-written sources (safe default)
+            return false;
+        }
     }
 
     /**

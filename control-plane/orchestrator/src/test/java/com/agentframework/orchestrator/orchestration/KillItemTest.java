@@ -15,6 +15,7 @@ import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.planner.PlannerService;
 import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
+import com.agentframework.orchestrator.repository.FileModificationRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
 import com.agentframework.orchestrator.cache.ContextCacheService;
@@ -68,6 +69,7 @@ class KillItemTest {
     @Mock private EnrichmentProperties enrichmentProperties;
     @Mock private ContextCacheService contextCacheService;
     @Mock private OrchestratorMetrics metrics;
+    @Mock private FileModificationRepository fileModificationRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private OrchestrationService service;
@@ -87,6 +89,8 @@ class KillItemTest {
                 contextCacheService,
                 Optional.empty(),
                 metrics,
+                Optional.empty(),
+                fileModificationRepository,
                 Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);

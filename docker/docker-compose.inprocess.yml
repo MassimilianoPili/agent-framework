@@ -1,0 +1,68 @@
+version: '3.8'
+
+# In-process override for Phase 1 (#29) — Worker Lifecycle Management.
+#
+# All workers run as virtual threads inside the orchestrator JVM.
+# Redis DB 3 (messaging streams) is NOT used; Redis DB 4/5 (cache) remain active.
+#
+# Usage (overlay on top of docker-compose.sol.yml):
+#   docker compose -f docker/docker-compose.sol.yml \
+#                  -f docker/docker-compose.inprocess.yml \
+#                  --env-file docker/sol.env up -d
+#
+# This overlay:
+#   1. Switches orchestrator to 'inprocess' Spring profile
+#   2. Increases orchestrator memory (handles all worker workloads)
+#   3. Disables always-on worker containers (they run in-process now)
+#
+# PREREQUISITE: Phase 1b (JVM consolidation) — worker JARs must be on the
+# orchestrator classpath via Maven dependency or fat JAR assembly.
+# Without Phase 1b, the orchestrator cannot discover worker @Component beans.
+
+services:
+
+  # ── Override: Orchestrator runs all workers in-process ─────────────────────
+  orchestrator:
+    environment:
+      SPRING_PROFILES_ACTIVE: inprocess
+    mem_limit: 1536m
+    memswap_limit: 1536m
+
+  # ── Disable always-on worker containers ────────────────────────────────────
+  # Scale to 0 effectively removes them from the deployment.
+  # Alternative: use `profiles: [disabled]` but scale is more explicit.
+  be-java-worker:
+    deploy:
+      replicas: 0
+
+  fe-react-worker:
+    deploy:
+      replicas: 0
+
+  contract-worker:
+    deploy:
+      replicas: 0
+
+  review-worker:
+    deploy:
+      replicas: 0
+
+  context-manager-worker:
+    deploy:
+      replicas: 0
+
+  schema-manager-worker:
+    deploy:
+      replicas: 0
+
+  rag-manager-worker:
+    deploy:
+      replicas: 0
+
+  ai-task-worker:
+    deploy:
+      replicas: 0
+
+  mobile-kotlin-worker:
+    deploy:
+      replicas: 0

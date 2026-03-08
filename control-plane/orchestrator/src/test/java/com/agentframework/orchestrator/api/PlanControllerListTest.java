@@ -12,6 +12,7 @@ import com.agentframework.orchestrator.graph.PlanGraphService;
 import com.agentframework.orchestrator.graph.SpectralAnalyzer;
 import com.agentframework.orchestrator.orchestration.OrchestrationService;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
+import com.agentframework.orchestrator.repository.FileModificationRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.repository.QualityGateReportRepository;
 import com.agentframework.orchestrator.service.PlanSnapshotService;
@@ -48,6 +49,7 @@ class PlanControllerListTest {
     @Mock private SseEmitterRegistry sseEmitterRegistry;
     @Mock private PlanItemRepository planItemRepository;
     @Mock private PlanRepository planRepository;
+    @Mock private FileModificationRepository fileModificationRepository;
 
     private PlanController controller;
 
@@ -57,7 +59,8 @@ class PlanControllerListTest {
                 orchestrationService, snapshotService, reportRepository,
                 planGraphService, criticalPathCalculator, spectralAnalyzer,
                 sseEmitterRegistry, planItemRepository, planRepository,
-                Optional.empty(), Optional.empty(), new ObjectMapper());
+                Optional.empty(), Optional.empty(), new ObjectMapper(),
+                fileModificationRepository);
     }
 
     @Test

@@ -46,6 +46,7 @@
         <module>messaging/messaging-jms</module>
         <module>messaging/messaging-redis</module>
         <module>messaging/messaging-servicebus</module>
+        <module>messaging/messaging-inprocess</module>
         <!-- Control Plane -->
         <module>control-plane/orchestrator</module>
         <!-- Shared Libraries -->
@@ -142,6 +143,11 @@
             <dependency>
                 <groupId>com.agentframework</groupId>
                 <artifactId>messaging-servicebus</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.agentframework</groupId>
+                <artifactId>messaging-inprocess</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

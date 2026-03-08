@@ -51,6 +51,8 @@ spec:
 
   tools:
     allowlist: []   # programmatic: true — nessun MCP tool utilizzato
+    dependencies:
+      - "com.agentframework:rag-engine"
 
   concurrency:
     maxConcurrentCalls: 3

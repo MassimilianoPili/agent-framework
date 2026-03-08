@@ -79,7 +79,8 @@ class RewardComputationServiceTest {
         return new AgentResult(
                 planId, UUID.randomUUID(), "BE-001", true,
                 null, null, durationMs, "BE", "be-java",
-                null, null, provenance, tokensUsed
+                null, null, provenance, tokensUsed,
+                null, null
         );
     }
 

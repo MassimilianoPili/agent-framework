@@ -7,6 +7,7 @@ import com.agentframework.worker.AbstractWorker;
 import com.agentframework.worker.claude.WorkerChatClientFactory;
 import com.agentframework.worker.context.AgentContextBuilder;
 import com.agentframework.worker.context.SkillLoader;
+import com.agentframework.worker.event.WorkerEventPublisher;
 import com.agentframework.worker.messaging.WorkerResultProducer;
 import com.agentframework.worker.messaging.WorkerTaskConsumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -59,6 +60,14 @@ public class WorkerAutoConfiguration {
             WorkerProperties props,
             Optional<TaskLockService> taskLockService) {
         return new WorkerTaskConsumer(listenerContainer, worker, objectMapper, props, taskLockService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public WorkerEventPublisher workerEventPublisher(
+            MessageSender sender,
+            WorkerProperties props) {
+        return new WorkerEventPublisher(sender, props.getEventsTopic());
     }
 
     @Bean

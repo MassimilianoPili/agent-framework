@@ -1,5 +1,6 @@
 package com.agentframework.worker.dto;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -19,5 +20,7 @@ public record AgentResult(
     String modelId,         // reserved (null)
     String promptHash,      // reserved (null)
     Provenance provenance,  // nested, nullable — supercedes flat fields
-    Long tokensUsed         // actual tokens consumed (from provenance.tokenUsage.total, for budget tracking)
+    Long tokensUsed,        // actual tokens consumed (from provenance.tokenUsage.total, for budget tracking)
+    String conversationLog,                    // G1: full LLM conversation JSON for post-mortem debugging (nullable)
+    List<FileModificationEvent> fileModifications  // G3: file ops performed during this task (nullable)
 ) {}

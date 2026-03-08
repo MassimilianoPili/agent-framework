@@ -128,16 +128,21 @@ public class SseEmitterRegistry {
 
         String data;
         try {
-            data = objectMapper.writeValueAsString(Map.of(
-                    "eventType",    event.eventType(),
-                    "planId",       event.planId().toString(),
-                    "itemId",       event.itemId() != null ? event.itemId().toString() : null,
-                    "taskKey",      event.taskKey(),
-                    "workerProfile", event.workerProfile(),
-                    "success",      event.success(),
-                    "durationMs",   event.durationMs(),
-                    "occurredAt",   event.occurredAt().toString()
-            ));
+            // Use HashMap instead of Map.of() because some values may be null
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("eventType",    event.eventType());
+            map.put("planId",       event.planId() != null ? event.planId().toString() : null);
+            map.put("itemId",       event.itemId() != null ? event.itemId().toString() : null);
+            map.put("taskKey",      event.taskKey());
+            map.put("workerProfile", event.workerProfile());
+            map.put("success",      event.success());
+            map.put("durationMs",   event.durationMs());
+            map.put("occurredAt",   event.occurredAt().toString());
+            // G6: Include extra JSON payload for worker events (tool calls, token updates)
+            if (event.extraJson() != null) {
+                map.put("extra", objectMapper.readTree(event.extraJson()));
+            }
+            data = objectMapper.writeValueAsString(map);
         } catch (Exception e) {
             log.warn("Failed to serialize SSE event {}: {}", event.eventType(), e.getMessage());
             return;
