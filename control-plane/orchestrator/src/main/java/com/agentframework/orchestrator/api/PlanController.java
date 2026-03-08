@@ -137,6 +137,28 @@ public class PlanController {
     }
 
     /**
+     * POST /api/v1/plans/{id}/items/{itemId}/kill
+     * Immediately kills a DISPATCHED or WAITING task by transitioning it to FAILED.
+     * The running worker (if any) continues until natural completion but its result is ignored.
+     * Returns 202 Accepted on success, 400 if item is not in a killable state, 404 if not found.
+     */
+    @PostMapping("/{id}/items/{itemId}/kill")
+    public ResponseEntity<?> killItem(@PathVariable UUID id, @PathVariable UUID itemId) {
+        try {
+            orchestrationService.killItem(itemId);
+            log.info("Item {} in plan {} killed by operator", itemId, id);
+            return ResponseEntity.accepted().body(Map.of(
+                    "status", "killed",
+                    "itemId", itemId.toString(),
+                    "planId", id.toString()));
+        } catch (IllegalStateTransitionException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
      * POST /api/v1/plans
      * Creates a new execution plan from a natural language specification.
      * Returns 202 Accepted with the plan in RUNNING state.

@@ -86,7 +86,7 @@ class RewardComputationServiceTest {
     private Provenance provenanceWithTokens(long totalTokens) {
         return new Provenance("BE", "be-java", 1, null, null, null,
                 null, null, null, null, null,
-                new Provenance.TokenUsage(totalTokens / 2, totalTokens / 2, totalTokens));
+                new Provenance.TokenUsage(totalTokens / 2, totalTokens / 2, totalTokens), null);
     }
 
     // ── computeProcessScore ────────────────────────────────────────────────────
@@ -851,7 +851,7 @@ class RewardComputationServiceTest {
             PlanItem item = createDoneItem("BE-001", WorkerType.BE, "be-java");
             // Provenance exists but tokenUsage is null
             Provenance prov = new Provenance("BE", "be-java", 1, null, null, null,
-                    null, null, null, null, null, null);
+                    null, null, null, null, null, null, null);
             AgentResult result = resultWith(60_000L, null, prov);
 
             service.computeProcessScore(item, result);
@@ -866,7 +866,7 @@ class RewardComputationServiceTest {
             PlanItem item = createDoneItem("BE-001", WorkerType.BE, "be-java");
             Provenance.TokenUsage usage = new Provenance.TokenUsage(100L, 200L, null);
             Provenance prov = new Provenance("BE", "be-java", 1, null, null, null,
-                    null, null, null, null, null, usage);
+                    null, null, null, null, null, usage, null);
             AgentResult result = resultWith(60_000L, null, prov);
 
             service.computeProcessScore(item, result);
