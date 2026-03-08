@@ -1164,3 +1164,50 @@ rag:
 - [Anthropic Contextual Retrieval](https://docs.anthropic.com/en/docs/build-with-claude/retrieval-augmented-generation)
 - [Apache AGE — Graph Extension for PostgreSQL](https://age.apache.org/)
 - [Spring AI VectorStore Documentation](https://docs.spring.io/spring-ai/reference/api/vectordbs.html)
+
+## Sessione 12 — Leader Election (#22) + Monitoring Dashboard (#28) ✅ COMPLETATA
+
+**Data:** 2026-03-08  
+**Test:** 734 orchestrator (0 fallimenti) — +9 nuovi test S12
+
+### Fase A — #22 Leader Election
+
+**Obiettivo:** Multi-istanza sicura — un solo orchestratore dispatcha task via Redis Streams.
+
+**File creati:**
+- `leader/LeaderAcquiredEvent.java` — record evento acquisizione leadership
+- `leader/LeaderLostEvent.java` — record evento perdita leadership
+- `leader/LeaderElectionService.java` — heartbeat `@Scheduled` ogni 10s, Redis `SET NX PX 30000`, rinnovo TTL se già owner, demote se altro owner. `@ConditionalOnProperty(matchIfMissing=true)`.
+- `leader/LeaderElectionServiceTest.java` — 3 test (become leader, renew TTL, remain follower)
+
+**File modificati:**
+- `AgentResultConsumer` — `@EventListener(LeaderAcquiredEvent)` → start container; `@EventListener(LeaderLostEvent)` → stop container; `@PostConstruct` condizionale
+- `OrchestrationService` — `Optional<LeaderElectionService>` iniettato; guard in `dispatchReadyItems()` se non-leader
+- `OrchestrationServiceTest` / `MissingContextPropagationTest` — aggiunto `Optional.empty()` per nuovo param
+- `application.yml` — `orchestrator.leader-election.enabled/ttl-ms/refresh-ms`
+
+### Fase B — #28 Monitoring Dashboard
+
+**Obiettivo:** Dashboard live per osservare piani, task e stream SSE in tempo reale.
+
+**File modificati:**
+- `domain/PlanStatus.java` — aggiunto `CANCELLED` (terminale); transizioni da RUNNING, PAUSED
+- `domain/ItemStatus.java` — aggiunto `CANCELLED` (terminale); transizioni da WAITING, AWAITING_APPROVAL
+- `event/SpringPlanEvent.java` — aggiunto campo `extraJson` (nullable); nuove costanti `PLAN_CANCELLED`, `ITEM_STATUS_CHANGED`, `BUDGET_UPDATE`; factory `forItemStatus()`, `forSystem()`, `forBudgetUpdate()`
+- `sse/SseEmitterRegistryTest.java` — aggiornato costruttore record (9° arg `null`)
+- `OrchestrationService` — `cancelPlan()` @Transactional; emissione `TASK_DISPATCHED` come `SpringPlanEvent` (SSE gap fix); emissione `ITEM_STATUS_CHANGED` per ogni transizione cancellazione
+- `repository/PlanRepository.java` — aggiunto `findAllByOrderByCreatedAtDesc()` + `findByStatusOrderByCreatedAtDesc()`
+- `api/PlanController.java` — `GET /api/v1/plans` (list paginato); `POST /{id}/cancel` → `orchestrationService.cancelPlan()`; iniettato `PlanRepository`
+- `build.sh` — versione plugin corretta da `1.0.0-SNAPSHOT` a `1.1.0-SNAPSHOT`
+
+**File creati:**
+- `api/PlanControllerListTest.java` — 2 test (empty list, status filter)
+- `orchestration/CancelPlanTest.java` — 2 test (WAITING → CANCELLED, DISPATCHED invariato)
+- `resources/static/monitoring.html` — Dashboard a 4 pannelli: Plan Selector (lista recenti + input manuale + cancel), DAG Live (Mermaid.js + colori status + click nodo), Event Stream (SSE feed con badge e filtri per tipo), Worker Detail (attempt history) + Stats (progress bar, budget per workerType, ELO top-5)
+
+### Note tecniche
+
+- **SSE gap**: `TASK_DISPATCHED` era pubblicato solo come `PlanItemDispatchedEvent` (Spring interno), non come `SpringPlanEvent` → il dashboard SSE non lo riceveva mai. Aggiunto publish parallelo.
+- **Record immutability**: aggiungere `extraJson` al record `SpringPlanEvent` ha richiesto aggiornare tutti i call site dei costruttori diretti (trovato 1 in `SseEmitterRegistryTest`).
+- **DISPATCHED items nel cancel**: `DISPATCHED` non ha `CANCELLED` nelle transizioni consentite → il worker continua naturalmente fino al completamento, il piano passa comunque a CANCELLED.
+- **Plugin version mismatch**: `build.sh` usava `1.0.0-SNAPSHOT` mentre il plugin è `1.1.0-SNAPSHOT` → corretto.
