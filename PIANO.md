@@ -337,7 +337,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | 26L2 | Auto-split task costosi | 1.5g | Medio | #26L1, #11, #20 |
 | 21 | Redis topic splitting | 1g | Basso | — |
 | **28** | **Monitoring Dashboard UI (real-time)** ✅ S14 | **3g** | **Alto** | #5 (SSE), G1, G4, G6 |
-| **29** | **Worker Lifecycle Management (kill, singleton, JVM-per-type)** | **3.5g** | **Alto** | B17 (per fase 1 in-process) |
+| **29 ✅** | **Worker Lifecycle Management (kill, singleton, JVM-per-type)** | **3.5g** | **Alto** | Phase 1+1b (`a09df71`), Phase 2 hybrid (`9a4c580`) |
 | **B18** | **No singleton per task — double processing** | — | **Alto** | Risolto da #29 (ConcurrentHashMap) |
 | **B19** | **DispatchAttempt orfani — non-unique result** | **0.5g** | **Alto** | Query fix ✅ applicato, cleanup strutturale futuro |
 
@@ -346,9 +346,9 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 # Stato implementazione #1-#49 (audit codice)
 
-Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-08.
+Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (22 item — nessun codice)
+## Non implementati (21 item — nessun codice)
 
 | # | Item |
 |---|------|
@@ -356,7 +356,6 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 24 L2 | TOOL_MANAGER (enrichment worker per singolo task) |
 | 26 L2 | Auto-split per task costosi |
 | 28 | Monitoring Dashboard UI |
-| 29 | Worker Lifecycle Management |
 | 30 | Hash Chain Tamper-Proof |
 | 31 | Verifiable Compute (firma worker) |
 | 32 | Policy-as-Code Immutabile |
@@ -383,7 +382,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | # | Item | Cosa c'e' | Cosa manca |
 |---|------|-----------|------------|
 | 5 | SSE + TrackerSync | `SseEmitterRegistry` (147 righe), endpoint `/events`, late-join replay | TrackerSync non wired |
-| 7 | Context Cache (TASK_MANAGER) | Enum `TASK_MANAGER` in WorkerType | Nessun `ContextCacheService` |
+| 7 | Context Cache (TASK_MANAGER) | `ContextCacheService` (Redis, 99 righe), `ContextCacheInterceptor` (88 righe), `ContextCacheHolder`, `ContextCacheStore` SPI + `NoOpContextCacheStore`, `RedisContextCacheStore` ✅ (Redis-backed SPI, TTL 30min, `@ConditionalOnBean`), `AbstractWorker` integration (cache hit → skip LLM), `OrchestrationService` integration (PUT/GET), `Plan.sourceCommit`/`workingTreeDiffHash`, `PlanItem.issueSnapshot`, test completi (15 test: `ContextCacheInterceptorTest` + `RedisContextCacheStoreTest`) | TASK_MANAGER worker (bloccato da tracker-mcp) |
 | 8 | DAG + Mermaid | `PlanGraphService` (227 righe), `toMermaid()`, endpoint `/graph` | Miglioramenti UI |
 | 9 | Hierarchical Plans | `handleSubPlan()`, `SUB_PLAN` WorkerType, child plan | Estensioni previste |
 

@@ -71,6 +71,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Redis (provided — worker-parent/messaging-redis brings this at runtime) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- SLF4J (provided) -->
         <dependency>
             <groupId>org.slf4j</groupId>

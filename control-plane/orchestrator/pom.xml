@@ -90,6 +90,12 @@
             <groupId>com.agentframework</groupId>
             <artifactId>messaging-inprocess</artifactId>
         </dependency>
+        <!-- Hybrid messaging (optional — compile-time only for Optional<> injection in OrchestrationService) -->
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>messaging-hybrid</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <!-- EJML — Efficient Java Matrix Library (eigenvalue decomposition for spectral analysis) -->
         <dependency>
