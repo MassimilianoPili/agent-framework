@@ -92,7 +92,8 @@ class KillItemTest {
                 Optional.empty(),
                 fileModificationRepository,
                 Optional.empty(),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(),
+                Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);

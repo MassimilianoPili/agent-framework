@@ -367,6 +367,20 @@ gp:
   budget:
     alpha: 1.0  # dynamic budget modulation: effectiveLimit = base × (1 + alpha × sigma²) × clip(mu, 0.3, 1.0)
 
+# PID Adaptive Token Budget (#37)
+# Adjusts HookPolicy.maxTokenBudget per (planId, workerType) based on error between
+# estimated and actual token consumption. Zero LLM cost — in-memory feedback loop.
+budget:
+  pid:
+    enabled: false
+    kp: 0.5
+    ki: 0.1
+    kd: 0.2
+    min-budget: 5000
+    max-budget: 500000
+    integral-limit: 100000.0
+    warmup-samples: 3
+
 # Self-Organized Criticality (Sandpile Model)
 # Monitors system-level load per WorkerType and detects failure cascades.
 # C < 0.5 = stable, 0.5-0.8 = warning, >= 0.8 = alert (publishes SYSTEM_CRITICALITY event).

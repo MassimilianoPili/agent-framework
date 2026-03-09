@@ -3,6 +3,7 @@ package com.agentframework.orchestrator.orchestration;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
 import com.agentframework.orchestrator.artifact.ArtifactStore;
 import com.agentframework.orchestrator.budget.CostEstimationService;
+import com.agentframework.orchestrator.budget.PidBudgetController;
 import com.agentframework.orchestrator.cache.ContextCacheService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.domain.*;
@@ -122,6 +123,8 @@ public class OrchestrationService {
     // P2.7: optional — present only in hybrid mode for cross-JVM cancellation
     private final RemoteWorkerClient remoteWorkerClient;
     private final HybridMessagingProperties hybridProps;
+    // #37: PID adaptive token budget
+    private final PidBudgetController pidBudgetController;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -154,7 +157,8 @@ public class OrchestrationService {
                                 FileModificationRepository fileModificationRepository,
                                 Optional<InProcessMessageBroker> inProcessBroker,
                                 Optional<RemoteWorkerClient> remoteWorkerClient,
-                                Optional<HybridMessagingProperties> hybridProps) {
+                                Optional<HybridMessagingProperties> hybridProps,
+                                Optional<PidBudgetController> pidBudgetController) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -187,6 +191,7 @@ public class OrchestrationService {
         this.inProcessBroker = inProcessBroker.orElse(null);
         this.remoteWorkerClient = remoteWorkerClient.orElse(null);
         this.hybridProps = hybridProps.orElse(null);
+        this.pidBudgetController = pidBudgetController.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -422,6 +427,16 @@ public class OrchestrationService {
             log.info("Task {} completed: {}in/{}out tokens, ~${} (plan={}, worker={})",
                      result.taskKey(), item.getInputTokens(), item.getOutputTokens(),
                      item.getEstimatedCostUsd(), result.planId(), item.getWorkerProfile());
+
+            // PID adaptive budget: feed actual consumption back to the controller (#37)
+            if (pidBudgetController != null) {
+                Integer estimatedTokens = hookManagerService
+                        .resolvePolicy(result.planId(), result.taskKey(), item.getWorkerType())
+                        .map(HookPolicy::estimatedTokens)
+                        .orElse(null);
+                pidBudgetController.update(
+                        result.planId(), workerTypeKey, estimatedTokens, actualTokens);
+            }
         }
 
         eventPublisher.publishEvent(new PlanItemCompletedEvent(
@@ -1130,6 +1145,11 @@ public class OrchestrationService {
             // Use the pre-resolved policy (already fetched for the risk check above).
             HookPolicy policy = preResolvedPolicy;
 
+            // PID adaptive budget: adjust maxTokenBudget based on historical error (#37)
+            if (pidBudgetController != null && policy != null) {
+                policy = pidBudgetController.adjustPolicy(planId, item.getWorkerType().name(), policy);
+            }
+
             // Ralph-loop: append quality gate feedback to description so the worker
             // knows what to fix. The feedback is set by RalphLoopService when re-queuing.
             String description = item.getDescription();
@@ -1266,6 +1286,9 @@ public class OrchestrationService {
 
         // Release per-plan caches to prevent unbounded memory/Redis growth.
         hookManagerService.evictPlan(planId);
+        if (pidBudgetController != null) {
+            pidBudgetController.evictPlan(planId);
+        }
         contextCacheService.evictPlan(planId);
 
         eventPublisher.publishEvent(new PlanCompletedEvent(
