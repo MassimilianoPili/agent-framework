@@ -1,5 +1,8 @@
 package com.agentframework.orchestrator.budget;
 
+import com.agentframework.orchestrator.config.TokenLedgerProperties;
+import com.agentframework.orchestrator.event.SpringPlanEvent;
+import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.repository.TokenLedgerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -7,9 +10,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
+import java.lang.reflect.Field;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,6 +32,8 @@ import static org.mockito.Mockito.*;
 class TokenLedgerServiceTest {
 
     @Mock private TokenLedgerRepository repository;
+    @Mock private OrchestratorMetrics metrics;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private TokenLedgerService service;
 
@@ -31,7 +42,8 @@ class TokenLedgerServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TokenLedgerService(repository);
+        TokenLedgerProperties properties = new TokenLedgerProperties(0.15);
+        service = new TokenLedgerService(repository, metrics, eventPublisher, properties);
     }
 
     // ── Debit tests ──────────────────────────────────────────────────────────
@@ -51,6 +63,7 @@ class TokenLedgerServiceTest {
     @Test
     void debit_positiveTokens_savesEntry() {
         when(repository.findLatestBalance(PLAN_ID)).thenReturn(Optional.empty());
+        lenient().when(repository.countDebits(PLAN_ID)).thenReturn(1L);
 
         service.debit(PLAN_ID, ITEM_ID, "BE-001", "BE", 5000, "Task completed: be-java");
 
@@ -70,8 +83,8 @@ class TokenLedgerServiceTest {
 
     @Test
     void debit_secondEntry_runningBalance() {
-        // First debit left balance at -5000
         when(repository.findLatestBalance(PLAN_ID)).thenReturn(Optional.of(-5000L));
+        lenient().when(repository.countDebits(PLAN_ID)).thenReturn(2L);
 
         service.debit(PLAN_ID, ITEM_ID, "FE-001", "FE", 3000, "second task");
 
@@ -168,5 +181,155 @@ class TokenLedgerServiceTest {
         when(repository.findLatestBalance(PLAN_ID)).thenReturn(Optional.empty());
 
         assertEquals(0L, service.currentBalance(PLAN_ID));
+    }
+
+    // ── Per-workerType efficiency (#33 Phase 2) ─────────────────────────────
+
+    @Test
+    void computeEfficiencyByWorkerType_multipleWorkers_returnsPerTypeBreakdown() {
+        when(repository.sumDebitsByWorkerType(PLAN_ID)).thenReturn(List.of(
+                new Object[]{"BE", 8000L},
+                new Object[]{"FE", 4000L}
+        ));
+        when(repository.sumCreditsByWorkerType(PLAN_ID)).thenReturn(List.of(
+                new Object[]{"BE", 6000L},
+                new Object[]{"FE", 1000L}
+        ));
+
+        Map<String, TokenLedgerService.WorkerTypeEfficiency> result =
+                service.computeEfficiencyByWorkerType(PLAN_ID);
+
+        assertEquals(2, result.size());
+
+        TokenLedgerService.WorkerTypeEfficiency be = result.get("BE");
+        assertEquals(8000, be.debits());
+        assertEquals(6000, be.credits());
+        assertEquals(0.75, be.efficiency(), 0.001);
+
+        TokenLedgerService.WorkerTypeEfficiency fe = result.get("FE");
+        assertEquals(4000, fe.debits());
+        assertEquals(1000, fe.credits());
+        assertEquals(0.25, fe.efficiency(), 0.001);
+    }
+
+    @Test
+    void computeEfficiencyByWorkerType_noEntries_returnsEmptyMap() {
+        when(repository.sumDebitsByWorkerType(PLAN_ID)).thenReturn(List.of());
+        when(repository.sumCreditsByWorkerType(PLAN_ID)).thenReturn(List.of());
+
+        Map<String, TokenLedgerService.WorkerTypeEfficiency> result =
+                service.computeEfficiencyByWorkerType(PLAN_ID);
+
+        assertTrue(result.isEmpty());
+    }
+
+    // ── Burn rate (#33 Phase 4) ─────────────────────────────────────────────
+
+    @Test
+    void computeBurnRate_twoEntries_calculatesCorrectly() throws Exception {
+        Instant t0 = Instant.parse("2026-03-09T10:00:00Z");
+        Instant t1 = t0.plus(10, ChronoUnit.MINUTES);
+
+        TokenLedger d1 = TokenLedger.debit(PLAN_ID, ITEM_ID, "BE-001", "BE", 3000, -3000, "first");
+        TokenLedger d2 = TokenLedger.debit(PLAN_ID, ITEM_ID, "FE-001", "FE", 7000, -10000, "second");
+        setCreatedAt(d1, t0);
+        setCreatedAt(d2, t1);
+
+        when(repository.findByPlanIdOrderByCreatedAtAsc(PLAN_ID)).thenReturn(List.of(d1, d2));
+
+        OptionalDouble rate = service.computeBurnRate(PLAN_ID);
+
+        assertTrue(rate.isPresent());
+        // (3000 + 7000) / 10 min = 1000 tokens/min
+        assertEquals(1000.0, rate.getAsDouble(), 0.01);
+    }
+
+    @Test
+    void computeBurnRate_singleEntry_returnsEmpty() {
+        TokenLedger d1 = TokenLedger.debit(PLAN_ID, ITEM_ID, "BE-001", "BE", 3000, -3000, "only");
+        when(repository.findByPlanIdOrderByCreatedAtAsc(PLAN_ID)).thenReturn(List.of(d1));
+
+        OptionalDouble rate = service.computeBurnRate(PLAN_ID);
+
+        assertTrue(rate.isEmpty());
+    }
+
+    // ── Low-efficiency alert (#33 Phase 3) ──────────────────────────────────
+
+    @Test
+    void debit_belowEfficiencyThreshold_publishesAlert() {
+        when(repository.findLatestBalance(PLAN_ID)).thenReturn(Optional.of(0L));
+        when(repository.countDebits(PLAN_ID)).thenReturn(5L);
+        when(repository.sumDebits(PLAN_ID)).thenReturn(10000L);
+        when(repository.sumCredits(PLAN_ID)).thenReturn(500L); // efficiency = 0.05 < 0.15
+
+        service.debit(PLAN_ID, ITEM_ID, "BE-001", "BE", 2000, "triggers alert");
+
+        verify(eventPublisher).publishEvent(any(SpringPlanEvent.class));
+    }
+
+    @Test
+    void debit_aboveEfficiencyThreshold_noAlert() {
+        when(repository.findLatestBalance(PLAN_ID)).thenReturn(Optional.of(0L));
+        when(repository.countDebits(PLAN_ID)).thenReturn(5L);
+        when(repository.sumDebits(PLAN_ID)).thenReturn(10000L);
+        when(repository.sumCredits(PLAN_ID)).thenReturn(5000L); // efficiency = 0.5 > 0.15
+
+        service.debit(PLAN_ID, ITEM_ID, "BE-001", "BE", 2000, "no alert");
+
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void debit_alertNotRepeatedForSamePlan() {
+        when(repository.findLatestBalance(PLAN_ID)).thenReturn(Optional.of(0L));
+        when(repository.countDebits(PLAN_ID)).thenReturn(5L);
+        when(repository.sumDebits(PLAN_ID)).thenReturn(10000L);
+        when(repository.sumCredits(PLAN_ID)).thenReturn(500L); // efficiency = 0.05 < 0.15
+
+        service.debit(PLAN_ID, ITEM_ID, "BE-001", "BE", 2000, "first debit");
+        service.debit(PLAN_ID, ITEM_ID, "BE-002", "BE", 2000, "second debit");
+
+        // Alert published only once (guard: alertedPlans Set)
+        verify(eventPublisher, times(1)).publishEvent(any(SpringPlanEvent.class));
+    }
+
+    // ── Prometheus metrics (#33 Phase 1) ────────────────────────────────────
+
+    @Test
+    void debit_emitsPrometheusMetric() {
+        when(repository.findLatestBalance(PLAN_ID)).thenReturn(Optional.empty());
+        lenient().when(repository.countDebits(PLAN_ID)).thenReturn(1L);
+
+        service.debit(PLAN_ID, ITEM_ID, "BE-001", "BE", 5000, "test");
+
+        verify(metrics).recordLedgerDebit("BE", 5000);
+    }
+
+    @Test
+    void credit_emitsPrometheusMetric() {
+        when(repository.findLatestBalance(PLAN_ID)).thenReturn(Optional.of(0L));
+
+        service.credit(PLAN_ID, ITEM_ID, "BE-001", "BE", 5000, 0.8);
+
+        verify(metrics).recordLedgerCredit("BE", 4000, "standard");
+    }
+
+    @Test
+    void creditShapley_emitsPrometheusMetric() {
+        when(repository.findLatestBalance(PLAN_ID)).thenReturn(Optional.of(0L));
+
+        service.creditShapley(PLAN_ID, ITEM_ID, "CM-001", "CONTEXT_MANAGER", 0.05, 100000);
+
+        // 0.05 * 100000 = 5000
+        verify(metrics).recordLedgerCredit("CONTEXT_MANAGER", 5000, "shapley");
+    }
+
+    // ── Helper ──────────────────────────────────────────────────────────────
+
+    private static void setCreatedAt(TokenLedger entry, Instant instant) throws Exception {
+        Field field = TokenLedger.class.getDeclaredField("createdAt");
+        field.setAccessible(true);
+        field.set(entry, instant);
     }
 }

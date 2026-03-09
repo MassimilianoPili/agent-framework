@@ -526,6 +526,10 @@ task-split:
   description-length-multiplier: 25    # chars → estimated tokens heuristic
   gp-sigma2-threshold: 0.5            # GP uncertainty above this uses upper-bound estimate
 
+# Token Ledger Observability (#33) — low-efficiency alert threshold
+token-ledger:
+  low-efficiency-threshold: 0.15
+
 # Superrationality (Hofstadter) — cooperative equilibrium between worker types
 superrationality:
   enabled: true

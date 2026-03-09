@@ -4,10 +4,12 @@ import com.agentframework.orchestrator.budget.TokenLedger;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * Token ledger view for a plan: balance, totals, efficiency, and entry history (#33).
+ * Token ledger view for a plan: balance, totals, efficiency, per-workerType
+ * breakdown, burn rate, and entry history (#33).
  */
 public record TokenLedgerResponse(
     UUID planId,
@@ -15,8 +17,12 @@ public record TokenLedgerResponse(
     long totalDebits,
     long totalCredits,
     double efficiency,
+    Double burnRatePerMinute,
+    Map<String, WorkerTypeBreakdown> byWorkerType,
     List<LedgerEntry> entries
 ) {
+
+    public record WorkerTypeBreakdown(long debits, long credits, double efficiency) {}
 
     public record LedgerEntry(
         String entryType,

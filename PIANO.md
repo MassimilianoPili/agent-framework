@@ -348,12 +348,11 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (14 item — nessun codice)
+## Non implementati (16 item — nessun codice)
 
 | # | Item |
 |---|------|
 | 21 | Redis topic splitting per workerType |
-| 30 | Hash Chain Tamper-Proof |
 | 31 | Verifiable Compute (firma worker) |
 | 32 | Policy-as-Code Immutabile |
 | 34 | Federazione Multi-Server |
@@ -370,7 +369,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 48 | Content-Addressable Storage |
 | 49 | Quadratic Voting Council |
 
-## Parzialmente implementati (9 item — codice base, estensioni da fare)
+## Parzialmente implementati (10 item — codice base, estensioni da fare)
 
 | # | Item | Cosa c'e' | Cosa manca |
 |---|------|-----------|------------|
@@ -380,8 +379,9 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 8 | DAG + Mermaid | `PlanGraphService` (227 righe), `toMermaid()`, endpoint `/graph` | Miglioramenti UI |
 | 9 | Hierarchical Plans | `handleSubPlan()`, `SUB_PLAN` WorkerType, child plan | Estensioni previste |
 | 35 | Context Quality Scoring | `ContextQualityService` (file relevance + entropy proxy), V23 migration, 4° reward source in `RewardComputationService` (0.15), slot [1027] in `BayesianSuccessPredictor` popolato, side-effect #7 in `TaskCompletedEventHandler` | Test unitari, tuning pesi, validazione con dati reali |
-| 33 | Token Economics Double-Entry | `TokenLedger` entity, `TokenLedgerRepository`, `TokenLedgerService` (debit/credit/balance/efficiency), `TokenLedgerResponse` DTO, V24 migration, integrazione in `OrchestrationService` (debit dopo recordUsage), side-effect #8 in `TaskCompletedEventHandler` (credit da aggregatedReward), `GET /{id}/budget/ledger` endpoint, 14 test unitari | Tuning credit formula, dashboard Grafana, alert su efficiency bassa |
+| 33 | Token Economics Double-Entry | `TokenLedger` entity, `TokenLedgerRepository` (7 query), `TokenLedgerService` (debit/credit/creditShapley/balance/efficiency/burnRate/perWorkerType), `TokenLedgerResponse` DTO (byWorkerType, burnRatePerMinute), `TokenLedgerProperties`, V24 migration, integrazione in `OrchestrationService` (debit dopo recordUsage), side-effect #8 in `TaskCompletedEventHandler` (credit da aggregatedReward), `GET /{id}/budget/ledger` endpoint con breakdown per workerType, metriche Prometheus (`orchestrator.ledger.debit/credit`), alert LOW_EFFICIENCY via SpringPlanEvent, 25 test unitari ✅ S16 | Tuning credit formula, dashboard Grafana |
 | 37 | Adaptive Token Budget (PID) | `PidBudgetController` (PID in-memory per planId×workerType), `PidBudgetProperties`, integrazione in `OrchestrationService` (adjustPolicy dispatch, update completion, evictPlan cleanup), 10 test unitari | Tuning parametri PID con dati reali, metriche Prometheus, dashboard Grafana |
+| 30 | Hash Chain Tamper-Proof | `HashChainVerifier` (SHA-256 chain verification), `HashChainVerificationResult` DTO, endpoint `GET /{id}/verify-chain` in PlanController, test unitari ✅ S15 | Integrazione auto-append hash su PlanEvent save, UI dashboard |
 | 40 | Shapley Value Reward Distribution | `ShapleyDagService` (Monte Carlo DAG-aware, Kahn's random topo-sort), V25 migration (`shapley_value` su plan_items), `ShapleyDagResponse` DTO, `creditShapley()` in `TokenLedgerService`, side-effect #9 in `TaskCompletedEventHandler` (trigger su allDone), endpoint `GET /shapley-dag` + `GET /{id}/shapley`, 14 test unitari | Tuning K samples, integrazione ELO update con Shapley, dashboard Grafana |
 
 **Nota**: #5, #8, #9 presenti dall'initial commit (`2c5d7cc`). Il piano li elenca come "da fare"
@@ -1540,7 +1540,7 @@ su dati storici `plan_items.tokensUsed`.
 
 ---
 
-## #38 — State Machine Verification (Logica Temporale LTL/CTL)
+## #38 — State Machine Verification (Logica Temporale LTL/CTL) ✅
 
 **Problema**: la state machine di `PlanItem` e `Plan` ha transizioni complesse (ralph-loop, retry,
 sub-plan, approval, cancellation). Non c'e' garanzia formale che non esistano deadlock, livelock,
@@ -1592,9 +1592,16 @@ come "controlled violation" con annotazione `@AllowedViolation("ralph-loop, boun
 **Sforzo**: 1g. **Dipendenze**: nessuna.
 **Impatto**: medio-alto — trova deadlock e transizioni illegali a compile-time, non a runtime.
 
+**Implementazione** (2026-03-09):
+- `StateMachineVerifier.java` — BFS su spazio prodotto `(ItemStatus, retryCount, ralphLoopCount)`, verifica P1-P6
+- `StateMachineVerificationResult.java` — record con `PropertyResult` per ogni proprieta'
+- `AllowedViolation.java` + `AllowedViolations.java` — annotation repeatable per violazioni controllate
+- `@AllowedViolation(property="P4")` applicata su `ItemStatus.DONE` (ralph-loop bounded)
+- `StateMachineVerifierTest.java` — 10 test compile-time, 943 test totali green
+
 ---
 
-## #39 — Policy Lattice Composition (Teoria dei Reticoli)
+## #39 — Policy Lattice Composition (Teoria dei Reticoli) ✅
 
 **Problema**: le HookPolicy provengono da fonti multiple (HOOK_MANAGER, planner toolHints, config statica).
 Non c'e' un meccanismo formale per comporle. Quale vince? Come si combinano allowedTools da fonti diverse?
@@ -1647,6 +1654,11 @@ public class PolicyLattice {
 
 **Sforzo**: 0.5g. **Dipendenze**: nessuna.
 **Impatto**: medio — formalizza un pattern gia' presente informalmente, previene errori di composizione.
+
+**Implementazione** (2026-03-09):
+- `PolicyLattice.java` — meet-semilattice statico: `meet()`, `compose()`, `TOP`, `BOTTOM`, wildcard handling
+- `PolicyLatticeTest.java` — 17 test: 3 assiomi lattice + 2 costanti + 7 campi + 3 compose + 2 wildcard
+- Fix pre-existing: `TokenLedgerServiceTest.java` — costruttore 4-arg (metrics, eventPublisher, properties)
 
 ---
 
@@ -1903,8 +1915,8 @@ TIER 0 — Nessuna dipendenza (possono partire subito, in parallelo)
   #30  Hash Chain Tamper-Proof         0.5g  fondazione crittografica  ✅
   #33  Token Economics Double-Entry    1.5g
   #36  Worker Pool Sizing (Queueing)   1.5g  condivide CriticalPathCalculator con #42
-  #38  State Machine Verification      1.0g  test compilazione, nessun rischio runtime
-  #39  Policy Lattice Composition      0.5g  leggero, formalizza pattern esistente
+  #38  State Machine Verification      1.0g  test compilazione, nessun rischio runtime  ✅
+  #39  Policy Lattice Composition      0.5g  leggero, formalizza pattern esistente  ✅
   #40  Shapley Value Reward            2.0g
                                        ────
                                        7.0g totale Tier 0
@@ -2024,7 +2036,7 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 ### Ordine consigliato di implementazione
 
 ```
-Fase 1 (fondazioni, ~3.5g):      #30 ✅ → #38 → #39
+Fase 1 (fondazioni, ~3.5g):      #30 ✅ → #38 ✅ → #39 ✅
 Fase 2 (pratico, ~5g):           #36 → #33 → #40
 Fase 3 (trust, ~4g):             #31 → #32 → #37
 Fase 4 (avanzato, ~7g):          #34 → #35 ✅ → #42 → #41 → #43

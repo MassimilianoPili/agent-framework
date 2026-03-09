@@ -95,4 +95,41 @@ class OrchestratorMetricsTest {
         // Gauge reads the live value at query time via the lambda registered in init().
         assertThat(gauge.value()).isEqualTo(3.0);
     }
+
+    // ── Token Ledger (#33) ─────────────────────────────────────────────────
+
+    @Test
+    void recordLedgerDebit_incrementsCounterByAmount() {
+        metrics.recordLedgerDebit("BE", 5000);
+        metrics.recordLedgerDebit("BE", 3000);
+        metrics.recordLedgerDebit("FE", 2000);
+
+        Counter beCounter = registry.get("orchestrator.ledger.debit")
+                .tag("worker_type", "BE")
+                .counter();
+        Counter feCounter = registry.get("orchestrator.ledger.debit")
+                .tag("worker_type", "FE")
+                .counter();
+
+        assertThat(beCounter.count()).isEqualTo(8000.0);
+        assertThat(feCounter.count()).isEqualTo(2000.0);
+    }
+
+    @Test
+    void recordLedgerCredit_tagsByCreditType() {
+        metrics.recordLedgerCredit("BE", 4000, "standard");
+        metrics.recordLedgerCredit("CONTEXT_MANAGER", 1500, "shapley");
+
+        Counter standard = registry.get("orchestrator.ledger.credit")
+                .tag("worker_type", "BE")
+                .tag("credit_type", "standard")
+                .counter();
+        Counter shapley = registry.get("orchestrator.ledger.credit")
+                .tag("worker_type", "CONTEXT_MANAGER")
+                .tag("credit_type", "shapley")
+                .counter();
+
+        assertThat(standard.count()).isEqualTo(4000.0);
+        assertThat(shapley.count()).isEqualTo(1500.0);
+    }
 }
