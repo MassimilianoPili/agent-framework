@@ -77,4 +77,39 @@ class SandpileSimulatorTest {
         // B: 14 + 4.5 - 15 = 3.5 (no neighbours to spill to)
         assertThat(sim.getLoads().get("B")).isCloseTo(3.5, within(0.001));
     }
+
+    @Test
+    void customSpilloverRatio_higherSpilloverIncreasesNeighbourLoad() {
+        // A: load 20 > threshold 15 → topple. A has 1 neighbour B.
+        // spilloverRatio = 0.6 → spillover = 0.6 * 15 / 1 = 9.0
+        // B: 0 + 9.0 = 9.0
+        Map<String, Double> loads = Map.of("A", 20.0, "B", 0.0);
+        Map<String, Double> thresholds = Map.of("A", 15.0, "B", 15.0);
+        Map<String, List<String>> neighbours = Map.of(
+                "A", List.of("B"),
+                "B", List.of());
+
+        SandpileSimulator sim = new SandpileSimulator(loads, thresholds, neighbours, 0.6, 50);
+        List<String> toppled = sim.stabilise();
+
+        assertThat(toppled).containsExactly("A");
+        assertThat(sim.getLoads().get("A")).isCloseTo(5.0, within(0.001));
+        assertThat(sim.getLoads().get("B")).isCloseTo(9.0, within(0.001));
+    }
+
+    @Test
+    void maxToppleIterations_limitsCascade() {
+        // A and B form a cycle. Both start above threshold.
+        // With maxToppleIterations=2, cascade halts after 2 topples.
+        Map<String, Double> loads = Map.of("A", 20.0, "B", 20.0);
+        Map<String, Double> thresholds = Map.of("A", 15.0, "B", 15.0);
+        Map<String, List<String>> neighbours = Map.of(
+                "A", List.of("B"),
+                "B", List.of("A"));
+
+        SandpileSimulator sim = new SandpileSimulator(loads, thresholds, neighbours, 0.3, 2);
+        List<String> toppled = sim.stabilise();
+
+        assertThat(toppled).hasSize(2);
+    }
 }

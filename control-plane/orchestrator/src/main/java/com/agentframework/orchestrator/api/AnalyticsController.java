@@ -2,6 +2,8 @@ package com.agentframework.orchestrator.api;
 
 import com.agentframework.orchestrator.analytics.*;
 import com.agentframework.orchestrator.api.dto.ShapleyDagResponse;
+import com.agentframework.orchestrator.orchestration.CriticalityMonitor;
+import com.agentframework.orchestrator.orchestration.CriticalitySnapshot;
 import com.agentframework.orchestrator.analytics.CalibrationAudit.CalibrationReport;
 import com.agentframework.orchestrator.analytics.FisherInformationService.FisherUncertaintyReport;
 import com.agentframework.orchestrator.analytics.ContractTheoryService.ContractEvaluationReport;
@@ -64,6 +66,7 @@ public class AnalyticsController {
     private final Optional<ContractTheoryService> contractTheoryService;
     private final ShapleyDagService shapleyDagService;
     private final OrchestrationService orchestrationService;
+    private final CriticalityMonitor criticalityMonitor;
 
     public AnalyticsController(ReplicatorDynamicsService replicatorDynamicsService,
                                 Optional<WorkerDriftMonitor> driftMonitor,
@@ -81,7 +84,8 @@ public class AnalyticsController {
                                 Optional<RealOptionsService> realOptionsService,
                                 Optional<ContractTheoryService> contractTheoryService,
                                 ShapleyDagService shapleyDagService,
-                                OrchestrationService orchestrationService) {
+                                OrchestrationService orchestrationService,
+                                CriticalityMonitor criticalityMonitor) {
         this.replicatorDynamicsService = replicatorDynamicsService;
         this.driftMonitor = driftMonitor;
         this.prospectTheoryService = prospectTheoryService;
@@ -99,6 +103,7 @@ public class AnalyticsController {
         this.contractTheoryService = contractTheoryService;
         this.shapleyDagService = shapleyDagService;
         this.orchestrationService = orchestrationService;
+        this.criticalityMonitor = criticalityMonitor;
     }
 
     /**
@@ -396,5 +401,18 @@ public class AnalyticsController {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/criticality
+     *
+     * <p>Returns a real-time snapshot of the system's criticality state using the
+     * Bak-Tang-Wiesenfeld sandpile model (#56). Includes per-WorkerType loads,
+     * thresholds, topple cascades, and the overall criticality index.</p>
+     */
+    @GetMapping("/criticality")
+    public ResponseEntity<CriticalitySnapshot> getCriticalitySnapshot() {
+        CriticalitySnapshot snapshot = criticalityMonitor.computeSnapshot();
+        return ResponseEntity.ok(snapshot);
     }
 }

@@ -29,17 +29,21 @@ import java.util.*;
  */
 public class SandpileSimulator {
 
-    /** Fraction of threshold spilled to each neighbour during topple. */
-    public static final double SPILLOVER_RATIO = 0.3;
+    /** Default fraction of threshold spilled to each neighbour during topple. */
+    public static final double DEFAULT_SPILLOVER_RATIO = 0.3;
 
-    /** Maximum topple iterations before halting (prevents infinite loops in cyclic graphs). */
-    public static final int MAX_TOPPLE_ITERATIONS = 50;
+    /** Default maximum topple iterations before halting (prevents infinite loops in cyclic graphs). */
+    public static final int DEFAULT_MAX_TOPPLE_ITERATIONS = 50;
 
     private final Map<String, Double> loads;
     private final Map<String, Double> thresholds;
     private final Map<String, List<String>> neighbours;
+    private final double spilloverRatio;
+    private final int maxToppleIterations;
 
     /**
+     * Creates a simulator with default spillover ratio and max topple iterations.
+     *
      * @param loads      current load per node (mutated during stabilisation)
      * @param thresholds topple threshold per node
      * @param neighbours adjacency list: node → list of neighbour nodes
@@ -47,9 +51,28 @@ public class SandpileSimulator {
     public SandpileSimulator(Map<String, Double> loads,
                               Map<String, Double> thresholds,
                               Map<String, List<String>> neighbours) {
-        this.loads      = new HashMap<>(loads);
-        this.thresholds = new HashMap<>(thresholds);
-        this.neighbours = new HashMap<>(neighbours);
+        this(loads, thresholds, neighbours, DEFAULT_SPILLOVER_RATIO, DEFAULT_MAX_TOPPLE_ITERATIONS);
+    }
+
+    /**
+     * Creates a simulator with configurable parameters.
+     *
+     * @param loads              current load per node (mutated during stabilisation)
+     * @param thresholds         topple threshold per node
+     * @param neighbours         adjacency list: node → list of neighbour nodes
+     * @param spilloverRatio     fraction of threshold spilled to each neighbour (0..1)
+     * @param maxToppleIterations maximum cascade iterations before halting
+     */
+    public SandpileSimulator(Map<String, Double> loads,
+                              Map<String, Double> thresholds,
+                              Map<String, List<String>> neighbours,
+                              double spilloverRatio,
+                              int maxToppleIterations) {
+        this.loads              = new HashMap<>(loads);
+        this.thresholds         = new HashMap<>(thresholds);
+        this.neighbours         = new HashMap<>(neighbours);
+        this.spilloverRatio     = spilloverRatio;
+        this.maxToppleIterations = maxToppleIterations;
     }
 
     /**
@@ -59,7 +82,7 @@ public class SandpileSimulator {
      */
     public List<String> stabilise() {
         List<String> toppled = new ArrayList<>();
-        for (int i = 0; i < MAX_TOPPLE_ITERATIONS; i++) {
+        for (int i = 0; i < maxToppleIterations; i++) {
             String unstable = findUnstableNode();
             if (unstable == null) break;
             topple(unstable);
@@ -105,7 +128,7 @@ public class SandpileSimulator {
         List<String> nbrs = neighbours.getOrDefault(node, Collections.emptyList());
         if (nbrs.isEmpty()) return;
 
-        double spilloverPerNeighbour = (SPILLOVER_RATIO * threshold) / nbrs.size();
+        double spilloverPerNeighbour = (spilloverRatio * threshold) / nbrs.size();
         for (String nbr : nbrs) {
             loads.merge(nbr, spilloverPerNeighbour, Double::sum);
         }
