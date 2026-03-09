@@ -363,8 +363,8 @@ class ContextQualityServiceTest {
         PlanItem item = mock(PlanItem.class);
         Plan plan = mock(Plan.class);
         when(item.getWorkerType()).thenReturn(workerType);
-        when(item.getDependsOn()).thenReturn(dependsOn);
-        when(item.getTaskKey()).thenReturn(workerType.name() + "-001");
+        lenient().when(item.getDependsOn()).thenReturn(dependsOn);
+        lenient().when(item.getTaskKey()).thenReturn(workerType.name() + "-001");
         lenient().when(item.getPlan()).thenReturn(plan);
         lenient().when(plan.getId()).thenReturn(UUID.randomUUID());
         return item;

@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +33,9 @@ class PlanEventStoreTest {
     @BeforeEach
     void setUp() {
         store = new PlanEventStore(repository, objectMapper);
+        // Default: no previous event (genesis) — all tests call append() which queries this
+        lenient().when(repository.findTopByPlanIdOrderBySequenceNumberDesc(any()))
+                .thenReturn(Optional.empty());
     }
 
     @Test

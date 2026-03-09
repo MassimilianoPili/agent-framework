@@ -282,7 +282,7 @@ B17 (Context overflow) ────► (standalone, 3 livelli di fix indipendent
 #23 Enrichment Pipeline ─────► #24L2 TOOL_MANAGER ✅ (usa enrichment per generare policy)
 #23 ─────────────────────────► (sblocca RAG S1-S3, HOOK_MANAGER, CONTEXT_MANAGER)
 #26L1 Cost tracking ─────────► #26L2 Auto-split (necessita costi reali + GP prediction)
-#26L2 Auto-split ────────────► (dipende da #11 GP, #20 modelHint)
+#26L2 Auto-split ✅ S15 ─────► (dipende da #11 GP, #20 modelHint)
 #20 Modello per task ────────► (standalone)
 #21 Topic splitting ─────────► (standalone, futuro)
 #25 ─────────────────────────► (standalone, parallelo a #23)
@@ -333,8 +333,8 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | 20 | Modello LLM per task ✅ | 2g | Alto | — |
 | 22 | Orchestrator singleton (leader election) ✅ | 1.5g | Medio-alto | S8-H |
 | **26L1 ✅** | **Cost tracking per task** | 0.5g | Alto | — |
-| 24L2 | Tool configurabili (Livello 2: TOOL_MANAGER) | 1g | Medio | #23 |
-| 26L2 | Auto-split task costosi | 1.5g | Medio | #26L1, #11, #20 |
+| **24L2 ✅** | **Tool configurabili (Livello 2: TOOL_MANAGER)** | 1g | Medio | #23 |
+| **26L2 ✅** | **Auto-split task costosi** | 1.5g | Medio | #26L1, #11, #20 |
 | 21 | Redis topic splitting | 1g | Basso | — |
 | **28** | **Monitoring Dashboard UI (real-time)** ✅ S14 | **3g** | **Alto** | #5 (SSE), G1, G4, G6 |
 | **29 ✅** | **Worker Lifecycle Management (kill, singleton, JVM-per-type)** | **3.5g** | **Alto** | Phase 1+1b (`a09df71`), Phase 2 hybrid (`9a4c580`) |
@@ -348,13 +348,11 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (16 item — nessun codice)
+## Non implementati (14 item — nessun codice)
 
 | # | Item |
 |---|------|
 | 21 | Redis topic splitting per workerType |
-| 24 L2 | TOOL_MANAGER (enrichment worker per singolo task) |
-| 26 L2 | Auto-split per task costosi |
 | 30 | Hash Chain Tamper-Proof |
 | 31 | Verifiable Compute (firma worker) |
 | 32 | Policy-as-Code Immutabile |
@@ -723,12 +721,12 @@ ma per singolo task, non per l'intero piano). Implementato in S15:
 
 ---
 
-## #26 — Cost tracking + auto-split (L1 ✅ / L2 ❌)
+## #26 — Cost tracking + auto-split (L1 ✅ / L2 ✅ S15)
 
 **Problema**: task molto costosi consumano budget senza possibilita' di controllo granulare.
 Non c'e' un meccanismo per spezzare automaticamente task troppo grandi.
 
-**Soluzione a 2 livelli**: L1 (cost tracking per task) ✅ implementato. Da fare: L2.
+**Soluzione a 2 livelli**: L1 (cost tracking per task) ✅ S14. L2 (auto-split) ✅ S15.
 
 **Livello 2 — Auto-split per task costosi** (threshold configurabile):
 Se un task supera una soglia configurabile di token stimati (via GP prediction o euristica),
@@ -1150,56 +1148,19 @@ Cinque concetti ispirati alla blockchain — senza blockchain vera — per aggiu
 crittografiche di integrita' al framework. Costo infrastrutturale zero: i primitivi crittografici
 (hash chain, firme Ed25519, commitment) danno le stesse garanzie senza consenso distribuito.
 
-## #30 — Hash Chain Tamper-Proof su `plan_event`
+## #30 — Hash Chain Tamper-Proof su `plan_event` ✅
 
-**Problema**: `plan_event` e' append-only ma non offre garanzia crittografica che gli eventi
-non siano stati modificati retroattivamente. Un attore con accesso al DB (o un bug) potrebbe
-alterare payload/timestamp di eventi passati senza che il sistema lo rilevi. Per audit esterni
-o compliance, serve una prova matematica di integrita'.
+**Implementato**: catena hash SHA-256 tamper-proof su `plan_event`.
 
-**Soluzione**: ogni evento include `event_hash = SHA-256(previous_hash + event_type + payload + occurred_at)`.
-Il primo evento del piano (genesis) usa hash zero (`0x00...`). La catena e' verificabile
-offline con una query SELECT + scan sequenziale.
-
-**Design**:
-
-```java
-// In PlanEventStore.java — modifica del metodo append()
-public PlanEvent append(UUID planId, UUID itemId, String eventType, Object payload) {
-    String payloadJson = serialize(payload);
-    String previousHash = repository.findTopByPlanIdOrderBySequenceNumberDesc(planId)
-            .map(PlanEvent::getEventHash)
-            .orElse("0".repeat(64)); // genesis: 64 zero hex chars
-
-    String eventHash = HashUtil.sha256(previousHash + "|" + eventType + "|" + payloadJson + "|" + now);
-
-    PlanEvent event = new PlanEvent();
-    event.setEventHash(eventHash);
-    event.setPreviousHash(previousHash);
-    // ... resto invariato
-    return repository.save(event);
-}
-```
-
-- `PlanEvent.java`: +2 campi (`eventHash VARCHAR(64) NOT NULL`, `previousHash VARCHAR(64) NOT NULL`)
-- `PlanEventStore.java`: calcolo hash nel metodo `append()`, query per ultimo hash del piano
-- `PlanEventRepository.java`: `findTopByPlanIdOrderBySequenceNumberDesc()`
-- `HashChainVerifier.java` (NEW): verifica sequenziale `O(N)` della catena per un piano
-- `PlanController.java`: `GET /api/v1/plans/{id}/verify-integrity` — restituisce `{valid: bool, brokenAt: seqNum}`
-- Flyway V11: `ALTER TABLE plan_event ADD COLUMN event_hash VARCHAR(64) NOT NULL DEFAULT '', ADD COLUMN previous_hash VARCHAR(64) NOT NULL DEFAULT ''`
-
-**Migrazione dati esistenti**: script Flyway che ricalcola la catena per tutti gli eventi esistenti
-(ordinati per `plan_id, sequence_number`). Operazione one-shot, idempotente.
-
-**Performance**: SHA-256 di ~1KB payload = ~1 microsecondo. La query per l'ultimo hash e' O(1)
-con l'indice esistente `idx_plan_event_plan_seq`. Nessun impatto misurabile.
-
-**Chain break detection**: se `HashChainVerifier` trova un hash non corrispondente, logga
-`SECURITY WARNING` e pubblica un `SpringPlanEvent` di tipo `INTEGRITY_VIOLATION`.
-Non blocca il sistema (graceful degradation), ma segnala l'anomalia.
-
-**Sforzo**: 0.5g. **Dipendenze**: nessuna.
-**Impatto**: basso rischio, alto valore per audit/compliance.
+**Componenti**:
+- `PlanEvent.java` — +2 campi (`eventHash`, `previousHash`), costruttore 9-arg
+- `PlanEventStore.append()` — computa `SHA-256(previousHash|eventType|payload|occurredAt)`, GENESIS_HASH = "0"×64
+- `HashChainVerifier.java` — verifica O(N) sequenziale, SECURITY WARNING + INTEGRITY_VIOLATION event se rotto
+- `HashChainVerificationResult.java` — record con valid, eventCount, brokenAtSequence, reason
+- `GET /api/v1/plans/{id}/verify-integrity` — endpoint REST per verifica on-demand
+- `V27__hash_chain_tamper_proof.sql` — ALTER TABLE, integrità forward-only (eventi pre-migrazione con hash vuoto skippati)
+- `HashUtil.sha256()` — riusato da `agent-common` (condiviso con 6 items futuri: #31, #32, #45, #46, #48)
+- Test: 7 HashChainVerifierTest + 5 PlanEventStoreHashTest. 933 test totali verdi.
 
 ---
 
@@ -1465,42 +1426,29 @@ Ogni branca risolve un problema concreto dell'orchestrazione multi-agent.
 
 ---
 
-## #35 — Context Quality Scoring (Teoria dell'Informazione)
+## #35 — Context Quality Scoring (Teoria dell'Informazione) ✅
 
-**Problema**: il CONTEXT_MANAGER produce contesto per i worker, ma non c'e' modo di misurare
-*quanto* informativo sia. Un contesto con 50 file irrilevanti e' rumore — il worker spreca token.
-Non esiste feedback loop sulla qualita' del contesto.
+**Implementato**: metriche information-theoretic per valutare la qualita' del contesto CM.
 
-**Soluzione**: metriche information-theoretic per valutare e migliorare il contesto.
+**Tre componenti scoring** (composite score [0, 1]):
 
-**Design**:
+| Componente | Peso | Misura |
+|-----------|------|--------|
+| **File Relevance** | 0.45 | Proxy MI — ratio file CM-selected usati dal worker (fuzzy path match) |
+| **Entropy Score** | 0.30 | Sigmoid su #deps e dimensione — penalizza contesti troppo ampi o troppo stretti |
+| **KL Divergence Score** | 0.25 | Media geometrica coverage bidirezionale (proxy 1 - D_KL) |
 
-- **Mutual Information** `I(Context; Result)`: quanta informazione condividono contesto e risultato.
-  Calcolata a posteriori sugli embeddings (pgvector 1024-dim gia' presente in `task_outcomes`):
-  ```
-  ContextQualityScore = I(context_embedding; result_reward)
-                      = H(result_reward) - H(result_reward | context_embedding)
-  ```
-  Se MI e' bassa → il contesto non sta aiutando. Feedback al CONTEXT_MANAGER.
+**Integrazione**:
+- `task_outcomes.context_quality_score` (V23 migration) — GP training data
+- `RewardComputationService.injectContextQualityScore()` — 4° reward source (weight 0.15)
+- `BayesianSuccessPredictor` — feature slot [1027]
+- `TaskCompletedEventHandler:131-139` — side-effect #7, wired
 
-- **Entropia del contesto** `H(Context)`: contesto ad alta entropia = troppo vario/rumoroso.
-  Contesto a bassa entropia = troppo specifico (rischio tunnel vision).
-  Target: entropia media — contesto focalizzato ma non troppo ristretto.
+**Feedback observability**: `ContextQualityFeedback` record con unusedSelectedFiles, missingFiles,
+suggestion. Loggato a INFO per ogni task completato (no migrazione extra, il GP usa solo il numero).
 
-- **KL Divergence** tra distribuzione file selezionati dal CM e distribuzione file effettivamente usati dal worker
-  (ricavata da `Provenance.toolsUsed` + file letti).
-  `D_KL(P_used || P_selected)` alto → CM seleziona file che il worker ignora.
-
-- `ContextQualityService.java` (NEW): calcola MI, H, KL dopo ogni task completato
-- `ContextQualityFeedback` record (NEW): score + suggerimenti (rimuovere file a bassa MI, aggiungere file mancanti)
-- Integrazione: `RewardComputationService` include context quality come quarto reward source
-- Flyway V12: `ALTER TABLE task_outcomes ADD COLUMN context_quality_score DOUBLE PRECISION`
-
-**File**: `ContextQualityService.java` (NEW), `RewardComputationService.java` (modifica),
-`task_outcomes` (migrazione), `ContextQualityFeedback.java` (NEW, in agent-common)
-
-**Sforzo**: 2g. **Dipendenze**: RAG pipeline attiva (#23), `task_outcomes` con embeddings (#15).
-**Impatto**: alto — chiude il feedback loop sulla qualita' del contesto, migliora progressivamente il CM.
+**File**: `ContextQualityService.java`, `ContextQualityFeedback.java`, `ContextQualityServiceTest.java` (22 test),
+`RewardComputationServiceTest.java` (+5 test injectContextQualityScore). 916 test verdi.
 
 ---
 
@@ -1952,7 +1900,7 @@ Legenda: ──► dipendenza, ~~~► sinergia (non bloccante)
 ```
 TIER 0 — Nessuna dipendenza (possono partire subito, in parallelo)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  #30  Hash Chain Tamper-Proof         0.5g  fondazione crittografica
+  #30  Hash Chain Tamper-Proof         0.5g  fondazione crittografica  ✅
   #33  Token Economics Double-Entry    1.5g
   #36  Worker Pool Sizing (Queueing)   1.5g  condivide CriticalPathCalculator con #42
   #38  State Machine Verification      1.0g  test compilazione, nessun rischio runtime
@@ -1977,7 +1925,7 @@ TIER 2 — Dipende da Tier 1
 
 TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  #35  Context Quality (Info Theory)   2.0g  richiede #23 + #15
+  #35  Context Quality (Info Theory)   2.0g  richiede #23 + #15  ✅
   #42  Global Assignment (Hungarian)   2.0g  richiede #15, condivide CPCalc con #36
   #41  Topological Pattern Detection   2.5g  richiede #23 + #15 + dati sufficienti in task_outcomes
   #43  Differential Privacy            1.0g  richiede #34 (Federazione)
@@ -2076,10 +2024,10 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 ### Ordine consigliato di implementazione
 
 ```
-Fase 1 (fondazioni, ~3.5g):      #30 → #38 → #39
+Fase 1 (fondazioni, ~3.5g):      #30 ✅ → #38 → #39
 Fase 2 (pratico, ~5g):           #36 → #33 → #40
 Fase 3 (trust, ~4g):             #31 → #32 → #37
-Fase 4 (avanzato, ~7g):          #34 → #35 → #42 → #41 → #43
+Fase 4 (avanzato, ~7g):          #34 → #35 ✅ → #42 → #41 → #43
 Fase 5 (advanced, ~5.5g):        #45 → #47 → #48  (parallelo)
 Fase 6 (~1.5g):                  #46
 Fase 7 (~2.5g):                  #49

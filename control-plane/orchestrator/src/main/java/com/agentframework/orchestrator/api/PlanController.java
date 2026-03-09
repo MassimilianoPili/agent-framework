@@ -14,6 +14,8 @@ import com.agentframework.orchestrator.analytics.RootCauseAnalyzer;
 import com.agentframework.orchestrator.budget.CovarianceMatrix;
 import com.agentframework.orchestrator.budget.PortfolioOptimizer;
 import com.agentframework.orchestrator.budget.TokenLedgerService;
+import com.agentframework.orchestrator.eventsourcing.HashChainVerificationResult;
+import com.agentframework.orchestrator.eventsourcing.HashChainVerifier;
 import com.agentframework.orchestrator.gp.TaskOutcomeRepository;
 import com.agentframework.orchestrator.domain.PlanStatus;
 import com.agentframework.orchestrator.repository.FileModificationRepository;
@@ -67,6 +69,7 @@ public class PlanController {
     private final FileModificationRepository fileModificationRepository;
     private final TokenLedgerService tokenLedgerService;
     private final ShapleyDagService shapleyDagService;
+    private final HashChainVerifier hashChainVerifier;
 
     public PlanController(OrchestrationService orchestrationService,
                           PlanSnapshotService snapshotService,
@@ -82,7 +85,8 @@ public class PlanController {
                           ObjectMapper objectMapper,
                           FileModificationRepository fileModificationRepository,
                           TokenLedgerService tokenLedgerService,
-                          ShapleyDagService shapleyDagService) {
+                          ShapleyDagService shapleyDagService,
+                          HashChainVerifier hashChainVerifier) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
@@ -98,6 +102,7 @@ public class PlanController {
         this.fileModificationRepository = fileModificationRepository;
         this.tokenLedgerService = tokenLedgerService;
         this.shapleyDagService = shapleyDagService;
+        this.hashChainVerifier = hashChainVerifier;
     }
 
     /**
@@ -569,6 +574,16 @@ public class PlanController {
         }
         log.info("SSE client connected to plan {} (lastSeenSeqNum={})", id, lastSeenSeqNum);
         return sseEmitterRegistry.subscribe(id, lastSeenSeqNum);
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/verify-integrity
+     * Verifies the cryptographic hash chain of the plan's event log (#30).
+     * Returns whether the chain is intact and, if not, the sequence number where it breaks.
+     */
+    @GetMapping("/{id}/verify-integrity")
+    public ResponseEntity<HashChainVerificationResult> verifyIntegrity(@PathVariable UUID id) {
+        return ResponseEntity.ok(hashChainVerifier.verify(id));
     }
 
     /**

@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface PlanEventRepository extends JpaRepository<PlanEvent, UUID> {
@@ -25,4 +26,7 @@ public interface PlanEventRepository extends JpaRepository<PlanEvent, UUID> {
     long nextSequence(@Param("planId") UUID planId);
 
     long countByPlanId(UUID planId);
+
+    /** Returns the most recent event for a plan — used by hash chain to link to previous (#30). */
+    Optional<PlanEvent> findTopByPlanIdOrderBySequenceNumberDesc(UUID planId);
 }

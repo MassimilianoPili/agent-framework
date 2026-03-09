@@ -517,6 +517,15 @@ cost:
       input-per-million: 0.80
       output-per-million: 4.0
 
+# Task Auto-Split — decompose expensive tasks into sub-plans (#26L2)
+task-split:
+  enabled: false                       # opt-in (disabled by default)
+  threshold-tokens: 50000              # estimated input token threshold for split trigger
+  threshold-action: SPLIT              # WARN | SPLIT | BLOCK
+  max-split-attempts: 1                # max auto-split per item (guard against infinite recursion)
+  description-length-multiplier: 25    # chars → estimated tokens heuristic
+  gp-sigma2-threshold: 0.5            # GP uncertainty above this uses upper-bound estimate
+
 # Superrationality (Hofstadter) — cooperative equilibrium between worker types
 superrationality:
   enabled: true

@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.eventsourcing;
 
+import com.agentframework.common.util.HashUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,9 @@ import java.util.UUID;
 public class PlanEventStore {
 
     private static final Logger log = LoggerFactory.getLogger(PlanEventStore.class);
+
+    /** Genesis hash: 64 hex zeros, used as previousHash for the first event of each plan (#30). */
+    static final String GENESIS_HASH = "0".repeat(64);
 
     private final PlanEventRepository repository;
     private final ObjectMapper objectMapper;
@@ -57,14 +61,23 @@ public class PlanEventStore {
             payloadJson = "{}";
         }
 
+        // Hash chain: link to previous event (#30)
+        String previousHash = repository.findTopByPlanIdOrderBySequenceNumberDesc(planId)
+                .map(PlanEvent::getEventHash)
+                .orElse(GENESIS_HASH);
+
+        Instant now = Instant.now();
+        String hashInput = previousHash + "|" + eventType + "|" + payloadJson + "|" + now;
+        String eventHash = HashUtil.sha256(hashInput);
+
         PlanEvent event = new PlanEvent(
                 UUID.randomUUID(), planId, itemId,
-                eventType, payloadJson,
-                Instant.now(), seq);
+                eventType, payloadJson, now, seq,
+                eventHash, previousHash);
 
         PlanEvent saved = repository.save(event);
-        log.debug("Event appended: type={}, plan={}, item={}, seq={}",
-                  eventType, planId, itemId, seq);
+        log.debug("Event appended: type={}, plan={}, item={}, seq={}, hash={}",
+                  eventType, planId, itemId, seq, eventHash.substring(0, 8));
         return saved;
     }
 

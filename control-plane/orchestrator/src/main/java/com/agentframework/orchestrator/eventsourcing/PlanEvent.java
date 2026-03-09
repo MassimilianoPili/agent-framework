@@ -51,6 +51,14 @@ public class PlanEvent {
     @Column(name = "sequence_number", nullable = false, updatable = false)
     private long sequenceNumber;
 
+    /** SHA-256 hash of (previousHash | eventType | payload | occurredAt). Forms tamper-proof chain (#30). */
+    @Column(name = "event_hash", nullable = false, length = 64, updatable = false)
+    private String eventHash = "";
+
+    /** Hash of the previous event in the chain. Genesis events use "000...0" (64 zeros). */
+    @Column(name = "previous_hash", nullable = false, length = 64, updatable = false)
+    private String previousHash = "";
+
     protected PlanEvent() {}
 
     public PlanEvent(UUID id, UUID planId, UUID itemId, String eventType,
@@ -64,6 +72,15 @@ public class PlanEvent {
         this.sequenceNumber = sequenceNumber;
     }
 
+    /** Constructor with hash chain fields (#30). */
+    public PlanEvent(UUID id, UUID planId, UUID itemId, String eventType,
+                     String payload, Instant occurredAt, long sequenceNumber,
+                     String eventHash, String previousHash) {
+        this(id, planId, itemId, eventType, payload, occurredAt, sequenceNumber);
+        this.eventHash = eventHash;
+        this.previousHash = previousHash;
+    }
+
     public UUID getId()             { return id; }
     public UUID getPlanId()         { return planId; }
     public UUID getItemId()         { return itemId; }
@@ -71,4 +88,6 @@ public class PlanEvent {
     public String getPayload()      { return payload; }
     public Instant getOccurredAt()  { return occurredAt; }
     public long getSequenceNumber() { return sequenceNumber; }
+    public String getEventHash()    { return eventHash; }
+    public String getPreviousHash() { return previousHash; }
 }
