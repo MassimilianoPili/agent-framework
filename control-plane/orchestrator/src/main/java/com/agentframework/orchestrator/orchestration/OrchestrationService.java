@@ -4,6 +4,7 @@ import com.agentframework.orchestrator.api.dto.PlanRequest;
 import com.agentframework.orchestrator.artifact.ArtifactStore;
 import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.PidBudgetController;
+import com.agentframework.orchestrator.budget.TokenLedgerService;
 import com.agentframework.orchestrator.cache.ContextCacheService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.domain.*;
@@ -123,6 +124,8 @@ public class OrchestrationService {
     // P2.7: optional — present only in hybrid mode for cross-JVM cancellation
     private final RemoteWorkerClient remoteWorkerClient;
     private final HybridMessagingProperties hybridProps;
+    // #33: double-entry token ledger (always-on)
+    private final TokenLedgerService tokenLedgerService;
     // #37: PID adaptive token budget
     private final PidBudgetController pidBudgetController;
 
@@ -158,6 +161,7 @@ public class OrchestrationService {
                                 Optional<InProcessMessageBroker> inProcessBroker,
                                 Optional<RemoteWorkerClient> remoteWorkerClient,
                                 Optional<HybridMessagingProperties> hybridProps,
+                                TokenLedgerService tokenLedgerService,
                                 Optional<PidBudgetController> pidBudgetController) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
@@ -191,6 +195,7 @@ public class OrchestrationService {
         this.inProcessBroker = inProcessBroker.orElse(null);
         this.remoteWorkerClient = remoteWorkerClient.orElse(null);
         this.hybridProps = hybridProps.orElse(null);
+        this.tokenLedgerService = tokenLedgerService;
         this.pidBudgetController = pidBudgetController.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
@@ -424,6 +429,12 @@ public class OrchestrationService {
         if (actualTokens > 0) {
             String workerTypeKey = result.workerType() != null ? result.workerType() : item.getWorkerType().name();
             tokenBudgetService.recordUsage(result.planId(), workerTypeKey, actualTokens);
+
+            // Double-entry ledger: record token debit (#33)
+            tokenLedgerService.debit(result.planId(), item.getId(), result.taskKey(),
+                    workerTypeKey, actualTokens,
+                    "Task completed: " + item.getWorkerProfile());
+
             log.info("Task {} completed: {}in/{}out tokens, ~${} (plan={}, worker={})",
                      result.taskKey(), item.getInputTokens(), item.getOutputTokens(),
                      item.getEstimatedCostUsd(), result.planId(), item.getWorkerProfile());

@@ -4,12 +4,14 @@ import com.agentframework.orchestrator.api.dto.DispatchAttemptResponse;
 import com.agentframework.orchestrator.api.dto.FileModificationResponse;
 import com.agentframework.orchestrator.api.dto.PlanCostResponse;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
+import com.agentframework.orchestrator.api.dto.TokenLedgerResponse;
 import com.agentframework.orchestrator.api.dto.PlanResponse;
 import com.agentframework.orchestrator.api.dto.PlanSnapshotResponse;
 import com.agentframework.orchestrator.api.dto.QualityGateReportResponse;
 import com.agentframework.orchestrator.analytics.RootCauseAnalyzer;
 import com.agentframework.orchestrator.budget.CovarianceMatrix;
 import com.agentframework.orchestrator.budget.PortfolioOptimizer;
+import com.agentframework.orchestrator.budget.TokenLedgerService;
 import com.agentframework.orchestrator.gp.TaskOutcomeRepository;
 import com.agentframework.orchestrator.domain.PlanStatus;
 import com.agentframework.orchestrator.repository.FileModificationRepository;
@@ -61,6 +63,7 @@ public class PlanController {
     private final Optional<RootCauseAnalyzer> rootCauseAnalyzer;
     private final ObjectMapper objectMapper;
     private final FileModificationRepository fileModificationRepository;
+    private final TokenLedgerService tokenLedgerService;
 
     public PlanController(OrchestrationService orchestrationService,
                           PlanSnapshotService snapshotService,
@@ -74,7 +77,8 @@ public class PlanController {
                           Optional<TaskOutcomeRepository> taskOutcomeRepository,
                           Optional<RootCauseAnalyzer> rootCauseAnalyzer,
                           ObjectMapper objectMapper,
-                          FileModificationRepository fileModificationRepository) {
+                          FileModificationRepository fileModificationRepository,
+                          TokenLedgerService tokenLedgerService) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
@@ -88,6 +92,7 @@ public class PlanController {
         this.rootCauseAnalyzer = rootCauseAnalyzer;
         this.objectMapper = objectMapper;
         this.fileModificationRepository = fileModificationRepository;
+        this.tokenLedgerService = tokenLedgerService;
     }
 
     /**
@@ -742,6 +747,27 @@ public class PlanController {
     public ResponseEntity<PlanCostResponse> getPlanCost(@PathVariable UUID id) {
         return orchestrationService.getPlan(id)
             .map(plan -> ResponseEntity.ok(PlanCostResponse.from(plan)))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/budget/ledger
+     *
+     * <p>Returns the double-entry token ledger for a plan: balance, totals,
+     * efficiency ratio, and chronological entry history (#33).</p>
+     */
+    @GetMapping("/{id}/budget/ledger")
+    public ResponseEntity<TokenLedgerResponse> getLedger(@PathVariable UUID id) {
+        return orchestrationService.getPlan(id)
+            .map(plan -> ResponseEntity.ok(new TokenLedgerResponse(
+                    id,
+                    tokenLedgerService.currentBalance(id),
+                    tokenLedgerService.sumDebits(id),
+                    tokenLedgerService.sumCredits(id),
+                    tokenLedgerService.computeEfficiency(id),
+                    tokenLedgerService.getLedger(id).stream()
+                            .map(TokenLedgerResponse.LedgerEntry::from)
+                            .toList())))
             .orElse(ResponseEntity.notFound().build());
     }
 

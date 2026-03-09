@@ -4,6 +4,7 @@ import com.agentframework.orchestrator.domain.*;
 import com.agentframework.orchestrator.event.TaskCompletedSideEffectEvent;
 import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
+import com.agentframework.orchestrator.budget.TokenLedgerService;
 import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.orchestrator.messaging.dto.AgentResult;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
@@ -34,6 +35,7 @@ class TaskCompletedEventHandlerTest {
     @Mock private TaskOutcomeService gpTaskOutcomeService;
     @Mock private SerendipityService serendipityService;
     @Mock private HookManagerService hookManagerService;
+    @Mock private TokenLedgerService tokenLedgerService;
 
     private TaskCompletedEventHandler handler;
 
@@ -41,7 +43,8 @@ class TaskCompletedEventHandlerTest {
     void setUp() {
         handler = new TaskCompletedEventHandler(
                 planItemRepository, rewardComputationService,
-                gpTaskOutcomeService, serendipityService, null, hookManagerService);
+                gpTaskOutcomeService, serendipityService, null, hookManagerService,
+                tokenLedgerService);
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.agentframework.orchestrator.artifact.ArtifactStore;
 import com.agentframework.orchestrator.workspace.WorkspaceManager;
 import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
+import com.agentframework.orchestrator.budget.TokenLedgerService;
 import com.agentframework.orchestrator.config.EnrichmentProperties;
 import com.agentframework.orchestrator.council.CouncilProperties;
 import com.agentframework.orchestrator.council.CouncilService;
@@ -56,6 +57,7 @@ class CancelPlanTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private HookManagerService hookManagerService;
     @Mock private TokenBudgetService tokenBudgetService;
+    @Mock private TokenLedgerService tokenLedgerService;
     @Mock private CostEstimationService costEstimationService;
     @Mock private PlanEventStore eventStore;
     @Mock private CouncilService councilService;
@@ -91,6 +93,7 @@ class CancelPlanTest {
                 fileModificationRepository,
                 Optional.empty(),
                 Optional.empty(), Optional.empty(),
+                tokenLedgerService,
                 Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
