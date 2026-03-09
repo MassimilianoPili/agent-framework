@@ -339,6 +339,28 @@ public class PlanItem {
     public java.math.BigDecimal getEstimatedCostUsd() { return estimatedCostUsd; }
     public void setEstimatedCostUsd(java.math.BigDecimal estimatedCostUsd) { this.estimatedCostUsd = estimatedCostUsd; }
 
+    // ── Task auto-split fields (#26L2) ───────────────────────────────────────
+
+    /** Pre-dispatch estimated input tokens (heuristic + GP). Null if not estimated. */
+    @Column(name = "estimated_input_tokens")
+    private Long estimatedInputTokens;
+
+    /** Number of times this item has been auto-split. 0 = never split. */
+    @Column(name = "split_attempt_count", nullable = false)
+    private int splitAttemptCount = 0;
+
+    public Long getEstimatedInputTokens() { return estimatedInputTokens; }
+    public void setEstimatedInputTokens(Long estimatedInputTokens) { this.estimatedInputTokens = estimatedInputTokens; }
+
+    public int getSplitAttemptCount() { return splitAttemptCount; }
+    public void incrementSplitAttemptCount() { this.splitAttemptCount++; }
+
+    /**
+     * Changes the worker type. Reserved for auto-split conversion (#26L2) —
+     * normal code should not change a task's worker type after creation.
+     */
+    public void forceWorkerType(WorkerType workerType) { this.workerType = workerType; }
+
     // ─────────────────────────────────────────────────────────────────────────
 
     public Long getVersion() { return version; }

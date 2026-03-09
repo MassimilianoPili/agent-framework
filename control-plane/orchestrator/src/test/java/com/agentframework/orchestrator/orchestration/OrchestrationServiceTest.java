@@ -7,6 +7,8 @@ import com.agentframework.orchestrator.api.dto.PlanRequest;
 import com.agentframework.orchestrator.artifact.ArtifactStore;
 import com.agentframework.orchestrator.workspace.WorkspaceManager;
 import com.agentframework.orchestrator.budget.CostEstimationService;
+import com.agentframework.orchestrator.budget.TaskSplitterService;
+import com.agentframework.orchestrator.budget.TaskSplitterService.SplitDecision;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.budget.TokenBudgetService.BudgetDecision;
 import com.agentframework.orchestrator.budget.TokenLedgerService;
@@ -22,6 +24,7 @@ import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.orchestrator.messaging.AgentTaskProducer;
 import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.messaging.dto.AgentResult;
+import com.agentframework.orchestrator.messaging.dto.Provenance;
 import com.agentframework.orchestrator.planner.PlannerService;
 import com.agentframework.orchestrator.repository.DispatchAttemptRepository;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
@@ -101,6 +104,7 @@ class OrchestrationServiceTest {
                 Optional.empty(),
                 Optional.empty(), Optional.empty(),
                 tokenLedgerService,
+                Optional.empty(),
                 Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
@@ -692,6 +696,177 @@ class OrchestrationServiceTest {
         // Item stays WAITING, not dispatched
         assertThat(item.getStatus()).isEqualTo(ItemStatus.WAITING);
         verify(taskProducer, never()).dispatch(any());
+    }
+
+    // ── auto-split (#26L2) ────────────────────────────────────────────────
+
+    @Test
+    void dispatch_splitEnabled_expensiveTask_convertsToSubPlan() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+
+        PlanItem item = new PlanItem(
+                UUID.randomUUID(), 0, "BE-001", "Backend task",
+                "A very long description that makes this task expensive",
+                WorkerType.BE, "be-java", List.of(), List.of());
+        plan.addItem(item);
+
+        // Inject a mock TaskSplitterService
+        TaskSplitterService splitter = mock(TaskSplitterService.class);
+        ReflectionTestUtils.setField(service, "taskSplitterService", splitter);
+
+        when(splitter.evaluate(eq(item), any()))
+                .thenReturn(new SplitDecision(SplitDecision.Action.SPLIT, 80_000));
+        doAnswer(inv -> {
+            PlanItem it = inv.getArgument(0);
+            it.forceWorkerType(WorkerType.SUB_PLAN);
+            it.setSubPlanSpec("Split spec for " + it.getTaskKey());
+            it.incrementSplitAttemptCount();
+            return null;
+        }).when(splitter).convertToSubPlan(eq(item), anyMap());
+
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(item));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        when(planRepository.findById(any(UUID.class))).thenReturn(Optional.of(plan));
+        when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(plannerService.decompose(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findActiveByPlanId(any(UUID.class))).thenReturn(List.of(item));
+
+        service.triggerDispatch(planId);
+
+        // Item converted to SUB_PLAN and dispatched (child plan created)
+        assertThat(item.getWorkerType()).isEqualTo(WorkerType.SUB_PLAN);
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.DISPATCHED);
+        assertThat(item.getChildPlanId()).isNotNull();
+        verify(taskProducer, never()).dispatch(any()); // not via message broker
+        verify(eventStore).append(eq(planId), eq(item.getId()), eq("TASK_AUTO_SPLIT"), anyMap());
+    }
+
+    @Test
+    void dispatch_splitEnabled_cheapTask_dispatchesNormally() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+
+        PlanItem item = new PlanItem(
+                UUID.randomUUID(), 0, "BE-001", "Small task", "desc",
+                WorkerType.BE, null, List.of(), List.of());
+        plan.addItem(item);
+
+        TaskSplitterService splitter = mock(TaskSplitterService.class);
+        ReflectionTestUtils.setField(service, "taskSplitterService", splitter);
+
+        when(splitter.evaluate(eq(item), any()))
+                .thenReturn(new SplitDecision(SplitDecision.Action.PROCEED, 5_000));
+
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(item));
+        lenient().when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
+        lenient().when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(item));
+
+        service.triggerDispatch(planId);
+
+        // Normal dispatch — not split
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.DISPATCHED);
+        assertThat(item.getWorkerType()).isEqualTo(WorkerType.BE);
+        verify(taskProducer).dispatch(any());
+    }
+
+    @Test
+    void dispatch_splitBlock_transitionsToAwaitingApproval() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+
+        PlanItem item = new PlanItem(
+                UUID.randomUUID(), 0, "BE-001", "Huge task", "desc",
+                WorkerType.BE, null, List.of(), List.of());
+        plan.addItem(item);
+
+        TaskSplitterService splitter = mock(TaskSplitterService.class);
+        ReflectionTestUtils.setField(service, "taskSplitterService", splitter);
+
+        when(splitter.evaluate(eq(item), any()))
+                .thenReturn(new SplitDecision(SplitDecision.Action.BLOCK, 200_000));
+
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(item));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(item));
+
+        service.triggerDispatch(planId);
+
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.AWAITING_APPROVAL);
+        assertThat(item.getFailureReason()).contains("200000");
+        verify(taskProducer, never()).dispatch(any());
+    }
+
+    @Test
+    void dispatch_splitWarn_logsAndProceeds() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+
+        PlanItem item = new PlanItem(
+                UUID.randomUUID(), 0, "BE-001", "Medium task", "desc",
+                WorkerType.BE, null, List.of(), List.of());
+        plan.addItem(item);
+
+        TaskSplitterService splitter = mock(TaskSplitterService.class);
+        ReflectionTestUtils.setField(service, "taskSplitterService", splitter);
+
+        when(splitter.evaluate(eq(item), any()))
+                .thenReturn(new SplitDecision(SplitDecision.Action.WARN, 60_000));
+
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(item));
+        lenient().when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
+        lenient().when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(item));
+
+        service.triggerDispatch(planId);
+
+        // WARN proceeds to normal dispatch
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.DISPATCHED);
+        verify(taskProducer).dispatch(any());
+    }
+
+    @Test
+    void onTaskCompleted_postHocWarning_tokenExceedsThreshold() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        item.transitionTo(ItemStatus.DISPATCHED);
+
+        // Inject mock TaskSplitterService with threshold
+        TaskSplitterService splitter = mock(TaskSplitterService.class);
+        ReflectionTestUtils.setField(service, "taskSplitterService", splitter);
+        when(splitter.getThresholdTokens()).thenReturn(50_000L);
+
+        // Result with provenance carrying high token usage
+        Provenance provenance = new Provenance(
+                "BE", "be-java", 1, null, null, null, null, "claude-3-5-sonnet",
+                null, null, null,
+                new Provenance.TokenUsage(80_000L, 5_000L, 85_000L),
+                null);
+        AgentResult result = new AgentResult(planId, item.getId(), "BE-001",
+                true, "{\"code\": \"ok\"}", null, 500L, "BE", "be-java",
+                null, null, provenance, 85_000L, null, null);
+
+        stubOnTaskCompletedCommon(item, planId);
+
+        service.onTaskCompleted(result);
+
+        // Task completes normally (post-hoc is just a warning, no behavior change)
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.DONE);
+        assertThat(item.getInputTokens()).isEqualTo(80_000L);
+        // Verify the threshold was checked (called twice: check + log)
+        verify(splitter, atLeast(1)).getThresholdTokens();
     }
 
     // ── resumePlan ──────────────────────────────────────────────────────────

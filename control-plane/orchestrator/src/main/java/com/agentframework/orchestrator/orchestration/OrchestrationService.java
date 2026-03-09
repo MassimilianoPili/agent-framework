@@ -6,6 +6,7 @@ import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.PidBudgetController;
 import com.agentframework.orchestrator.budget.TokenLedgerService;
 import com.agentframework.orchestrator.cache.ContextCacheService;
+import com.agentframework.orchestrator.budget.TaskSplitterService;
 import com.agentframework.orchestrator.budget.TokenBudgetService;
 import com.agentframework.orchestrator.domain.*;
 import com.agentframework.orchestrator.eventsourcing.PlanEventStore;
@@ -128,6 +129,8 @@ public class OrchestrationService {
     private final TokenLedgerService tokenLedgerService;
     // #37: PID adaptive token budget
     private final PidBudgetController pidBudgetController;
+    // #26L2: auto-split for expensive tasks (nullable — bean only exists when task-split.enabled=true)
+    private final TaskSplitterService taskSplitterService;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -162,7 +165,8 @@ public class OrchestrationService {
                                 Optional<RemoteWorkerClient> remoteWorkerClient,
                                 Optional<HybridMessagingProperties> hybridProps,
                                 TokenLedgerService tokenLedgerService,
-                                Optional<PidBudgetController> pidBudgetController) {
+                                Optional<PidBudgetController> pidBudgetController,
+                                Optional<TaskSplitterService> taskSplitterService) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -197,6 +201,7 @@ public class OrchestrationService {
         this.hybridProps = hybridProps.orElse(null);
         this.tokenLedgerService = tokenLedgerService;
         this.pidBudgetController = pidBudgetController.orElse(null);
+        this.taskSplitterService = taskSplitterService.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -412,6 +417,14 @@ public class OrchestrationService {
             item.setEstimatedCostUsd(costEstimationService.estimate(
                     tu.inputTokens(), tu.outputTokens(),
                     result.provenance().model()));
+        }
+
+        // Post-hoc split calibration: warn if actual tokens exceeded threshold (#26L2)
+        if (taskSplitterService != null && item.getInputTokens() != null
+                && item.getInputTokens() > taskSplitterService.getThresholdTokens()) {
+            log.warn("Post-hoc: task {} used {}K input tokens (threshold {}K, plan={})",
+                     item.getTaskKey(), item.getInputTokens() / 1000,
+                     taskSplitterService.getThresholdTokens() / 1000, result.planId());
         }
 
         planItemRepository.save(item);
@@ -1072,6 +1085,42 @@ public class OrchestrationService {
                             emb, item.getWorkerType().name(), item.getWorkerProfile());
                 } catch (Exception e) {
                     log.debug("GP prediction for budget failed (non-blocking): {}", e.getMessage());
+                }
+            }
+
+            // Auto-split: if estimated cost exceeds threshold, convert to SUB_PLAN (#26L2)
+            if (taskSplitterService != null) {
+                TaskSplitterService.SplitDecision splitDecision =
+                        taskSplitterService.evaluate(item, gpPrediction);
+                switch (splitDecision.action()) {
+                    case WARN -> {
+                        log.warn("Task {} estimated ~{}K input tokens, proceeding (plan={})",
+                                 item.getTaskKey(), splitDecision.estimatedTokens() / 1000, planId);
+                        planItemRepository.save(item); // persist estimatedInputTokens
+                    }
+                    case SPLIT -> {
+                        log.info("Auto-splitting task {} (~{}K tokens, plan={})",
+                                 item.getTaskKey(), splitDecision.estimatedTokens() / 1000, planId);
+                        String origType = item.getWorkerType().name();
+                        taskSplitterService.convertToSubPlan(item, completedResults);
+                        handleSubPlan(item, plan);
+                        planItemRepository.save(item);
+                        eventStore.append(planId, item.getId(), "TASK_AUTO_SPLIT",
+                                Map.of("originalWorkerType", origType,
+                                       "estimatedTokens", String.valueOf(splitDecision.estimatedTokens()),
+                                       "taskKey", item.getTaskKey()));
+                        continue;
+                    }
+                    case BLOCK -> {
+                        log.warn("Task {} blocked: estimated ~{}K input tokens (plan={})",
+                                 item.getTaskKey(), splitDecision.estimatedTokens() / 1000, planId);
+                        item.transitionTo(ItemStatus.AWAITING_APPROVAL);
+                        item.setFailureReason("Estimated too expensive: "
+                                + splitDecision.estimatedTokens() + " input tokens");
+                        planItemRepository.save(item);
+                        continue;
+                    }
+                    case PROCEED -> { /* normal dispatch flow */ }
                 }
             }
 

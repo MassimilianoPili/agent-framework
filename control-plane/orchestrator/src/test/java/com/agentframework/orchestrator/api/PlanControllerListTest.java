@@ -7,6 +7,7 @@ import com.agentframework.orchestrator.budget.TokenLedgerService;
 import com.agentframework.orchestrator.budget.PortfolioOptimizer;
 import com.agentframework.orchestrator.analytics.RootCauseAnalyzer;
 import com.agentframework.orchestrator.domain.Plan;
+import com.agentframework.orchestrator.eventsourcing.HashChainVerifier;
 import com.agentframework.orchestrator.domain.PlanStatus;
 import com.agentframework.orchestrator.gp.TaskOutcomeRepository;
 import com.agentframework.orchestrator.graph.CriticalPathCalculator;
@@ -54,6 +55,7 @@ class PlanControllerListTest {
     @Mock private FileModificationRepository fileModificationRepository;
     @Mock private TokenLedgerService tokenLedgerService;
     @Mock private ShapleyDagService shapleyDagService;
+    @Mock private HashChainVerifier hashChainVerifier;
 
     private PlanController controller;
 
@@ -66,7 +68,8 @@ class PlanControllerListTest {
                 Optional.empty(), Optional.empty(), new ObjectMapper(),
                 fileModificationRepository,
                 tokenLedgerService,
-                shapleyDagService);
+                shapleyDagService,
+                hashChainVerifier);
     }
 
     @Test

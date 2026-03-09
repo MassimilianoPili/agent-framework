@@ -1,5 +1,7 @@
 package com.agentframework.orchestrator.domain;
 
+import com.agentframework.orchestrator.analytics.AllowedViolation;
+
 import java.util.Set;
 
 /**
@@ -53,6 +55,11 @@ public enum ItemStatus {
             return Set.of(DONE, FAILED);
         }
     },
+    @AllowedViolation(
+            property = "P4",
+            reason = "ralph-loop: quality gate failure re-queues domain workers for iterative improvement",
+            boundedBy = "maxRalphLoops=2"
+    )
     DONE {
         @Override public Set<ItemStatus> allowedTransitions() {
             // WAITING: ralph-loop (quality gate failure re-queues with feedback)
