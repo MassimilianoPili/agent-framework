@@ -100,7 +100,7 @@ class ProvenanceModelTest {
             UUID.randomUUID(), UUID.randomUUID(),
             "T-001", "title", "description", "BE", "be-java",
             "spec", null, 1, UUID.randomUUID(), UUID.randomUUID(),
-            "2026-01-01T00:00:00Z", null, null, null, null, null,
+            "2026-01-01T00:00:00Z", null, null, null, null, null, null,
             modelId
         );
     }

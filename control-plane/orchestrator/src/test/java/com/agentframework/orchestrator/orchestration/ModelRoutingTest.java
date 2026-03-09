@@ -58,6 +58,7 @@ class ModelRoutingTest {
             UUID.randomUUID(),         // traceId
             "2025-01-01T00:00:00Z",    // dispatchedAt
             null,                      // policy
+            null,                      // policyHash
             null,                      // councilContext
             null,                      // dynamicOwnsPaths
             null,                      // toolHints

@@ -179,7 +179,7 @@ class ContextCacheInterceptorTest {
                 "Scan project files", workerType, "context-manager",
                 "Build a REST API", contextJson,
                 1, UUID.randomUUID(), UUID.randomUUID(), "2026-03-09T00:00:00Z",
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 
     private static String buildExpectedKey(String workerType, String contextJson) {

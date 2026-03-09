@@ -24,6 +24,7 @@ public record AgentTask(
     UUID traceId,               // dispatch metadata (null if unknown)
     String dispatchedAt,        // ISO-8601, dispatch metadata (null if unknown)
     HookPolicy policy,          // task-level hook policy set by HOOK_MANAGER (null = use static config)
+    String policyHash,          // SHA-256 commitment hash of the policy (#32, null if no policy)
     String councilContext,      // JSON CouncilReport from pre-planning session (null if council disabled)
     List<String> dynamicOwnsPaths, // project-path-resolved ownsPaths (merged with static in worker, null = none)
     List<String> toolHints,       // planner-suggested MCP tool names (null = no suggestion, use worker default)
