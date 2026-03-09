@@ -229,6 +229,10 @@ public class PlanItem {
     @Column(name = "reward_sources", columnDefinition = "TEXT")
     private String rewardSources;
 
+    /** Shapley value from DAG-aware credit attribution (#40). NULL until plan completes. */
+    @Column(name = "shapley_value")
+    private Double shapleyValue;
+
     public Float getReviewScore() { return reviewScore; }
     public void setReviewScore(Float reviewScore) { this.reviewScore = reviewScore; }
 
@@ -240,6 +244,9 @@ public class PlanItem {
 
     public String getRewardSources() { return rewardSources; }
     public void setRewardSources(String rewardSources) { this.rewardSources = rewardSources; }
+
+    public Double getShapleyValue() { return shapleyValue; }
+    public void setShapleyValue(Double shapleyValue) { this.shapleyValue = shapleyValue; }
 
     // ─────────────────────────────────────────────────────────────────────────
 

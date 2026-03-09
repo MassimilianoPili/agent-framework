@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.analytics.ShapleyDagService;
 import com.agentframework.orchestrator.domain.*;
 import com.agentframework.orchestrator.event.TaskCompletedSideEffectEvent;
 import com.agentframework.orchestrator.gp.SerendipityService;
@@ -36,6 +37,7 @@ class TaskCompletedEventHandlerTest {
     @Mock private SerendipityService serendipityService;
     @Mock private HookManagerService hookManagerService;
     @Mock private TokenLedgerService tokenLedgerService;
+    @Mock private ShapleyDagService shapleyDagService;
 
     private TaskCompletedEventHandler handler;
 
@@ -44,7 +46,7 @@ class TaskCompletedEventHandlerTest {
         handler = new TaskCompletedEventHandler(
                 planItemRepository, rewardComputationService,
                 gpTaskOutcomeService, serendipityService, null, hookManagerService,
-                tokenLedgerService);
+                tokenLedgerService, shapleyDagService);
     }
 
     @Test

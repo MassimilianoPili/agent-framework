@@ -348,7 +348,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (17 item — nessun codice)
+## Non implementati (16 item — nessun codice)
 
 | # | Item |
 |---|------|
@@ -362,7 +362,6 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 36 | Worker Pool Sizing (Queueing Theory) |
 | 38 | State Machine Verification (LTL) |
 | 39 | Policy Lattice Composition |
-| 40 | Shapley Value Reward Distribution |
 | 41 | Topological Pattern Detection |
 | 42 | Global Task Assignment (combinatoria) |
 | 43 | Differential Privacy metriche |
@@ -373,7 +372,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 48 | Content-Addressable Storage |
 | 49 | Quadratic Voting Council |
 
-## Parzialmente implementati (8 item — codice base, estensioni da fare)
+## Parzialmente implementati (9 item — codice base, estensioni da fare)
 
 | # | Item | Cosa c'e' | Cosa manca |
 |---|------|-----------|------------|
@@ -385,6 +384,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 35 | Context Quality Scoring | `ContextQualityService` (file relevance + entropy proxy), V23 migration, 4° reward source in `RewardComputationService` (0.15), slot [1027] in `BayesianSuccessPredictor` popolato, side-effect #7 in `TaskCompletedEventHandler` | Test unitari, tuning pesi, validazione con dati reali |
 | 33 | Token Economics Double-Entry | `TokenLedger` entity, `TokenLedgerRepository`, `TokenLedgerService` (debit/credit/balance/efficiency), `TokenLedgerResponse` DTO, V24 migration, integrazione in `OrchestrationService` (debit dopo recordUsage), side-effect #8 in `TaskCompletedEventHandler` (credit da aggregatedReward), `GET /{id}/budget/ledger` endpoint, 14 test unitari | Tuning credit formula, dashboard Grafana, alert su efficiency bassa |
 | 37 | Adaptive Token Budget (PID) | `PidBudgetController` (PID in-memory per planId×workerType), `PidBudgetProperties`, integrazione in `OrchestrationService` (adjustPolicy dispatch, update completion, evictPlan cleanup), 10 test unitari | Tuning parametri PID con dati reali, metriche Prometheus, dashboard Grafana |
+| 40 | Shapley Value Reward Distribution | `ShapleyDagService` (Monte Carlo DAG-aware, Kahn's random topo-sort), V25 migration (`shapley_value` su plan_items), `ShapleyDagResponse` DTO, `creditShapley()` in `TokenLedgerService`, side-effect #9 in `TaskCompletedEventHandler` (trigger su allDone), endpoint `GET /shapley-dag` + `GET /{id}/shapley`, 14 test unitari | Tuning K samples, integrazione ELO update con Shapley, dashboard Grafana |
 
 **Nota**: #5, #8, #9 presenti dall'initial commit (`2c5d7cc`). Il piano li elenca come "da fare"
 perche' richiedono estensioni rispetto all'implementazione base.
