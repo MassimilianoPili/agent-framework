@@ -309,6 +309,7 @@ enrichment:
   include-context-manager: true   # CM-001: codebase exploration (always recommended)
   include-rag: true               # RM-001: semantic search on vectorDB + graphDB
   include-schema: false           # SM-001: API interface extraction (opt-in)
+  include-tool-manager: false     # TM-*: per-task tool policy refinement (opt-in, adds N Haiku calls)
 
 # Ralph-Loop — quality gate feedback loop.
 # When the quality gate fails, implicated items are re-queued with feedback.

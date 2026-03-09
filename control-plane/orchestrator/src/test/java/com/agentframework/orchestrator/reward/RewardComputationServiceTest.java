@@ -802,6 +802,94 @@ class RewardComputationServiceTest {
         }
     }
 
+    // ── injectContextQualityScore (#35) ─────────────────────────────────────────
+
+    @Nested
+    @DisplayName("injectContextQualityScore (#35)")
+    class InjectContextQuality {
+
+        @Test
+        @DisplayName("valid score persists in rewardSources and triggers recompute")
+        void validScore_persistsAndRecomputes() {
+            PlanItem item = createDoneItem("BE-001", WorkerType.BE, "be-java");
+            item.setProcessScore(0.7f);
+
+            service.injectContextQualityScore(item, 0.85f);
+
+            assertThat(item.getAggregatedReward()).isNotNull();
+            assertThat(item.getRewardSources()).contains("context_quality");
+            assertThat(item.getRewardSources()).contains("0.85");
+            verify(planItemRepository).save(item);
+        }
+
+        @Test
+        @DisplayName("updates existing rewardSources without losing process score")
+        void updatesExistingRewardSources() throws Exception {
+            PlanItem item = createDoneItem("BE-001", WorkerType.BE, "be-java");
+            AgentResult result = resultWith(60_000L, null, null);
+            service.computeProcessScore(item, result);
+
+            float processScore = item.getProcessScore();
+            reset(planItemRepository);
+
+            service.injectContextQualityScore(item, 0.9f);
+
+            // Both process and context_quality should be in sources
+            JsonNode sources = objectMapper.readTree(item.getRewardSources());
+            assertThat(sources.has("process")).isTrue();
+            assertThat(sources.get("process").isNull()).isFalse();
+            assertThat(sources.has("context_quality")).isTrue();
+            assertThat(sources.get("context_quality").floatValue()).isCloseTo(0.9f, within(0.001f));
+        }
+
+        @Test
+        @DisplayName("all four sources present — correct weighted average")
+        void allFourSources_correctWeightedAverage() {
+            PlanItem item = createDoneItem("BE-001", WorkerType.BE, "be-java");
+
+            // Set up process score
+            item.setProcessScore(0.8f);    // weight 0.25
+
+            // Set up review score
+            item.setReviewScore(0.9f);     // weight 0.45
+
+            // Set up quality_gate via sources JSON
+            item.setRewardSources("{\"quality_gate\":1.0}");
+
+            // Inject context quality (weight 0.15)
+            service.injectContextQualityScore(item, 0.7f);
+
+            // Expected: all 4 weights sum to 1.0
+            // (0.45*0.9 + 0.25*0.8 + 0.15*1.0 + 0.15*0.7) / 1.0 = 0.405+0.2+0.15+0.105 = 0.86
+            assertThat(item.getAggregatedReward()).isCloseTo(0.86f, within(0.01f));
+        }
+
+        @Test
+        @DisplayName("only process and context — weights re-normalised to sum to 1.0")
+        void processAndContext_normalisedWeights() {
+            PlanItem item = createDoneItem("BE-001", WorkerType.BE, "be-java");
+            item.setProcessScore(0.6f);     // raw weight 0.25
+            // No review, no quality_gate
+
+            service.injectContextQualityScore(item, 0.8f); // raw weight 0.15
+
+            // Normalised: process = 0.25/0.40 = 0.625, context = 0.15/0.40 = 0.375
+            // Aggregate = 0.625*0.6 + 0.375*0.8 = 0.375 + 0.3 = 0.675
+            assertThat(item.getAggregatedReward()).isCloseTo(0.675f, within(0.01f));
+        }
+
+        @Test
+        @DisplayName("context quality alone — weight re-normalised to 1.0")
+        void contextOnly_normalisedToOne() {
+            PlanItem item = createDoneItem("BE-001", WorkerType.BE, "be-java");
+
+            service.injectContextQualityScore(item, 0.75f);
+
+            // Only context_quality present → normalised to 1.0
+            assertThat(item.getAggregatedReward()).isCloseTo(0.75f, within(0.001f));
+        }
+    }
+
     // ── Edge cases and integration scenarios ───────────────────────────────────
 
     @Nested

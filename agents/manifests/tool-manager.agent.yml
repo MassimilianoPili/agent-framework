@@ -1,0 +1,58 @@
+apiVersion: agent-framework/v1
+kind: AgentManifest
+
+metadata:
+  name: tool-manager-worker
+  displayName: "Tool Manager Worker"
+  description: >
+    Analyzes a single domain task and produces a precise HookPolicy with the minimum
+    set of MCP tools needed. Runs per-task after CONTEXT_MANAGER and RAG_MANAGER,
+    before the target domain worker. Lightweight Haiku model for fast classification.
+
+spec:
+  workerType: TOOL_MANAGER
+  topic: agent-tasks
+  subscription: tool-manager-worker-sub
+
+  model:
+    name: claude-haiku-4-5
+    maxTokens: 2048
+    temperature: 0.1
+
+  prompts:
+    systemPromptFile: .claude/agents/tool-manager/SKILL.md
+    skills:
+      - skills/crosscutting/
+    instructions: |
+      Read the target task description and dependency results (CM, RM outputs).
+      Determine the minimum set of MCP tools and path ownership boundaries.
+      Output a JSON with target_task_key, allowedTools, ownedPaths, allowedMcpServers, rationale.
+    resultSchema: |
+      {
+        "target_task_key": "BE-001",
+        "allowedTools": ["fs_read", "fs_write", "fs_list"],
+        "ownedPaths": ["/workspace/plan/src/"],
+        "allowedMcpServers": ["repo-fs"],
+        "rationale": "Explanation of tool choices"
+      }
+
+  tools:
+    dependencies:
+      - io.github.massimilianopili:mcp-filesystem-tools
+    allowlist:
+      - fs_list
+      - fs_read
+      - fs_search
+      - fs_grep
+    mcpServers: []
+
+  ownership:
+    readOnlyPaths:
+      - "."
+
+  concurrency:
+    maxConcurrentCalls: 5
+
+  retry:
+    maxAttempts: 2
+    backoffMs: 2000

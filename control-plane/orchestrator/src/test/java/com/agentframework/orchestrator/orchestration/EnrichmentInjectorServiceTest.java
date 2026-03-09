@@ -13,14 +13,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for {@link EnrichmentInjectorService} — enrichment pipeline auto-injection
- * of CONTEXT_MANAGER, RAG_MANAGER, and SCHEMA_MANAGER tasks into plans.
+ * of CONTEXT_MANAGER, RAG_MANAGER, SCHEMA_MANAGER, and TOOL_MANAGER tasks into plans.
  */
 class EnrichmentInjectorServiceTest {
 
-    // ── Default config: auto-inject ON, CM ON, RAG ON, Schema OFF ───────────
+    // ── Default config: auto-inject ON, CM ON, RAG ON, Schema OFF, TM OFF ────
 
     private static final EnrichmentProperties DEFAULT_PROPS =
-            new EnrichmentProperties(true, true, true, false);
+            new EnrichmentProperties(true, true, true, false, false);
 
     // ── inject: adds CM and RM to plan without enrichment ────────────────────
 
@@ -84,7 +84,7 @@ class EnrichmentInjectorServiceTest {
 
     @Test
     void inject_ragDisabled_onlyCm() {
-        EnrichmentProperties noRag = new EnrichmentProperties(true, true, false, false);
+        EnrichmentProperties noRag = new EnrichmentProperties(true, true, false, false, false);
         EnrichmentInjectorService service = new EnrichmentInjectorService(noRag);
         Plan plan = planWithSpec("Small task");
         addItem(plan, "BE-001", WorkerType.BE, 0, List.of());
@@ -137,7 +137,7 @@ class EnrichmentInjectorServiceTest {
 
     @Test
     void inject_autoInjectDisabled_noOp() {
-        EnrichmentProperties disabled = new EnrichmentProperties(false, true, true, false);
+        EnrichmentProperties disabled = new EnrichmentProperties(false, true, true, false, false);
         EnrichmentInjectorService service = new EnrichmentInjectorService(disabled);
         Plan plan = planWithSpec("Should not be enriched");
         addItem(plan, "BE-001", WorkerType.BE, 0, List.of());
@@ -152,7 +152,7 @@ class EnrichmentInjectorServiceTest {
 
     @Test
     void inject_schemaEnabled_addsSm() {
-        EnrichmentProperties withSchema = new EnrichmentProperties(true, true, true, true);
+        EnrichmentProperties withSchema = new EnrichmentProperties(true, true, true, true, false);
         EnrichmentInjectorService service = new EnrichmentInjectorService(withSchema);
         Plan plan = planWithSpec("API-heavy feature");
         addItem(plan, "CT-001", WorkerType.CONTRACT, 0, List.of());
@@ -214,6 +214,104 @@ class EnrichmentInjectorServiceTest {
 
         PlanItem cm = findByKey(plan, "CM-001");
         assertThat(cm.getDescription()).contains("OAuth2 PKCE flow");
+    }
+
+    // ── TOOL_MANAGER injection tests (#24 L2) ────────────────────────────────
+
+    private static final EnrichmentProperties TM_PROPS =
+            new EnrichmentProperties(true, true, true, false, true);
+
+    @Test
+    void inject_toolManagerEnabled_addsTmPerDomainWorker() {
+        EnrichmentInjectorService service = new EnrichmentInjectorService(TM_PROPS);
+        Plan plan = planWithSpec("Multi-worker plan with TM");
+        addItem(plan, "CT-001", WorkerType.CONTRACT, 0, List.of());
+        addItem(plan, "BE-001", WorkerType.BE, 1, List.of("CT-001"));
+        addItem(plan, "FE-001", WorkerType.FE, 1, List.of("CT-001"));
+        addItem(plan, "RV-001", WorkerType.REVIEW, 2, List.of("BE-001", "FE-001"));
+
+        service.inject(plan);
+
+        // Original 4 + CM-001 + RM-001 + TM-CT-001 + TM-BE-001 + TM-FE-001 + TM-RV-001 = 10
+        assertThat(plan.getItems()).hasSize(10);
+        assertThat(findByKey(plan, "TM-CT-001")).isNotNull();
+        assertThat(findByKey(plan, "TM-BE-001")).isNotNull();
+        assertThat(findByKey(plan, "TM-FE-001")).isNotNull();
+        assertThat(findByKey(plan, "TM-RV-001")).isNotNull();
+
+        // All TM items are TOOL_MANAGER type
+        assertThat(findByKey(plan, "TM-BE-001").getWorkerType()).isEqualTo(WorkerType.TOOL_MANAGER);
+    }
+
+    @Test
+    void inject_toolManagerEnabled_tmDependsOnCmAndRm() {
+        EnrichmentInjectorService service = new EnrichmentInjectorService(TM_PROPS);
+        Plan plan = planWithSpec("TM dependency check");
+        addItem(plan, "BE-001", WorkerType.BE, 0, List.of());
+
+        service.inject(plan);
+
+        PlanItem tm = findByKey(plan, "TM-BE-001");
+        assertThat(tm).isNotNull();
+        assertThat(tm.getDependsOn()).contains("CM-001", "RM-001");
+    }
+
+    @Test
+    void inject_toolManagerEnabled_domainDependsOnTm() {
+        EnrichmentInjectorService service = new EnrichmentInjectorService(TM_PROPS);
+        Plan plan = planWithSpec("Domain → TM dependency check");
+        addItem(plan, "BE-001", WorkerType.BE, 0, List.of());
+        addItem(plan, "FE-001", WorkerType.FE, 0, List.of());
+
+        service.inject(plan);
+
+        // BE-001 should depend on CM-001, RM-001 (enrichment), and TM-BE-001 (tool manager)
+        assertThat(findByKey(plan, "BE-001").getDependsOn())
+                .contains("CM-001", "RM-001", "TM-BE-001");
+        assertThat(findByKey(plan, "FE-001").getDependsOn())
+                .contains("CM-001", "RM-001", "TM-FE-001");
+    }
+
+    @Test
+    void inject_toolManagerDisabled_noTmTasks() {
+        EnrichmentInjectorService service = new EnrichmentInjectorService(DEFAULT_PROPS);
+        Plan plan = planWithSpec("No TM tasks");
+        addItem(plan, "BE-001", WorkerType.BE, 0, List.of());
+
+        service.inject(plan);
+
+        // No TM-* tasks when includeToolManager is false
+        assertThat(findByKey(plan, "TM-BE-001")).isNull();
+        long tmCount = plan.getItems().stream()
+                .filter(i -> i.getWorkerType() == WorkerType.TOOL_MANAGER).count();
+        assertThat(tmCount).isZero();
+    }
+
+    @Test
+    void inject_toolManagerEnabled_tmDescriptionIncludesTargetKey() {
+        EnrichmentInjectorService service = new EnrichmentInjectorService(TM_PROPS);
+        Plan plan = planWithSpec("TM description check");
+        addItem(plan, "BE-001", WorkerType.BE, 0, List.of());
+
+        service.inject(plan);
+
+        PlanItem tm = findByKey(plan, "TM-BE-001");
+        assertThat(tm).isNotNull();
+        assertThat(tm.getDescription()).contains("Target task key: BE-001");
+        assertThat(tm.getDescription()).contains("BE");
+    }
+
+    @Test
+    void inject_toolManagerEnabled_reviewAlsoGetsTm() {
+        EnrichmentInjectorService service = new EnrichmentInjectorService(TM_PROPS);
+        Plan plan = planWithSpec("REVIEW gets TM too");
+        addItem(plan, "RV-001", WorkerType.REVIEW, 0, List.of());
+
+        service.inject(plan);
+
+        // REVIEW is in TOOL_MANAGER_TARGET_TYPES
+        assertThat(findByKey(plan, "TM-RV-001")).isNotNull();
+        assertThat(findByKey(plan, "RV-001").getDependsOn()).contains("TM-RV-001");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

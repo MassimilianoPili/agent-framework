@@ -72,6 +72,10 @@
     "TASK_MANAGER": {
       "mcpServers": ["tracker"],
       "ownsPaths": ["execution-plane/workers/task-manager-worker/"]
+    },
+    "TOOL_MANAGER": {
+      "mcpServers": [],
+      "ownsPaths": ["execution-plane/workers/tool-manager-worker/"]
     }
   }
 }

@@ -75,5 +75,10 @@
             <artifactId>task-manager-worker</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.agentframework</groupId>
+            <artifactId>tool-manager-worker</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 </project>

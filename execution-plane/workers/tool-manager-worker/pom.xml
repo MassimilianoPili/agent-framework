@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.agentframework</groupId>
+        <artifactId>worker-parent</artifactId>
+        <version>1.1.0-SNAPSHOT</version>
+        <relativePath>../worker-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>tool-manager-worker</artifactId>
+    <name>Agent Framework :: Execution Plane :: Tool Manager Worker (Generated)</name>
+    <description>Analyzes a single domain task and produces a precise HookPolicy with the minimum set of MCP tools needed. Runs per-task after CONTEXT_MANAGER and RAG_MANAGER, before the target domain worker. Lightweight Haiku model for fast classification.</description>
+
+    <dependencies>
+        <!-- MCP Tool Starters (in-process, disabled when profile 'mcp' excludes their auto-config) -->
+        <dependency>
+            <groupId>io.github.massimilianopili</groupId>
+            <artifactId>mcp-filesystem-tools</artifactId>
+        </dependency>
+
+    </dependencies>
+</project>

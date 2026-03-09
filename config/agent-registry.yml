@@ -984,3 +984,19 @@ workers:
       - fs_list
       - fs_read
     maxConcurrentCalls: 3
+
+  tool-manager-worker:
+    displayName: Tool Manager Worker
+    topic: agent-tasks
+    subscription: tool-manager-worker-sub
+    image: agent-framework/tool-manager-worker:latest
+    description: >-
+      Analyzes a single domain task and produces a precise HookPolicy with the minimum set of MCP tools needed. Runs per-task after CONTEXT_MANAGER and RAG_MANAGER, before the target domain worker. Lightweight Haiku model for fast classification.
+    mcpAllowlist:
+      - fs_list
+      - fs_read
+      - fs_search
+      - fs_grep
+    maxConcurrentCalls: 5
+    skillPaths:
+      - skills/crosscutting/

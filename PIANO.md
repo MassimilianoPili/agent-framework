@@ -279,7 +279,7 @@ B13 (Fix nomi manifest) ────► #24 toolHints (i nomi devono essere corr
 #25 mcp-bash/python-tool ───► #24 toolHints (bash_execute/python_execute disponibili)
 #25 ────────────────────────► #27 (nuovi tool da aggiungere a ToolNames)
 B17 (Context overflow) ────► (standalone, 3 livelli di fix indipendenti)
-#23 Enrichment Pipeline ─────► #24L2 TOOL_MANAGER (usa enrichment per generare policy)
+#23 Enrichment Pipeline ─────► #24L2 TOOL_MANAGER ✅ (usa enrichment per generare policy)
 #23 ─────────────────────────► (sblocca RAG S1-S3, HOOK_MANAGER, CONTEXT_MANAGER)
 #26L1 Cost tracking ─────────► #26L2 Auto-split (necessita costi reali + GP prediction)
 #26L2 Auto-split ────────────► (dipende da #11 GP, #20 modelHint)
@@ -688,7 +688,7 @@ Flag `messaging.redis.topic-per-type: true/false` per backward compatibility.
 
 ---
 
-## #24 — Tool configurabili (L1 toolHints ✅ / L2 TOOL_MANAGER ❌)
+## #24 ✅ — Tool configurabili (L1 toolHints ✅ / L2 TOOL_MANAGER ✅)
 
 **Problema**: i worker domain (BE, FE, AI_TASK) partono con **0 tools abilitati** perche':
 1. Il HOOK_MANAGER (che genera HookPolicy con `allowedTools`) non viene mai eseguito (pipeline enrichment disconnessa, vedi #23)
@@ -696,15 +696,21 @@ Flag `messaging.redis.topic-per-type: true/false` per backward compatibility.
 3. Il fallback statico (`config/generated/hooks-config.json`) potrebbe non essere configurato
 4. Risultato: il worker puo' solo generare testo (chiamata LLM pura), non interagire col filesystem
 
-**Soluzione a 2 livelli**: L1 (toolHints da planner) ✅ implementato. Da fare: L2.
+**Soluzione a 2 livelli**: L1 (toolHints da planner) ✅ implementato. L2 (TOOL_MANAGER) ✅ implementato.
 
-**Livello 2 — TOOL_MANAGER come enrichment worker**:
+**Livello 2 — TOOL_MANAGER come enrichment worker** ✅:
 Worker dedicato che analizza il task + codebase e genera una `HookPolicy` precisa (come HOOK_MANAGER,
-ma per singolo task, non per l'intero piano).
+ma per singolo task, non per l'intero piano). Implementato in S15:
 
-- Complementare a HOOK_MANAGER (che opera su tutto il piano)
-- Piu' leggero: usa modello haiku, analizza solo un task
-- Puo' essere auto-injected come dipendenza (vedi #23 EnrichmentInjectorService)
+- Manifest YAML (`agents/manifests/tool-manager.agent.yml`): Haiku model, read-only FS tools
+- SKILL.md prompt (`.claude/agents/tool-manager/SKILL.md`): regole per tipo worker, least privilege
+- Worker Maven module (`execution-plane/workers/tool-manager-worker/pom.xml`)
+- `EnrichmentInjectorService`: fan-out injection TM-* per domain task, DAG: CM→RM→TM-*→domain
+- `EnrichmentProperties`: campo `includeToolManager` (default false, opt-in)
+- Policy resolution: TM result > HM result > Static fallback
+- 10 nuovi test (6 enrichment + 4 HookManagerService merge)
+- Infrastruttura pre-esistente: `WorkerType.TOOL_MANAGER`, `TaskCompletedEventHandler:126`,
+  `HookManagerService.storeToolManagerResult()`, `HookPolicyResolver` default allowlist
 
 **File**: `PlanItem.java`, `PlanSchema.java`, `AgentTask.java`, `WorkerChatClientFactory.java`,
 `planner.agent.md`, Flyway (`plan_items.tool_hints`), `agents/manifests/*.agent.yml` (fix nomi B13)
