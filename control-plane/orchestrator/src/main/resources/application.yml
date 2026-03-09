@@ -530,6 +530,12 @@ task-split:
 token-ledger:
   low-efficiency-threshold: 0.15
 
+# Global Task Assignment (#42) — Hungarian Algorithm for batch dispatch
+global-assignment:
+  enabled: false                        # opt-in (disabled by default, falls back to per-task GP)
+  critical-path-boost: 0.2             # mu boost for tasks on the DAG critical path
+  min-dispatchable: 2                  # minimum batch size to trigger global assignment
+
 # Superrationality (Hofstadter) — cooperative equilibrium between worker types
 superrationality:
   enabled: true

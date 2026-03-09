@@ -2,6 +2,8 @@ package com.agentframework.orchestrator.orchestration;
 
 import com.agentframework.orchestrator.api.dto.PlanRequest;
 import com.agentframework.orchestrator.artifact.ArtifactStore;
+import com.agentframework.orchestrator.assignment.AssignmentResult;
+import com.agentframework.orchestrator.assignment.GlobalAssignmentSolver;
 import com.agentframework.orchestrator.budget.CostEstimationService;
 import com.agentframework.orchestrator.budget.PidBudgetController;
 import com.agentframework.orchestrator.budget.TokenLedgerService;
@@ -131,6 +133,8 @@ public class OrchestrationService {
     private final PidBudgetController pidBudgetController;
     // #26L2: auto-split for expensive tasks (nullable — bean only exists when task-split.enabled=true)
     private final TaskSplitterService taskSplitterService;
+    // #42: global task assignment via Hungarian Algorithm (nullable — only when global-assignment.enabled=true)
+    private final GlobalAssignmentSolver globalAssignmentSolver;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -166,7 +170,8 @@ public class OrchestrationService {
                                 Optional<HybridMessagingProperties> hybridProps,
                                 TokenLedgerService tokenLedgerService,
                                 Optional<PidBudgetController> pidBudgetController,
-                                Optional<TaskSplitterService> taskSplitterService) {
+                                Optional<TaskSplitterService> taskSplitterService,
+                                Optional<GlobalAssignmentSolver> globalAssignmentSolver) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -202,6 +207,7 @@ public class OrchestrationService {
         this.tokenLedgerService = tokenLedgerService;
         this.pidBudgetController = pidBudgetController.orElse(null);
         this.taskSplitterService = taskSplitterService.orElse(null);
+        this.globalAssignmentSolver = globalAssignmentSolver.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -998,6 +1004,26 @@ public class OrchestrationService {
             }
         }
 
+        // Global assignment: optimal batch dispatch via Hungarian Algorithm (#42)
+        // Pre-assigns profiles to all dispatchable items at once for globally optimal matching.
+        Map<String, GpPrediction> globalPredictions = Map.of();
+        if (globalAssignmentSolver != null
+                && gpSelectionService != null
+                && dispatchable.size() >= 2) {
+            try {
+                AssignmentResult assignment = globalAssignmentSolver.solve(dispatchable, plan);
+                globalPredictions = assignment.predictions();
+                for (PlanItem item : dispatchable) {
+                    String profile = assignment.assignments().get(item.getTaskKey());
+                    if (profile != null && item.getWorkerProfile() == null) {
+                        item.setWorkerProfile(profile);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Global assignment failed (falling back to per-task): {}", e.getMessage());
+            }
+        }
+
         Map<String, String> completedResults = loadCompletedResults(planId);
         String planSpec = plan.getSpec();
         PlanRequest.Budget budget = deserializeBudget(plan.getBudgetJson());
@@ -1061,14 +1087,15 @@ public class OrchestrationService {
             // GP-based selection: if GP is enabled and there are multiple candidate profiles,
             // predict expected reward for each and select the best. Falls back to default.
             // The GpPrediction is captured here for dynamic budget adjustment below.
-            GpPrediction gpPrediction = null;
+            // Use global assignment prediction if available (#42), else fall back to per-task GP
+            GpPrediction gpPrediction = globalPredictions.get(item.getTaskKey());
             if (item.getWorkerProfile() == null) {
                 if (gpSelectionService != null
                         && profileRegistry.profilesForWorkerType(item.getWorkerType()).size() > 1) {
                     var selection = gpSelectionService.selectProfile(
                             item.getWorkerType(), item.getTitle(), item.getDescription());
                     item.setWorkerProfile(selection.selectedProfile());
-                    gpPrediction = selection.selectedPrediction();
+                    if (gpPrediction == null) gpPrediction = selection.selectedPrediction();
                 } else {
                     String defaultProfile = profileRegistry.resolveDefaultProfile(item.getWorkerType());
                     if (defaultProfile != null) {

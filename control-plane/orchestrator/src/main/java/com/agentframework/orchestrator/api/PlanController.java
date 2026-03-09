@@ -4,6 +4,9 @@ import com.agentframework.orchestrator.api.dto.DispatchAttemptResponse;
 import com.agentframework.orchestrator.api.dto.FileModificationResponse;
 import com.agentframework.orchestrator.api.dto.PlanCostResponse;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
+import com.agentframework.orchestrator.assignment.AssignmentResult;
+import com.agentframework.orchestrator.assignment.GlobalAssignmentSolver;
+import com.agentframework.orchestrator.analytics.QueueAnalyzer;
 import com.agentframework.orchestrator.analytics.ShapleyDagService;
 import com.agentframework.orchestrator.api.dto.ShapleyDagResponse;
 import com.agentframework.orchestrator.api.dto.TokenLedgerResponse;
@@ -70,6 +73,8 @@ public class PlanController {
     private final TokenLedgerService tokenLedgerService;
     private final ShapleyDagService shapleyDagService;
     private final HashChainVerifier hashChainVerifier;
+    private final QueueAnalyzer queueAnalyzer;
+    private final GlobalAssignmentSolver globalAssignmentSolver;
 
     public PlanController(OrchestrationService orchestrationService,
                           PlanSnapshotService snapshotService,
@@ -86,7 +91,9 @@ public class PlanController {
                           FileModificationRepository fileModificationRepository,
                           TokenLedgerService tokenLedgerService,
                           ShapleyDagService shapleyDagService,
-                          HashChainVerifier hashChainVerifier) {
+                          HashChainVerifier hashChainVerifier,
+                          QueueAnalyzer queueAnalyzer,
+                          Optional<GlobalAssignmentSolver> globalAssignmentSolver) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
@@ -103,6 +110,8 @@ public class PlanController {
         this.tokenLedgerService = tokenLedgerService;
         this.shapleyDagService = shapleyDagService;
         this.hashChainVerifier = hashChainVerifier;
+        this.queueAnalyzer = queueAnalyzer;
+        this.globalAssignmentSolver = globalAssignmentSolver.orElse(null);
     }
 
     /**
@@ -601,6 +610,20 @@ public class PlanController {
     }
 
     /**
+     * GET /api/v1/plans/{id}/queue-analysis
+     *
+     * <p>Per-plan queue analysis combining Erlang C (wait probability per worker type),
+     * Little's Law (mean queue depth), and Critical Path Method (makespan, critical path).
+     * Identifies the bottleneck worker type and recommends optimal consumer counts (#36).</p>
+     */
+    @GetMapping("/{id}/queue-analysis")
+    public ResponseEntity<QueueAnalyzer.QueueAnalysisResult> getQueueAnalysis(@PathVariable UUID id) {
+        return orchestrationService.getPlan(id)
+            .map(plan -> ResponseEntity.ok(queueAnalyzer.analyze(plan)))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
      * GET /api/v1/plans/{id}/spectral
      *
      * <p>Returns spectral graph theory metrics for the plan's task DAG: Fiedler value
@@ -859,5 +882,32 @@ public class PlanController {
             fileModificationRepository.findByItemIdOrderByOccurredAtAsc(itemId).stream()
                 .map(FileModificationResponse::from)
                 .toList());
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/assignment-preview
+     *
+     * <p>Previews the global task-to-profile assignment that would be computed
+     * for the currently dispatchable items in this plan. Does not modify state.
+     * Requires {@code global-assignment.enabled=true}; returns 404 otherwise.</p>
+     */
+    @GetMapping("/{id}/assignment-preview")
+    public ResponseEntity<AssignmentResult> getAssignmentPreview(@PathVariable UUID id) {
+        if (globalAssignmentSolver == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return planRepository.findById(id)
+                .map(plan -> {
+                    List<PlanItem> dispatchable = planItemRepository
+                            .findDispatchableItems(plan.getId());
+                    if (dispatchable.size() < 2) {
+                        return ResponseEntity.ok(new AssignmentResult(
+                                Map.of(), Map.of(), 0.0, List.of(), List.of()));
+                    }
+                    AssignmentResult result = globalAssignmentSolver.solve(dispatchable, plan);
+                    return ResponseEntity.ok(result);
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 }

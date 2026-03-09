@@ -348,7 +348,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (16 item — nessun codice)
+## Non implementati (13 item — nessun codice)
 
 | # | Item |
 |---|------|
@@ -356,9 +356,6 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 31 | Verifiable Compute (firma worker) |
 | 32 | Policy-as-Code Immutabile |
 | 34 | Federazione Multi-Server |
-| 36 | Worker Pool Sizing (Queueing Theory) |
-| 38 | State Machine Verification (LTL) |
-| 39 | Policy Lattice Composition |
 | 41 | Topological Pattern Detection |
 | 42 | Global Task Assignment (combinatoria) |
 | 43 | Differential Privacy metriche |
@@ -369,7 +366,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 48 | Content-Addressable Storage |
 | 49 | Quadratic Voting Council |
 
-## Parzialmente implementati (10 item — codice base, estensioni da fare)
+## Parzialmente implementati (13 item — codice base, estensioni da fare)
 
 | # | Item | Cosa c'e' | Cosa manca |
 |---|------|-----------|------------|
@@ -383,6 +380,10 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 37 | Adaptive Token Budget (PID) | `PidBudgetController` (PID in-memory per planId×workerType), `PidBudgetProperties`, integrazione in `OrchestrationService` (adjustPolicy dispatch, update completion, evictPlan cleanup), 10 test unitari | Tuning parametri PID con dati reali, metriche Prometheus, dashboard Grafana |
 | 30 | Hash Chain Tamper-Proof | `HashChainVerifier` (SHA-256 chain verification), `HashChainVerificationResult` DTO, endpoint `GET /{id}/verify-chain` in PlanController, test unitari ✅ S15 | Integrazione auto-append hash su PlanEvent save, UI dashboard |
 | 40 | Shapley Value Reward Distribution | `ShapleyDagService` (Monte Carlo DAG-aware, Kahn's random topo-sort), V25 migration (`shapley_value` su plan_items), `ShapleyDagResponse` DTO, `creditShapley()` in `TokenLedgerService`, side-effect #9 in `TaskCompletedEventHandler` (trigger su allDone), endpoint `GET /shapley-dag` + `GET /{id}/shapley`, 14 test unitari | Tuning K samples, integrazione ELO update con Shapley, dashboard Grafana |
+| 36 | Worker Pool Sizing (Queueing Theory) | `QueueAnalyzer` (Erlang C + Little's Law + CPM delegation), `QueuingCapacityPlanner` (M/G/1 P-K, 8 test), `CriticalPathCalculator` + `TropicalScheduler` (CPM), endpoint `GET /{id}/queue-analysis`, 15 test unitari ✅ S17 | Dashboard Grafana, live queue depth monitoring, multi-worker aggregate |
+| 38 | State Machine Verification (LTL) | `StateMachineVerifier` (BFS model checker, product state space), `@AllowedViolation` annotation, `StateMachineVerificationResult` DTO, 10 test unitari ✅ S15 | Integrazione CI/CD, verifica automatica su schema change |
+| 39 | Policy Lattice Composition | `PolicyLattice` (meet-semilattice, TOP/BOTTOM, wildcard handling), 17 test unitari ✅ S15 | Integrazione in `HookManagerService.resolvePolicy()` |
+| 42 | Global Task Assignment (Hungarian) | `HungarianAlgorithm` (Kuhn-Munkres O(n³), standalone, gestisce matrici rettangolari e +INF), `GlobalAssignmentSolver` (cost matrix da GP predictions, critical path boost, `@ConditionalOnProperty`), `AssignmentResult` DTO (assignments, predictions, totalCost, criticalPath, details), `GlobalAssignmentProperties` + `GlobalAssignmentAutoConfiguration`, integrazione in `OrchestrationService` (pre-assign batch prima del loop per-item, param 36), `PlanController` (`GET /{id}/assignment-preview`, param 17), config `global-assignment:` in application.yml, 15 test unitari (9 HungarianAlgorithm + 6 GlobalAssignmentSolver) ✅ S16 | Tuning critical-path-boost con dati reali, metriche Prometheus, dashboard Grafana |
 
 **Nota**: #5, #8, #9 presenti dall'initial commit (`2c5d7cc`). Il piano li elenca come "da fare"
 perche' richiedono estensioni rispetto all'implementazione base.
@@ -1452,7 +1453,7 @@ suggestion. Loggato a INFO per ogni task completato (no migrazione extra, il GP 
 
 ---
 
-## #36 — Worker Pool Sizing (Queueing Theory)
+## #36 — Worker Pool Sizing (Queueing Theory) ✅
 
 **Problema**: quanti worker servono? Quanto aspettera' un task in coda? Se il piano ha 20 task BE
 ma un solo worker BE, qual e' il throughput atteso? Non c'e' modo di predire colli di bottiglia.
@@ -1492,6 +1493,13 @@ ma un solo worker BE, qual e' il throughput atteso? Non c'e' modo di predire col
 
 **Sforzo**: 1.5g. **Dipendenze**: nessuna (usa dati storici in `plan_items`).
 **Impatto**: alto — predice colli di bottiglia prima dell'esecuzione, guida il sizing nel modello JVM-per-type (#29).
+
+**Implementazione** (2026-03-09, S17):
+- `QueueAnalyzer.java` — @Service: Erlang C (Jagerman recursion) + Little's Law + CPM delegation via `CriticalPathCalculator`
+- `QueueAnalysisResult` / `WorkerTypeAnalysis` record: per-tipo P(wait), L, W_q, recommended consumers, saturated flag
+- Riusa `QueuingCapacityPlanner` per E[S] storici, `CriticalPathCalculator` per makespan/critical path
+- `GET /{id}/queue-analysis` endpoint in `PlanController`
+- `QueueAnalyzerTest.java` — 15 test: 5 Erlang C, 3 Little's Law, 5 plan analysis, 4 CPM integration
 
 ---
 
@@ -1938,7 +1946,7 @@ TIER 2 — Dipende da Tier 1
 TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   #35  Context Quality (Info Theory)   2.0g  richiede #23 + #15  ✅
-  #42  Global Assignment (Hungarian)   2.0g  richiede #15, condivide CPCalc con #36
+  #42  Global Assignment (Hungarian)   2.0g  richiede #15, condivide CPCalc con #36  ✅
   #41  Topological Pattern Detection   2.5g  richiede #23 + #15 + dati sufficienti in task_outcomes
   #43  Differential Privacy            1.0g  richiede #34 (Federazione)
                                        ────
@@ -2037,9 +2045,9 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 
 ```
 Fase 1 (fondazioni, ~3.5g):      #30 ✅ → #38 ✅ → #39 ✅
-Fase 2 (pratico, ~5g):           #36 → #33 → #40
+Fase 2 (pratico, ~5g):           #36 ✅ → #33 ✅ → #40 ✅
 Fase 3 (trust, ~4g):             #31 → #32 → #37
-Fase 4 (avanzato, ~7g):          #34 → #35 ✅ → #42 → #41 → #43
+Fase 4 (avanzato, ~7g):          #34 → #35 ✅ → #42 ✅ → #41 → #43
 Fase 5 (advanced, ~5.5g):        #45 → #47 → #48  (parallelo)
 Fase 6 (~1.5g):                  #46
 Fase 7 (~2.5g):                  #49

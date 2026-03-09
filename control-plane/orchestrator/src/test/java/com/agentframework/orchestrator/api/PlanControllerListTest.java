@@ -2,6 +2,7 @@ package com.agentframework.orchestrator.api;
 
 import com.agentframework.orchestrator.api.dto.PlanResponse;
 import com.agentframework.orchestrator.budget.CovarianceMatrix;
+import com.agentframework.orchestrator.analytics.QueueAnalyzer;
 import com.agentframework.orchestrator.analytics.ShapleyDagService;
 import com.agentframework.orchestrator.budget.TokenLedgerService;
 import com.agentframework.orchestrator.budget.PortfolioOptimizer;
@@ -56,6 +57,7 @@ class PlanControllerListTest {
     @Mock private TokenLedgerService tokenLedgerService;
     @Mock private ShapleyDagService shapleyDagService;
     @Mock private HashChainVerifier hashChainVerifier;
+    @Mock private QueueAnalyzer queueAnalyzer;
 
     private PlanController controller;
 
@@ -69,7 +71,9 @@ class PlanControllerListTest {
                 fileModificationRepository,
                 tokenLedgerService,
                 shapleyDagService,
-                hashChainVerifier);
+                hashChainVerifier,
+                queueAnalyzer,
+                Optional.empty());
     }
 
     @Test
