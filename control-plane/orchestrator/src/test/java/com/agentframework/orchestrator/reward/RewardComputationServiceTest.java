@@ -774,11 +774,11 @@ class RewardComputationServiceTest {
             when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
             service.distributeQualityGateSignal(planId, false);
 
-            // process (0.30) + qualityGate (0.20) = 0.50 total
-            // process normalised = 0.30 / 0.50 = 0.60
-            // qualityGate normalised = 0.20 / 0.50 = 0.40
+            // process (0.25) + qualityGate (0.15) = 0.40 total (#35 rebalanced weights)
+            // process normalised = 0.25 / 0.40 = 0.625
+            // qualityGate normalised = 0.15 / 0.40 = 0.375
             // qgScore = -1.0 (failed)
-            float expected = processScore * 0.6f + (-1.0f) * 0.4f;
+            float expected = processScore * 0.625f + (-1.0f) * 0.375f;
             assertThat(item.getAggregatedReward()).isCloseTo(expected, within(0.02f));
         }
 
