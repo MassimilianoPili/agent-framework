@@ -357,7 +357,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 34 | Federazione Multi-Server |
 | 41 | Topological Pattern Detection |
 | 42 | Global Task Assignment (combinatoria) |
-| 43 | Differential Privacy metriche |
+| 43 | Differential Privacy metriche | ✅ |
 | 44 | Execution Sandbox Containerizzato |
 | 45 | Merkle Tree DAG Verification |
 | 46 | Verifiable Council Deliberation |
@@ -1165,7 +1165,7 @@ crittografiche di integrita' al framework. Costo infrastrutturale zero: i primit
 
 ---
 
-## #31 — Verifiable Compute (Firma Crittografica Output Worker)
+## #31 — Verifiable Compute (Firma Crittografica Output Worker) ✅
 
 **Problema**: l'orchestratore riceve `AgentResult` dal worker via Redis, ma non ha modo di
 verificare che il risultato provenga effettivamente dal worker dichiarato. Un attore malevolo
@@ -1175,38 +1175,35 @@ il rischio diventa concreto.
 **Soluzione**: ogni worker firma crittograficamente il proprio output con Ed25519.
 L'orchestratore verifica la firma prima di processare il risultato.
 
-**Design**:
+**Implementazione** (completata in 2 sessioni — S18 crypto primitives, S19 integration):
 
-```java
-// In agent-common (shared, zero dipendenze esterne)
-public record SignedResultEnvelope(
-    String resultJson,                // payload originale
-    String provenanceJson,            // Provenance serializzata
-    String policyHash,                // SHA-256 della HookPolicy ricevuta
-    String workerSignature,           // Ed25519 signature (Base64)
-    String workerPublicKey,           // Ed25519 public key (Base64) — per key discovery
-    String signedAt                   // ISO-8601 timestamp
-) {}
-```
+S18 — Crypto primitives (`agent-common`):
+- `Ed25519Signer.java`: utility statica — generateKeyPair, sign, verify, encode/decode chiavi
+- `SignedResultEnvelope.java`: record `{resultJson, workerSignature, workerPublicKey, signedAt}`
+  con factory `sign()` e `verify(trustedKey)`, supporto TOFU (pass null = usa embedded key)
+- 12 test unitari (KeyPair round-trip, sign/verify, envelope tampering)
 
-- `WorkerKeyManager.java` (NEW, in worker-sdk): gestione keypair Ed25519 per worker
-  - Chiavi generate al primo avvio, persistite in `/keys/{workerType}.key` (volume Docker)
-  - Rotazione: parametro `worker.key-rotation-days: 90`, rigenera e re-registra
-  - Public key registrata all'orchestratore via endpoint `POST /api/v1/workers/keys`
-- `ResultSigner.java` (NEW, in worker-sdk): firma il risultato prima di pubblicarlo
-  - `sign(resultJson, provenance, policyHash) → SignedResultEnvelope`
-  - Chiamato in `AbstractWorker.process()` dopo `execute()`, prima di `resultProducer.publish()`
-- `SignatureVerifier.java` (NEW, in orchestrator): verifica la firma all'arrivo del risultato
-  - `verify(SignedResultEnvelope, registeredPublicKey) → boolean`
-  - Chiamato in `OrchestrationService.onTaskCompleted()` come primo step
-- `WorkerKeyRegistry.java` (NEW, in orchestrator): registry delle public key per worker type
-  - Persistito in DB (Flyway V11: tabella `worker_keys`)
-  - Cache in-memory `ConcurrentHashMap<String, PublicKey>`
+S19 — Integration layer (worker-sdk → orchestrator):
+- **Worker-side** (execution-plane/worker-sdk):
+  - `WorkerCryptoProperties.java`: `@ConfigurationProperties(prefix="agent.crypto")` — signingEnabled, keys opzionali
+  - `WorkerSigningService.java`: gestisce keypair Ed25519, firma risultati prima di publish
+  - `WorkerResultProducer.java`: modificato per wrappare risultati in `SignedResultEnvelope` se signing abilitato
+  - `WorkerAutoConfiguration.java`: bean WorkerSigningService + EnableConfigurationProperties
+- **Orchestrator-side** (control-plane/orchestrator):
+  - `SignatureVerificationService.java`: verifica firma con TOFU key discovery + registered key lookup
+  - `VerificationResult.java`: record {valid, mode=TRUSTED|TOFU|UNSIGNED, workerPublicKey}
+  - `WorkerKey.java` + `WorkerKeyRepository.java`: entity JPA + repository per tabella `worker_keys`
+  - `V29__worker_keys.sql`: Flyway migration con partial indexes
+  - `WorkerKeyController.java`: REST API (`POST/GET/DELETE /api/v1/workers/keys`) per registrazione chiavi
+  - `AgentResultConsumer.java`: modificato per detect signed envelope e verificare prima di processare
+  - `OrchestratorMetrics.java`: counter `crypto.verified{TRUSTED|TOFU}`, `crypto.failed`, `crypto.unsigned`
+- **Backward compat**: risultati unsigned accettati quando verification-enabled=true (mode=UNSIGNED)
+- **Config**: `agent.crypto.verification-enabled: true` (orchestrator), `agent.crypto.signing-enabled: true` (worker)
 
-**Chiavi Java**: `java.security.KeyPairGenerator.getInstance("Ed25519")` (Java 15+, no BouncyCastle).
+**Chiavi Java**: `java.security.KeyPairGenerator.getInstance("Ed25519")` (Java 21, no BouncyCastle).
 
-**Failure path**: firma invalida → item marcato `FAILED` con `failureReason: "SIGNATURE_VERIFICATION_FAILED"`,
-evento `INTEGRITY_VIOLATION` nel log. Nessun retry automatico (potrebbe essere attacco).
+**Failure path**: firma invalida → messaggio rejected con `SIGNATURE_VERIFICATION_FAILED`,
+counter `crypto.failed` incrementato. Nessun retry automatico (potrebbe essere attacco).
 
 **Abilitato di default**: `worker.signing.enabled: true` (default true — nessun progetto in corso, nessun rischio backward compatibility).
 Se disabilitato (`false`), `onTaskCompleted()` accetta risultati senza firma.
@@ -1306,7 +1303,7 @@ Piano budget: 200.000 token
 
 ---
 
-## #34 — Federazione Multi-Server (Design Interfacce)
+## #34 — Federazione Multi-Server (Design Interfacce) ✅
 
 **Problema**: il framework e' single-server. Se evolvesse verso federazione — piu' orchestratori
 che collaborano su piani condivisi, o agent di organizzazioni diverse — servirebbe un protocollo
@@ -1505,7 +1502,7 @@ ma un solo worker BE, qual e' il throughput atteso? Non c'e' modo di predire col
 
 ---
 
-## #37 — Adaptive Token Budget (Teoria del Controllo — PID)
+## #37 — Adaptive Token Budget (Teoria del Controllo — PID) ✅
 
 **Problema**: il budget token e' un ceiling statico. Se un task consuma troppo, il piano va in PAUSED.
 Non c'e' meccanismo adattivo — il budget non si aggiusta in base a come sta andando l'esecuzione.
@@ -1818,7 +1815,7 @@ public class GlobalAssignmentSolver {
 
 ---
 
-## #43 — Differential Privacy per Metriche Federate
+## #43 — Differential Privacy per Metriche Federate ✅
 
 **Problema**: nello scenario federato (#34), i server condividono metriche (ELO, reward, token usage).
 Ma queste metriche rivelano informazioni sul codice e i pattern dei clienti. Un server curioso
@@ -1827,40 +1824,20 @@ potrebbe inferire il tipo di lavoro svolto da un altro server analizzando le met
 **Soluzione**: epsilon-differential privacy — aggiungere rumore calibrato alle metriche
 prima di condividerle. Garanzia matematica che un singolo task non influenza significativamente l'output.
 
-**Design (solo interfacce + implementazione base, coerente con #34)**:
+**Implementazione** (S20):
 
-```java
-// In agent-common
-public interface DifferentialPrivacyMechanism {
-    /** Aggiunge rumore Laplace calibrato */
-    double privatize(double trueValue, double sensitivity, double epsilon);
+- **`DifferentialPrivacyMechanism.java`** (NEW, `agent-common/privacy/`): interfaccia SPI — `privatize(trueValue, sensitivity, epsilon)` + `remainingBudget()`
+- **`LaplaceMechanism.java`** (NEW, `agent-common/privacy/`): Laplace(0, sensitivity/ε) via inverse CDF con SecureRandom. Validazione epsilon > 0, sensitivity >= 0.
+- **`PrivacyBudget.java`** (NEW, `agent-common/privacy/`): contatore giornaliero thread-safe (AtomicInteger + CAS day reset a UTC midnight). Max query/giorno configurabile.
+- **`PrivatizedMetrics.java`** (NEW, `agent-common/privacy/`): record DTO per metriche privatizzate (noisyElo, noisyReward, binnedMatchCount, epsilon, timestamp).
+- **`FederationPrivacyProperties.java`** (NEW, `orchestrator/federation/`): `@ConfigurationProperties(prefix = "federation.privacy")` — epsilon, maxQueriesPerDay, eloSensitivity, rewardSensitivity.
+- **`FederationMetricsExporter.java`** (NEW, `orchestrator/federation/`): `@ConditionalOnProperty` service. `exportMetrics(WorkerEloStats) → PrivatizedMetrics` con Laplace noise + k-anonymity binning (nearest 10, min 10). Throws `PrivacyBudgetExhaustedException` a budget esaurito.
+- **`PrivacyBudgetExhaustedException.java`** (NEW, `orchestrator/federation/`): eccezione runtime per budget esaurito.
+- **`AnalyticsController.java`** (MOD): endpoint `GET /api/v1/analytics/privacy-budget` (remaining, usedToday, dailyLimit). `Optional<FederationMetricsExporter>` per graceful degradation.
+- **`OrchestratorMetrics.java`** (MOD): counter `orchestrator.dp.queries` + `orchestrator.dp.budget.exhausted` con lazy init.
+- **`application.yml`** (MOD): sezione `federation.privacy` (disabled by default, ε=1.0, 100 queries/day, eloSensitivity=32, rewardSensitivity=2).
 
-    /** Composizione: budget di privacy dopo K query */
-    double remainingBudget(double initialEpsilon, int queriesUsed);
-}
-
-// Implementazione
-public class LaplaceMechanism implements DifferentialPrivacyMechanism {
-    public double privatize(double trueValue, double sensitivity, double epsilon) {
-        double scale = sensitivity / epsilon;
-        return trueValue + laplaceSample(scale);
-    }
-}
-```
-
-- `sensitivity` per ELO = 32 (K-factor massimo cambiamento per singolo task)
-- `sensitivity` per reward = 2.0 (range [-1, +1])
-- `epsilon = 1.0` → rumore ~32 punti ELO → utile per ranking comparativo, inutile per reverse-engineering
-- Composizione: dopo K query, `epsilon_totale = K * epsilon_singola`. Budget finito → limitare le query.
-
-- `DifferentialPrivacyMechanism.java` (NEW, in agent-common): interfaccia SPI
-- `LaplaceMechanism.java` (NEW): implementazione Laplace
-- `FederationMetricsExporter.java` (NEW): applica DP prima di esportare metriche ai peer
-- Integrazione con `FederationEventSync` (#34): eventi broadcast includono metriche privatizzate
-- `application.yml`: `federation.privacy.epsilon: 1.0, federation.privacy.budget-per-day: 10.0`
-
-**File**: `DifferentialPrivacyMechanism.java` (NEW), `LaplaceMechanism.java` (NEW),
-`FederationMetricsExporter.java` (NEW), `application.yml`
+**Test**: `LaplaceMechanismTest` (8 test: validazione + statistical mean/noise + budget composition), `PrivacyBudgetTest` (6 test: canQuery, exhaustion, remaining, never-negative), `FederationMetricsExporterTest` (7 test: noise addition, budget tracking, exhaustion, convenience methods, binning).
 
 **Sforzo**: 1g. **Dipendenze**: #34 (Federazione — senza federazione, nessuna metrica da condividere).
 **Impatto**: medio — necessario solo per scenari multi-tenant con data privacy requirements.
@@ -1950,7 +1927,7 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
   #35  Context Quality (Info Theory)   2.0g  richiede #23 + #15  ✅
   #42  Global Assignment (Hungarian)   2.0g  richiede #15, condivide CPCalc con #36  ✅
   #41  Topological Pattern Detection   2.5g  richiede #23 + #15 + dati sufficienti in task_outcomes
-  #43  Differential Privacy            1.0g  richiede #34 (Federazione)
+  #43  Differential Privacy            1.0g  richiede #34 (Federazione)  ✅
                                        ────
                                        7.5g totale Tier 3
 ```
@@ -2048,15 +2025,15 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 ```
 Fase 1 (fondazioni, ~3.5g):      #30 ✅ → #38 ✅ → #39 ✅
 Fase 2 (pratico, ~5g):           #36 ✅ → #33 ✅ → #40 ✅
-Fase 3 (trust, ~4g):             #31 ✅ → #32 ✅ → #37
-Fase 4 (avanzato, ~7g):          #34 → #35 ✅ → #42 ✅ → #41 → #43
-Fase 5 (advanced, ~5.5g):        #45 → #47 → #48  (parallelo)
+Fase 3 (trust, ~4g):             #31 ✅ → #32 ✅ → #37 ✅
+Fase 4 (avanzato, ~7g):          #34 ✅ → #35 ✅ → #42 ✅ → #41 ✅ → #43 ✅
+Fase 5 (advanced, ~5.5g):        #45 → #47 ✅ → #48  (parallelo)
 Fase 6 (~1.5g):                  #46
 Fase 7 (~2.5g):                  #49
-Fase 8a (fondazioni, ~6.5g):     #56 ✅ → #59 → #55 → #52
-Fase 8b (strutturale, ~6.0g):    #58 → #61 → #57
-Fase 8c (economico, ~6.0g):      #50 → #51 → #53
-Fase 8d (avanzato, ~4.5g):       #54 → #60
+Fase 8a (fondazioni, ~6.5g):     #56 ✅ → #59 ✅ → #55 ✅ → #52 ✅
+Fase 8b (strutturale, ~6.0g):    #58 ✅ → #61 ✅ → #57 ✅
+Fase 8c (economico, ~6.0g):      #50 ✅ → #51 ✅ → #53 ✅
+Fase 8d (avanzato, ~4.5g):       #54 ✅ → #60 ✅
                                    ─────────────────────
                                    Totale: ~52g (#30-#61)
 ```
@@ -3049,24 +3026,24 @@ Legenda: ──► dipendenza, ~~~► sinergia (non bloccante)
 ```
 TIER 0 — Nessuna dipendenza interna (~10g)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  #52  Worker Greeks (B-S)               1.5g
-  #55  Replicator Dynamics               1.5g
+  #52  Worker Greeks (B-S)               1.5g  ✅
+  #55  Replicator Dynamics               1.5g  ✅
   #56  Criticality Monitor (Sandpile)    1.5g  ✅
-  #58  Spectral DAG Decomposition        2.0g
-  #59  Tropical Critical Path            1.5g
-  #61  Submodular Council Selection      2.0g
+  #58  Spectral DAG Decomposition        2.0g  ✅
+  #59  Tropical Critical Path            1.5g  ✅
+  #61  Submodular Council Selection      2.0g  ✅
 
 TIER 1 — Dipende da Tier 0 o esterne (~8g)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  #50  Portfolio Theory                  2.0g
-  #51  Market Making                     2.0g
-  #53  Bayesian Success Prediction       2.0g
-  #57  Swarm Intelligence (ACO)          2.0g
+  #50  Portfolio Theory                  2.0g  ✅
+  #51  Market Making                     2.0g  ✅
+  #53  Bayesian Success Prediction       2.0g  ✅
+  #57  Swarm Intelligence (ACO)          2.0g  ✅
 
 TIER 2 — Dipende da Tier 1 (~4.5g)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  #54  Causal Inference                  2.5g
-  #60  Wasserstein Distance              2.0g
+  #54  Causal Inference                  2.5g  ✅
+  #60  Wasserstein Distance              2.0g  ✅
 ```
 
 ### Tabella completa
@@ -3099,10 +3076,10 @@ TIER 2 — Dipende da Tier 1 (~4.5g)
 ### Ordine consigliato di implementazione
 
 ```
-Fase 8a (fondazioni, ~6.5g):   #56 ✅ → #59 → #55 → #52
-Fase 8b (strutturale, ~6.0g):  #58 → #61 → #57
-Fase 8c (economico, ~6.0g):    #50 → #51 → #53
-Fase 8d (avanzato, ~4.5g):     #54 → #60
+Fase 8a (fondazioni, ~6.5g):   #56 ✅ → #59 ✅ → #55 ✅ → #52 ✅
+Fase 8b (strutturale, ~6.0g):  #58 ✅ → #61 ✅ → #57 ✅
+Fase 8c (economico, ~6.0g):    #50 ✅ → #51 ✅ → #53 ✅
+Fase 8d (avanzato, ~4.5g):     #54 ✅ → #60 ✅
                                 ─────────────────────
                                 Totale: ~22.5g (#50-#61)
 ```

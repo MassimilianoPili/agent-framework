@@ -18,6 +18,7 @@ import com.agentframework.common.policy.ApprovalMode;
 import com.agentframework.common.policy.CompensationMode;
 import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.common.policy.HookPolicy;
+import com.agentframework.common.policy.PolicyHasher;
 import com.agentframework.common.policy.RiskLevel;
 import com.agentframework.orchestrator.messaging.AgentTaskProducer;
 import com.agentframework.orchestrator.messaging.dto.AgentResult;
@@ -135,6 +136,8 @@ public class OrchestrationService {
     private final TaskSplitterService taskSplitterService;
     // #42: global task assignment via Hungarian Algorithm (nullable — only when global-assignment.enabled=true)
     private final GlobalAssignmentSolver globalAssignmentSolver;
+    // #47: reputation staking (nullable — only when reputation.staking.enabled=true)
+    private final com.agentframework.orchestrator.reward.ReputationStakingService reputationStakingService;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -171,7 +174,8 @@ public class OrchestrationService {
                                 TokenLedgerService tokenLedgerService,
                                 Optional<PidBudgetController> pidBudgetController,
                                 Optional<TaskSplitterService> taskSplitterService,
-                                Optional<GlobalAssignmentSolver> globalAssignmentSolver) {
+                                Optional<GlobalAssignmentSolver> globalAssignmentSolver,
+                                Optional<com.agentframework.orchestrator.reward.ReputationStakingService> reputationStakingService) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -208,6 +212,7 @@ public class OrchestrationService {
         this.pidBudgetController = pidBudgetController.orElse(null);
         this.taskSplitterService = taskSplitterService.orElse(null);
         this.globalAssignmentSolver = globalAssignmentSolver.orElse(null);
+        this.reputationStakingService = reputationStakingService.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -415,6 +420,14 @@ public class OrchestrationService {
         }
         item.setCompletedAt(Instant.now());
 
+        // Reputation staking: settle stake based on task outcome (#47)
+        if (reputationStakingService != null
+                && item.getStakedAmount() != null && item.getStakedAmount() > 0
+                && item.getWorkerProfile() != null) {
+            boolean success = (item.getStatus() == ItemStatus.DONE);
+            reputationStakingService.settle(item.getWorkerProfile(), item.getStakedAmount(), success);
+        }
+
         // Save per-task token breakdown on the PlanItem (#26L1)
         if (result.provenance() != null && result.provenance().tokenUsage() != null) {
             var tu = result.provenance().tokenUsage();
@@ -617,6 +630,7 @@ public class OrchestrationService {
             traceId,
             Instant.now().toString(),
             null,  // no hook policy override for operator-initiated redispatch
+            null,  // no policy hash for operator-initiated redispatch (#32)
             plan.getCouncilReport(),
             buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile()),
             item.getToolHints(),
@@ -1052,9 +1066,11 @@ public class OrchestrationService {
             // Risk check: CRITICAL tasks require human approval before dispatch.
             // The HookPolicy is resolved here (same call used later for AgentTask),
             // so we resolve it once and reuse it below.
-            HookPolicy preResolvedPolicy = hookManagerService
-                    .resolvePolicy(planId, item.getTaskKey(), item.getWorkerType())
+            // #32: resolve with commitment hash for propagation to worker.
+            HookManagerService.HashedPolicy preResolvedHashed = hookManagerService
+                    .resolvePolicyWithHash(planId, item.getTaskKey(), item.getWorkerType())
                     .orElse(null);
+            HookPolicy preResolvedPolicy = preResolvedHashed != null ? preResolvedHashed.policy() : null;
 
             if (preResolvedPolicy != null
                     && preResolvedPolicy.riskLevel() == RiskLevel.CRITICAL) {
@@ -1113,6 +1129,13 @@ public class OrchestrationService {
                 } catch (Exception e) {
                     log.debug("GP prediction for budget failed (non-blocking): {}", e.getMessage());
                 }
+            }
+
+            // Reputation staking: debit ELO stake before dispatch (#47)
+            if (reputationStakingService != null && item.getWorkerProfile() != null) {
+                double sigma2 = gpPrediction != null ? gpPrediction.sigma2() : 0.0;
+                double staked = reputationStakingService.stake(item.getWorkerProfile(), sigma2);
+                item.setStakedAmount(staked);
             }
 
             // Auto-split: if estimated cost exceeds threshold, convert to SUB_PLAN (#26L2)
@@ -1237,6 +1260,10 @@ public class OrchestrationService {
                 policy = pidBudgetController.adjustPolicy(planId, item.getWorkerType().name(), policy);
             }
 
+            // #32: Compute commitment hash AFTER PID adjustment (hash must match what worker receives)
+            String policyHash = PolicyHasher.hash(policy);
+            item.setPolicyHash(policyHash);
+
             // Ralph-loop: append quality gate feedback to description so the worker
             // knows what to fix. The feedback is set by RalphLoopService when re-queuing.
             String description = item.getDescription();
@@ -1280,6 +1307,7 @@ public class OrchestrationService {
                 traceId,
                 Instant.now().toString(),
                 policy,
+                policyHash,               // SHA-256 commitment hash of policy (#32)
                 plan.getCouncilReport(),  // inject pre-planning council context into every task
                 buildDynamicOwnsPaths(plan.getProjectPath(), item.getWorkerProfile()),
                 item.getToolHints(),      // planner-suggested MCP tool allowlist (#24L1)

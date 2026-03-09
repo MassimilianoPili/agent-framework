@@ -394,6 +394,24 @@ criticality:
   threshold-stable: 0.5         # C below this → STABLE
   threshold-warning: 0.8        # C at/above this → ALERT
 
+# Verifiable Compute — Ed25519 signature verification (#31)
+# When enabled, the orchestrator verifies cryptographic signatures on worker results.
+# TOFU (Trust-On-First-Use): unknown keys are auto-registered on first valid signature.
+agent:
+  crypto:
+    verification-enabled: true    # verify worker result signatures (disable for legacy workers)
+
+# Federation Differential Privacy (#43)
+# When enabled, metrics shared with federated peers are privatised via Laplace mechanism.
+# Budget: max DP queries per UTC day (basic sequential composition).
+federation:
+  privacy:
+    enabled: false                # opt-in (disabled by default)
+    epsilon: 1.0                  # ε: smaller = more privacy, more noise
+    max-queries-per-day: 100      # daily DP budget (basic composition: K × ε)
+    elo-sensitivity: 32.0         # K-factor: max single-match ELO change
+    reward-sensitivity: 2.0       # reward range: [-1, +1] → sensitivity = 2
+
 # Swarm Intelligence — ACO Pheromone Matrix
 # Tracks successful workflow patterns (workerType transitions) and provides hints to the planner.
 pheromone:
@@ -539,6 +557,14 @@ global-assignment:
   enabled: false                        # opt-in (disabled by default, falls back to per-task GP)
   critical-path-boost: 0.2             # mu boost for tasks on the DAG critical path
   min-dispatchable: 2                  # minimum batch size to trigger global assignment
+
+# Reputation Staking (#47) — game-theoretic accountability for worker profiles
+reputation:
+  staking:
+    enabled: false                        # opt-in (disabled by default)
+    base-stake-rate: 0.05                # 5% of current ELO
+    max-complexity: 2.0                  # sigma² clamp (0 = basale only)
+    success-bonus-rate: 0.30             # 30% of stake as bonus on success
 
 # Superrationality (Hofstadter) — cooperative equilibrium between worker types
 superrationality:

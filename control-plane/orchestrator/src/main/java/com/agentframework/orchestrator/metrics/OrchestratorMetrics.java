@@ -203,4 +203,82 @@ public class OrchestratorMetrics {
                         .register(registry)
         ).increment();
     }
+
+    // ─── Crypto Verification (#31) ─────────────────────────────────────────
+
+    private Counter cryptoVerifiedTrusted;
+    private Counter cryptoVerifiedTofu;
+    private Counter cryptoFailed;
+    private Counter cryptoUnsigned;
+
+    /** Initialise crypto counters lazily (only when first called). */
+    private volatile boolean cryptoCountersInitialised = false;
+
+    private void ensureCryptoCounters() {
+        if (!cryptoCountersInitialised) {
+            cryptoVerifiedTrusted = Counter.builder("orchestrator.crypto.verified")
+                    .tag("mode", "TRUSTED")
+                    .description("Results with valid signature verified against a registered key")
+                    .register(registry);
+            cryptoVerifiedTofu = Counter.builder("orchestrator.crypto.verified")
+                    .tag("mode", "TOFU")
+                    .description("Results with valid signature accepted via Trust-On-First-Use")
+                    .register(registry);
+            cryptoFailed = Counter.builder("orchestrator.crypto.failed")
+                    .description("Results with invalid cryptographic signature (rejected)")
+                    .register(registry);
+            cryptoUnsigned = Counter.builder("orchestrator.crypto.unsigned")
+                    .description("Results received without a signature envelope")
+                    .register(registry);
+            cryptoCountersInitialised = true;
+        }
+    }
+
+    public void recordSignatureVerified(String mode) {
+        ensureCryptoCounters();
+        if ("TOFU".equals(mode)) {
+            cryptoVerifiedTofu.increment();
+        } else {
+            cryptoVerifiedTrusted.increment();
+        }
+    }
+
+    public void recordSignatureFailed() {
+        ensureCryptoCounters();
+        cryptoFailed.increment();
+    }
+
+    public void recordUnsignedResult() {
+        ensureCryptoCounters();
+        cryptoUnsigned.increment();
+    }
+
+    // ─── Differential Privacy (#43) ─────────────────────────────────────────
+
+    private Counter dpQueriesTotal;
+    private Counter dpBudgetExhausted;
+
+    private volatile boolean dpCountersInitialised = false;
+
+    private void ensureDpCounters() {
+        if (!dpCountersInitialised) {
+            dpQueriesTotal = Counter.builder("orchestrator.dp.queries")
+                    .description("Total differential-privacy metric exports performed")
+                    .register(registry);
+            dpBudgetExhausted = Counter.builder("orchestrator.dp.budget.exhausted")
+                    .description("Metric export attempts rejected due to exhausted daily DP budget")
+                    .register(registry);
+            dpCountersInitialised = true;
+        }
+    }
+
+    public void recordDpQuery() {
+        ensureDpCounters();
+        dpQueriesTotal.increment();
+    }
+
+    public void recordDpBudgetExhausted() {
+        ensureDpCounters();
+        dpBudgetExhausted.increment();
+    }
 }

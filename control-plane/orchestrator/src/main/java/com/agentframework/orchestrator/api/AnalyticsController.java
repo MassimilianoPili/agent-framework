@@ -2,6 +2,7 @@ package com.agentframework.orchestrator.api;
 
 import com.agentframework.orchestrator.analytics.*;
 import com.agentframework.orchestrator.api.dto.ShapleyDagResponse;
+import com.agentframework.orchestrator.federation.FederationMetricsExporter;
 import com.agentframework.orchestrator.orchestration.CriticalityMonitor;
 import com.agentframework.orchestrator.orchestration.CriticalitySnapshot;
 import com.agentframework.orchestrator.analytics.CalibrationAudit.CalibrationReport;
@@ -64,6 +65,8 @@ public class AnalyticsController {
     private final Optional<GoodhartDetectorService> goodhartService;
     private final Optional<RealOptionsService> realOptionsService;
     private final Optional<ContractTheoryService> contractTheoryService;
+    private final Optional<PersistentHomologyService> persistentHomologyService;
+    private final Optional<FederationMetricsExporter> federationMetricsExporter;
     private final ShapleyDagService shapleyDagService;
     private final OrchestrationService orchestrationService;
     private final CriticalityMonitor criticalityMonitor;
@@ -83,6 +86,8 @@ public class AnalyticsController {
                                 Optional<GoodhartDetectorService> goodhartService,
                                 Optional<RealOptionsService> realOptionsService,
                                 Optional<ContractTheoryService> contractTheoryService,
+                                Optional<PersistentHomologyService> persistentHomologyService,
+                                Optional<FederationMetricsExporter> federationMetricsExporter,
                                 ShapleyDagService shapleyDagService,
                                 OrchestrationService orchestrationService,
                                 CriticalityMonitor criticalityMonitor) {
@@ -101,6 +106,8 @@ public class AnalyticsController {
         this.goodhartService = goodhartService;
         this.realOptionsService = realOptionsService;
         this.contractTheoryService = contractTheoryService;
+        this.persistentHomologyService = persistentHomologyService;
+        this.federationMetricsExporter = federationMetricsExporter;
         this.shapleyDagService = shapleyDagService;
         this.orchestrationService = orchestrationService;
         this.criticalityMonitor = criticalityMonitor;
@@ -404,6 +411,26 @@ public class AnalyticsController {
     }
 
     /**
+     * GET /api/v1/analytics/topology?workerType=BE
+     *
+     * <p>Computes persistent homology (Vietoris-Rips) of task embedding spaces.
+     * Returns Betti numbers (β₀ connected components, β₁ cycles), barcode
+     * diagrams, and human-readable topological interpretations.</p>
+     */
+    @GetMapping("/topology")
+    public ResponseEntity<PersistentHomologyService.PersistentHomologyReport> getTopology(
+            @RequestParam String workerType) {
+        if (persistentHomologyService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        var report = persistentHomologyService.get().compute(workerType);
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
      * GET /api/v1/analytics/criticality
      *
      * <p>Returns a real-time snapshot of the system's criticality state using the
@@ -414,5 +441,25 @@ public class AnalyticsController {
     public ResponseEntity<CriticalitySnapshot> getCriticalitySnapshot() {
         CriticalitySnapshot snapshot = criticalityMonitor.computeSnapshot();
         return ResponseEntity.ok(snapshot);
+    }
+
+    /**
+     * GET /api/v1/analytics/privacy-budget
+     *
+     * <p>Returns the current state of the differential privacy budget (#43).
+     * Includes remaining queries, queries used today, and daily limit.
+     * Returns 503 if federation privacy is not enabled.</p>
+     */
+    @GetMapping("/privacy-budget")
+    public ResponseEntity<Map<String, Object>> getPrivacyBudget() {
+        if (federationMetricsExporter.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        var exporter = federationMetricsExporter.get();
+        return ResponseEntity.ok(Map.of(
+                "remaining", exporter.getRemainingBudget(),
+                "usedToday", exporter.getQueriesUsedToday(),
+                "dailyLimit", exporter.getRemainingBudget() + exporter.getQueriesUsedToday()
+        ));
     }
 }
