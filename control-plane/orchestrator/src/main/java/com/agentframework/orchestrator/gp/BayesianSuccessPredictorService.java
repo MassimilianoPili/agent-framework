@@ -78,7 +78,7 @@ public class BayesianSuccessPredictorService {
                 gpMu,
                 gpSigma2,
                 null,          // elo_at_dispatch — loaded separately if needed
-                null,          // context_quality — not yet tracked
+                taskOutcomeRepository.averageContextQualityByWorkerType(item.getWorkerType().name()),
                 budgetRemaining
         );
 

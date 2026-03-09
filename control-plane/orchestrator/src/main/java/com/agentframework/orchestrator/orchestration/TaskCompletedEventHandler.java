@@ -3,6 +3,7 @@ package com.agentframework.orchestrator.orchestration;
 import com.agentframework.orchestrator.domain.PlanItem;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.event.TaskCompletedSideEffectEvent;
+import com.agentframework.orchestrator.gp.ContextQualityService;
 import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
 import com.agentframework.orchestrator.hooks.HookManagerService;
@@ -38,6 +39,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *   <li>Review score distribution (for REVIEW worker type)</li>
  *   <li>Hook Manager policy storage (for HOOK_MANAGER worker type)</li>
  *   <li>Tool Manager policy storage (for TOOL_MANAGER worker type — per-task, overrides HM)</li>
+ *   <li>Context quality scoring (information-theoretic feedback on CM-selected context)</li>
  * </ol>
  */
 @Component
@@ -49,17 +51,20 @@ public class TaskCompletedEventHandler {
     private final RewardComputationService rewardComputationService;
     private final @Nullable TaskOutcomeService gpTaskOutcomeService;
     private final @Nullable SerendipityService serendipityService;
+    private final @Nullable ContextQualityService contextQualityService;
     private final HookManagerService hookManagerService;
 
     public TaskCompletedEventHandler(PlanItemRepository planItemRepository,
                                       RewardComputationService rewardComputationService,
                                       @Nullable TaskOutcomeService gpTaskOutcomeService,
                                       @Nullable SerendipityService serendipityService,
+                                      @Nullable ContextQualityService contextQualityService,
                                       HookManagerService hookManagerService) {
         this.planItemRepository = planItemRepository;
         this.rewardComputationService = rewardComputationService;
         this.gpTaskOutcomeService = gpTaskOutcomeService;
         this.serendipityService = serendipityService;
+        this.contextQualityService = contextQualityService;
         this.hookManagerService = hookManagerService;
     }
 
@@ -109,6 +114,16 @@ public class TaskCompletedEventHandler {
         if (item.getWorkerType() == WorkerType.TOOL_MANAGER && result.resultJson() != null) {
             runSafely("storeToolManagerResult", result.taskKey(), () ->
                     hookManagerService.storeToolManagerResult(result.planId(), result.resultJson()));
+        }
+
+        // 7. Context quality scoring: information-theoretic feedback on CM-selected context (#35)
+        if (contextQualityService != null) {
+            runSafely("contextQualityScore", result.taskKey(), () -> {
+                Double cqScore = contextQualityService.computeAndStore(item, result);
+                if (cqScore != null) {
+                    rewardComputationService.injectContextQualityScore(item, cqScore.floatValue());
+                }
+            });
         }
     }
 

@@ -348,7 +348,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (20 item — nessun codice)
+## Non implementati (19 item — nessun codice)
 
 | # | Item |
 |---|------|
@@ -360,7 +360,6 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 32 | Policy-as-Code Immutabile |
 | 33 | Token Economics Double-Entry |
 | 34 | Federazione Multi-Server |
-| 35 | Context Quality Scoring |
 | 36 | Worker Pool Sizing (Queueing Theory) |
 | 37 | Adaptive Token Budget (PID) |
 | 38 | State Machine Verification (LTL) |
@@ -376,7 +375,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 48 | Content-Addressable Storage |
 | 49 | Quadratic Voting Council |
 
-## Parzialmente implementati (5 item — codice base, estensioni da fare)
+## Parzialmente implementati (6 item — codice base, estensioni da fare)
 
 | # | Item | Cosa c'e' | Cosa manca |
 |---|------|-----------|------------|
@@ -385,6 +384,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 7 | Context Cache (TASK_MANAGER) | `ContextCacheService` (Redis, 99 righe), `ContextCacheInterceptor` (88 righe), `ContextCacheHolder`, `ContextCacheStore` SPI + `NoOpContextCacheStore`, `RedisContextCacheStore` ✅ (Redis-backed SPI, TTL 30min, `@ConditionalOnBean`), `AbstractWorker` integration (cache hit → skip LLM), `OrchestrationService` integration (PUT/GET), `Plan.sourceCommit`/`workingTreeDiffHash`, `PlanItem.issueSnapshot`, test completi (15 test: `ContextCacheInterceptorTest` + `RedisContextCacheStoreTest`) | TASK_MANAGER worker (bloccato da tracker-mcp) |
 | 8 | DAG + Mermaid | `PlanGraphService` (227 righe), `toMermaid()`, endpoint `/graph` | Miglioramenti UI |
 | 9 | Hierarchical Plans | `handleSubPlan()`, `SUB_PLAN` WorkerType, child plan | Estensioni previste |
+| 35 | Context Quality Scoring | `ContextQualityService` (file relevance + entropy proxy), V23 migration, 4° reward source in `RewardComputationService` (0.15), slot [1027] in `BayesianSuccessPredictor` popolato, side-effect #7 in `TaskCompletedEventHandler` | Test unitari, tuning pesi, validazione con dati reali |
 
 **Nota**: #5, #8, #9 presenti dall'initial commit (`2c5d7cc`). Il piano li elenca come "da fare"
 perche' richiedono estensioni rispetto all'implementazione base.

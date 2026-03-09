@@ -21,9 +21,10 @@ import java.util.*;
  * <p>Aggregates three orthogonal reward sources into a single {@code aggregatedReward}
  * for each {@link PlanItem}. All computation is zero-cost (no extra LLM calls):
  * <ul>
- *   <li><b>processScore</b> (weight 0.30) — deterministic from Provenance metrics</li>
- *   <li><b>reviewScore</b> (weight 0.50) — parsed from REVIEW worker JSON output</li>
- *   <li><b>qualityGateScore</b> (weight 0.20) — fallback from binary QualityGateReport</li>
+ *   <li><b>processScore</b> (weight 0.25) — deterministic from Provenance metrics</li>
+ *   <li><b>reviewScore</b> (weight 0.45) — parsed from REVIEW worker JSON output</li>
+ *   <li><b>qualityGateScore</b> (weight 0.15) — fallback from binary QualityGateReport</li>
+ *   <li><b>contextQuality</b> (weight 0.15) — information-theoretic context scoring (#35)</li>
  * </ul>
  * Weights are re-normalised when sources are unavailable (e.g. no REVIEW task in the plan).
  * </p>
@@ -117,6 +118,31 @@ public class RewardComputationService {
 
         log.info("Quality gate signal ({}) applied to {}/{} items without review scores (plan={})",
                  passed ? "PASS" : "FAIL", updated, items.size(), planId);
+    }
+
+    /**
+     * Injects context quality as a 4th reward source and recomputes the aggregate.
+     * Called by {@code TaskCompletedEventHandler} after {@link com.agentframework.orchestrator.gp.ContextQualityService}
+     * computes the information-theoretic score.
+     *
+     * @param item  the completed PlanItem
+     * @param score the context quality score in [0, 1]
+     */
+    @Transactional
+    public void injectContextQualityScore(PlanItem item, float score) {
+        try {
+            ObjectNode sources = item.getRewardSources() != null
+                    ? (ObjectNode) objectMapper.readTree(item.getRewardSources())
+                    : objectMapper.createObjectNode();
+            sources.put("context_quality", score);
+            item.setRewardSources(objectMapper.writeValueAsString(sources));
+        } catch (Exception e) {
+            log.warn("Failed to inject context_quality score into rewardSources for {}: {}", item.getTaskKey(), e.getMessage());
+        }
+        recomputeAggregatedReward(item);
+        planItemRepository.save(item);
+        log.debug("contextQuality={} aggregatedReward={} (task={})",
+                  score, item.getAggregatedReward(), item.getTaskKey());
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
@@ -231,20 +257,23 @@ public class RewardComputationService {
     private void recomputeAggregatedReward(PlanItem item) {
         Float review = item.getReviewScore();
         Float process = item.getProcessScore();
-        Float qualityGate = extractQualityGateFromSources(item.getRewardSources());
+        Float qualityGate = extractScoreFromSources(item.getRewardSources(), "quality_gate");
+        Float contextQuality = extractScoreFromSources(item.getRewardSources(), "context_quality");
 
-        float[] rawWeights = { review != null ? 0.50f : 0f,
-                               process != null ? 0.30f : 0f,
-                               qualityGate != null ? 0.20f : 0f };
-        float totalWeight = rawWeights[0] + rawWeights[1] + rawWeights[2];
+        float[] rawWeights = { review != null ? 0.45f : 0f,
+                               process != null ? 0.25f : 0f,
+                               qualityGate != null ? 0.15f : 0f,
+                               contextQuality != null ? 0.15f : 0f };
+        float totalWeight = rawWeights[0] + rawWeights[1] + rawWeights[2] + rawWeights[3];
 
         float aggregated = 0f;
         if (totalWeight > 0f) {
             float[] scores = { review != null ? review : 0f,
                                process != null ? process : 0f,
-                               qualityGate != null ? qualityGate : 0f };
+                               qualityGate != null ? qualityGate : 0f,
+                               contextQuality != null ? contextQuality : 0f };
             float weighted = 0f;
-            for (int i = 0; i < 3; i++) weighted += rawWeights[i] * scores[i];
+            for (int i = 0; i < 4; i++) weighted += rawWeights[i] * scores[i];
             aggregated = weighted / totalWeight;
         }
 
@@ -259,12 +288,15 @@ public class RewardComputationService {
             else sources.putNull("process");
             if (qualityGate != null) sources.put("quality_gate", qualityGate);
             else sources.putNull("quality_gate");
+            if (contextQuality != null) sources.put("context_quality", contextQuality);
+            else sources.putNull("context_quality");
 
             ObjectNode weights = objectMapper.createObjectNode();
             if (totalWeight > 0) {
                 if (review != null) weights.put("review", rawWeights[0] / totalWeight);
                 if (process != null) weights.put("process", rawWeights[1] / totalWeight);
                 if (qualityGate != null) weights.put("quality_gate", rawWeights[2] / totalWeight);
+                if (contextQuality != null) weights.put("context_quality", rawWeights[3] / totalWeight);
             }
             sources.set("weights", weights);
             item.setRewardSources(objectMapper.writeValueAsString(sources));
@@ -273,15 +305,15 @@ public class RewardComputationService {
         }
     }
 
-    private Float extractQualityGateFromSources(String rewardSourcesJson) {
+    private Float extractScoreFromSources(String rewardSourcesJson, String key) {
         if (rewardSourcesJson == null) return null;
         try {
             JsonNode node = objectMapper.readTree(rewardSourcesJson);
-            if (node.has("quality_gate") && !node.get("quality_gate").isNull()) {
-                return (float) node.get("quality_gate").asDouble();
+            if (node.has(key) && !node.get(key).isNull()) {
+                return (float) node.get(key).asDouble();
             }
         } catch (Exception e) {
-            log.debug("Failed to extract quality_gate from rewardSources: {}", e.getMessage());
+            log.debug("Failed to extract {} from rewardSources: {}", key, e.getMessage());
         }
         return null;
     }
