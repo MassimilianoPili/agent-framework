@@ -53,6 +53,9 @@ public class TaskOutcome {
     @Column(name = "actual_reward")
     private Double actualReward;
 
+    @Column(name = "context_quality_score")
+    private Double contextQualityScore;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -87,6 +90,9 @@ public class TaskOutcome {
     public Double getActualReward() { return actualReward; }
     public Instant getCreatedAt() { return createdAt; }
 
+    public Double getContextQualityScore() { return contextQualityScore; }
+
     public void setActualReward(Double actualReward) { this.actualReward = actualReward; }
+    public void setContextQualityScore(Double contextQualityScore) { this.contextQualityScore = contextQualityScore; }
     public void setTaskEmbedding(float[] taskEmbedding) { this.taskEmbedding = taskEmbedding; }
 }

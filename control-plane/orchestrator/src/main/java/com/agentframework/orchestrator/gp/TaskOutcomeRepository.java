@@ -272,6 +272,32 @@ public interface TaskOutcomeRepository extends JpaRepository<TaskOutcome, UUID> 
                                                           @Param("limit") int limit);
 
     /**
+     * Updates context_quality_score for a task outcome identified by plan_item_id.
+     * Used by {@link ContextQualityService} after computing the information-theoretic score.
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE task_outcomes SET context_quality_score = :score
+            WHERE plan_item_id = :planItemId
+            """, nativeQuery = true)
+    int updateContextQualityScore(@Param("planItemId") UUID planItemId,
+                                   @Param("score") double score);
+
+    /**
+     * Returns the average context quality score for a given worker type.
+     * Used as a Bayesian prior in {@link BayesianSuccessPredictor} (feature slot [1027]).
+     *
+     * @return average score, or null if no data exists
+     */
+    @Query(value = """
+            SELECT AVG(context_quality_score)
+            FROM task_outcomes
+            WHERE worker_type = :workerType
+              AND context_quality_score IS NOT NULL
+            """, nativeQuery = true)
+    Double averageContextQualityByWorkerType(@Param("workerType") String workerType);
+
+    /**
      * Loads completion timestamps for queuing-theory (M/G/1) capacity analysis.
      * Returns rows: [created_at(Timestamp), actual_reward(Double)], ordered by created_at ASC.
      * Inter-completion intervals proxy service times when the server is continuously busy.
