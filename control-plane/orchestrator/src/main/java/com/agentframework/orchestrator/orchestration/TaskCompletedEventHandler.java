@@ -6,6 +6,7 @@ import com.agentframework.orchestrator.event.TaskCompletedSideEffectEvent;
 import com.agentframework.orchestrator.gp.ContextQualityService;
 import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.TaskOutcomeService;
+import com.agentframework.orchestrator.budget.TokenLedgerService;
 import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.orchestrator.messaging.dto.AgentResult;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
@@ -40,6 +41,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *   <li>Hook Manager policy storage (for HOOK_MANAGER worker type)</li>
  *   <li>Tool Manager policy storage (for TOOL_MANAGER worker type — per-task, overrides HM)</li>
  *   <li>Context quality scoring (information-theoretic feedback on CM-selected context)</li>
+ *   <li>Token ledger credit: record value production from aggregated reward (#33)</li>
  * </ol>
  */
 @Component
@@ -53,19 +55,22 @@ public class TaskCompletedEventHandler {
     private final @Nullable SerendipityService serendipityService;
     private final @Nullable ContextQualityService contextQualityService;
     private final HookManagerService hookManagerService;
+    private final TokenLedgerService tokenLedgerService;
 
     public TaskCompletedEventHandler(PlanItemRepository planItemRepository,
                                       RewardComputationService rewardComputationService,
                                       @Nullable TaskOutcomeService gpTaskOutcomeService,
                                       @Nullable SerendipityService serendipityService,
                                       @Nullable ContextQualityService contextQualityService,
-                                      HookManagerService hookManagerService) {
+                                      HookManagerService hookManagerService,
+                                      TokenLedgerService tokenLedgerService) {
         this.planItemRepository = planItemRepository;
         this.rewardComputationService = rewardComputationService;
         this.gpTaskOutcomeService = gpTaskOutcomeService;
         this.serendipityService = serendipityService;
         this.contextQualityService = contextQualityService;
         this.hookManagerService = hookManagerService;
+        this.tokenLedgerService = tokenLedgerService;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -125,6 +130,24 @@ public class TaskCompletedEventHandler {
                 }
             });
         }
+
+        // 8. Token ledger credit: record value production from aggregated reward (#33)
+        runSafely("tokenLedgerCredit", result.taskKey(), () -> {
+            PlanItem freshItem = planItemRepository.findById(event.itemId()).orElse(null);
+            if (freshItem != null && freshItem.getAggregatedReward() != null) {
+                long tokens = 0;
+                if (result.tokensUsed() != null) tokens = result.tokensUsed();
+                else if (result.provenance() != null && result.provenance().tokenUsage() != null
+                        && result.provenance().tokenUsage().totalTokens() != null) {
+                    tokens = result.provenance().tokenUsage().totalTokens();
+                }
+                if (tokens > 0) {
+                    tokenLedgerService.credit(result.planId(), freshItem.getId(),
+                            result.taskKey(), freshItem.getWorkerType().name(),
+                            tokens, freshItem.getAggregatedReward().doubleValue());
+                }
+            }
+        });
     }
 
     private void runSafely(String label, String taskKey, Runnable action) {

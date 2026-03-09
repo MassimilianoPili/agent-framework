@@ -348,7 +348,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (18 item — nessun codice)
+## Non implementati (17 item — nessun codice)
 
 | # | Item |
 |---|------|
@@ -358,7 +358,6 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 30 | Hash Chain Tamper-Proof |
 | 31 | Verifiable Compute (firma worker) |
 | 32 | Policy-as-Code Immutabile |
-| 33 | Token Economics Double-Entry |
 | 34 | Federazione Multi-Server |
 | 36 | Worker Pool Sizing (Queueing Theory) |
 | 38 | State Machine Verification (LTL) |
@@ -374,7 +373,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 48 | Content-Addressable Storage |
 | 49 | Quadratic Voting Council |
 
-## Parzialmente implementati (7 item — codice base, estensioni da fare)
+## Parzialmente implementati (8 item — codice base, estensioni da fare)
 
 | # | Item | Cosa c'e' | Cosa manca |
 |---|------|-----------|------------|
@@ -384,6 +383,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 8 | DAG + Mermaid | `PlanGraphService` (227 righe), `toMermaid()`, endpoint `/graph` | Miglioramenti UI |
 | 9 | Hierarchical Plans | `handleSubPlan()`, `SUB_PLAN` WorkerType, child plan | Estensioni previste |
 | 35 | Context Quality Scoring | `ContextQualityService` (file relevance + entropy proxy), V23 migration, 4° reward source in `RewardComputationService` (0.15), slot [1027] in `BayesianSuccessPredictor` popolato, side-effect #7 in `TaskCompletedEventHandler` | Test unitari, tuning pesi, validazione con dati reali |
+| 33 | Token Economics Double-Entry | `TokenLedger` entity, `TokenLedgerRepository`, `TokenLedgerService` (debit/credit/balance/efficiency), `TokenLedgerResponse` DTO, V24 migration, integrazione in `OrchestrationService` (debit dopo recordUsage), side-effect #8 in `TaskCompletedEventHandler` (credit da aggregatedReward), `GET /{id}/budget/ledger` endpoint, 14 test unitari | Tuning credit formula, dashboard Grafana, alert su efficiency bassa |
 | 37 | Adaptive Token Budget (PID) | `PidBudgetController` (PID in-memory per planId×workerType), `PidBudgetProperties`, integrazione in `OrchestrationService` (adjustPolicy dispatch, update completion, evictPlan cleanup), 10 test unitari | Tuning parametri PID con dati reali, metriche Prometheus, dashboard Grafana |
 
 **Nota**: #5, #8, #9 presenti dall'initial commit (`2c5d7cc`). Il piano li elenca come "da fare"
