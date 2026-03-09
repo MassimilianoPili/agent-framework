@@ -1,15 +1,21 @@
 package com.agentframework.orchestrator.budget;
 
+import com.agentframework.orchestrator.config.TokenLedgerProperties;
+import com.agentframework.orchestrator.event.SpringPlanEvent;
+import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.repository.TokenLedgerRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Double-entry token ledger for per-plan token accounting (#33).
@@ -24,6 +30,7 @@ import java.util.UUID;
  * caller transaction failures.</p>
  */
 @Service
+@EnableConfigurationProperties(TokenLedgerProperties.class)
 public class TokenLedgerService {
 
     private static final Logger log = LoggerFactory.getLogger(TokenLedgerService.class);
@@ -43,10 +50,24 @@ public class TokenLedgerService {
     }
 
     private final TokenLedgerRepository repository;
+    private final OrchestratorMetrics metrics;
+    private final ApplicationEventPublisher eventPublisher;
+    private final TokenLedgerProperties properties;
 
-    public TokenLedgerService(TokenLedgerRepository repository) {
+    /** Guard: at most 1 low-efficiency alert per plan (soft state, reset on restart). */
+    private final Set<UUID> alertedPlans = ConcurrentHashMap.newKeySet();
+
+    public TokenLedgerService(TokenLedgerRepository repository,
+                              OrchestratorMetrics metrics,
+                              ApplicationEventPublisher eventPublisher,
+                              TokenLedgerProperties properties) {
         this.repository = repository;
+        this.metrics = metrics;
+        this.eventPublisher = eventPublisher;
+        this.properties = properties;
     }
+
+    // ── Debit ────────────────────────────────────────────────────────────────
 
     /**
      * Records a DEBIT entry — tokens consumed by a task.
@@ -70,22 +91,21 @@ public class TokenLedgerService {
                 workerType, tokens, newBalance, description);
         repository.save(entry);
 
+        metrics.recordLedgerDebit(workerType, tokens);
+
         log.debug("Ledger DEBIT: plan={} task={} worker={} amount={} balance={}",
                 planId, taskKey, workerType, tokens, newBalance);
+
+        checkLowEfficiency(planId);
     }
+
+    // ── Credit ───────────────────────────────────────────────────────────────
 
     /**
      * Records a CREDIT entry — value produced by a domain worker.
      *
      * <p>Credit amount = {@code Math.round(actualTokens × aggregatedReward)}.
      * Infrastructure workers and tasks with non-positive reward are skipped.</p>
-     *
-     * @param planId           the plan
-     * @param itemId           the plan item
-     * @param taskKey          short task identifier
-     * @param workerType       the worker type name
-     * @param actualTokens     tokens consumed by this task
-     * @param aggregatedReward reward score (0.0–1.0+ range)
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void credit(UUID planId, UUID itemId, String taskKey,
@@ -104,22 +124,14 @@ public class TokenLedgerService {
                 String.format("Reward %.3f × %d tokens", aggregatedReward, actualTokens));
         repository.save(entry);
 
+        metrics.recordLedgerCredit(workerType, creditAmount, "standard");
+
         log.debug("Ledger CREDIT: plan={} task={} worker={} amount={} reward={} balance={}",
                 planId, taskKey, workerType, creditAmount, aggregatedReward, newBalance);
     }
 
     /**
      * Records a Shapley-derived CREDIT for infrastructure workers (#40).
-     *
-     * <p>Converts the Shapley value fraction into token-equivalent credit using
-     * the plan's total token consumption as the base.</p>
-     *
-     * @param planId          the plan
-     * @param itemId          the plan item
-     * @param taskKey         short task identifier
-     * @param workerType      the worker type name
-     * @param shapleyValue    the computed Shapley value (φᵢ)
-     * @param planTotalTokens total tokens consumed across the plan
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void creditShapley(UUID planId, UUID itemId, String taskKey,
@@ -137,9 +149,13 @@ public class TokenLedgerService {
                 String.format("Shapley DAG credit: φ=%.4f", shapleyValue));
         repository.save(entry);
 
+        metrics.recordLedgerCredit(workerType, creditAmount, "shapley");
+
         log.debug("Ledger SHAPLEY CREDIT: plan={} task={} worker={} amount={} φ={} balance={}",
                 planId, taskKey, workerType, creditAmount, shapleyValue, newBalance);
     }
+
+    // ── Queries ──────────────────────────────────────────────────────────────
 
     /** Returns the current balance for a plan (0 if no entries). */
     public long currentBalance(UUID planId) {
@@ -164,9 +180,6 @@ public class TokenLedgerService {
     /**
      * Computes token efficiency: {@code totalCredits / totalDebits}.
      *
-     * <p>A ratio of 1.0 means every token consumed was "repaid" by value produced.
-     * Above 1.0 indicates exceptional ROI; below 1.0 is normal (infra overhead).</p>
-     *
      * @return efficiency ratio, or 0.0 if no debits recorded
      */
     public double computeEfficiency(UUID planId) {
@@ -174,5 +187,95 @@ public class TokenLedgerService {
         if (debits == 0) return 0.0;
         long credits = repository.sumCredits(planId);
         return (double) credits / debits;
+    }
+
+    // ── Per-workerType efficiency (#33 observability) ────────────────────────
+
+    /** Per-worker-type efficiency breakdown. */
+    public record WorkerTypeEfficiency(long debits, long credits, double efficiency) {}
+
+    /**
+     * Computes efficiency broken down by worker type.
+     *
+     * @return map of workerType → (debits, credits, efficiency)
+     */
+    public Map<String, WorkerTypeEfficiency> computeEfficiencyByWorkerType(UUID planId) {
+        Map<String, Long> debitsByType = parseGroupByResults(repository.sumDebitsByWorkerType(planId));
+        Map<String, Long> creditsByType = parseGroupByResults(repository.sumCreditsByWorkerType(planId));
+
+        Set<String> allTypes = new TreeSet<>();
+        allTypes.addAll(debitsByType.keySet());
+        allTypes.addAll(creditsByType.keySet());
+
+        Map<String, WorkerTypeEfficiency> result = new LinkedHashMap<>();
+        for (String type : allTypes) {
+            long d = debitsByType.getOrDefault(type, 0L);
+            long c = creditsByType.getOrDefault(type, 0L);
+            double eff = d > 0 ? (double) c / d : 0.0;
+            result.put(type, new WorkerTypeEfficiency(d, c, eff));
+        }
+        return result;
+    }
+
+    private Map<String, Long> parseGroupByResults(List<Object[]> rows) {
+        Map<String, Long> map = new HashMap<>();
+        for (Object[] row : rows) {
+            String workerType = (String) row[0];
+            long amount = ((Number) row[1]).longValue();
+            map.put(workerType, amount);
+        }
+        return map;
+    }
+
+    // ── Burn rate ────────────────────────────────────────────────────────────
+
+    /**
+     * Computes token burn rate in tokens per minute.
+     *
+     * @return tokens/minute, or empty if fewer than 2 debit entries
+     */
+    public OptionalDouble computeBurnRate(UUID planId) {
+        List<TokenLedger> entries = repository.findByPlanIdOrderByCreatedAtAsc(planId);
+
+        // Filter to DEBIT entries only
+        List<TokenLedger> debits = entries.stream()
+                .filter(e -> e.getEntryType() == TokenLedger.EntryType.DEBIT)
+                .toList();
+
+        if (debits.size() < 2) return OptionalDouble.empty();
+
+        Instant first = debits.getFirst().getCreatedAt();
+        Instant last = debits.getLast().getCreatedAt();
+        long durationMinutes = Duration.between(first, last).toMinutes();
+
+        if (durationMinutes <= 0) return OptionalDouble.empty();
+
+        long totalDebits = debits.stream().mapToLong(TokenLedger::getAmount).sum();
+        return OptionalDouble.of((double) totalDebits / durationMinutes);
+    }
+
+    // ── Low-efficiency alert ─────────────────────────────────────────────────
+
+    private void checkLowEfficiency(UUID planId) {
+        try {
+            if (alertedPlans.contains(planId)) return;
+
+            long debitCount = repository.countDebits(planId);
+            if (debitCount < 3) return;
+
+            double efficiency = computeEfficiency(planId);
+            if (efficiency < properties.lowEfficiencyThreshold()) {
+                alertedPlans.add(planId);
+                log.warn("Low efficiency alert: plan={} efficiency={} (threshold={})",
+                        planId, String.format("%.3f", efficiency), properties.lowEfficiencyThreshold());
+
+                String extraJson = String.format(
+                        "{\"planId\":\"%s\",\"efficiency\":%.4f,\"threshold\":%.4f}",
+                        planId, efficiency, properties.lowEfficiencyThreshold());
+                eventPublisher.publishEvent(SpringPlanEvent.forSystem("LOW_EFFICIENCY", extraJson));
+            }
+        } catch (Exception e) {
+            log.debug("Low-efficiency check failed (non-blocking): {}", e.getMessage());
+        }
     }
 }

@@ -779,15 +779,29 @@ public class PlanController {
     @GetMapping("/{id}/budget/ledger")
     public ResponseEntity<TokenLedgerResponse> getLedger(@PathVariable UUID id) {
         return orchestrationService.getPlan(id)
-            .map(plan -> ResponseEntity.ok(new TokenLedgerResponse(
-                    id,
-                    tokenLedgerService.currentBalance(id),
-                    tokenLedgerService.sumDebits(id),
-                    tokenLedgerService.sumCredits(id),
-                    tokenLedgerService.computeEfficiency(id),
-                    tokenLedgerService.getLedger(id).stream()
-                            .map(TokenLedgerResponse.LedgerEntry::from)
-                            .toList())))
+            .map(plan -> {
+                var byWorkerType = new java.util.LinkedHashMap<String,
+                        TokenLedgerResponse.WorkerTypeBreakdown>();
+                tokenLedgerService.computeEfficiencyByWorkerType(id)
+                        .forEach((wt, e) -> byWorkerType.put(wt,
+                                new TokenLedgerResponse.WorkerTypeBreakdown(
+                                        e.debits(), e.credits(), e.efficiency())));
+
+                Double burnRate = tokenLedgerService.computeBurnRate(id)
+                        .stream().boxed().findFirst().orElse(null);
+
+                return ResponseEntity.ok(new TokenLedgerResponse(
+                        id,
+                        tokenLedgerService.currentBalance(id),
+                        tokenLedgerService.sumDebits(id),
+                        tokenLedgerService.sumCredits(id),
+                        tokenLedgerService.computeEfficiency(id),
+                        burnRate,
+                        byWorkerType,
+                        tokenLedgerService.getLedger(id).stream()
+                                .map(TokenLedgerResponse.LedgerEntry::from)
+                                .toList()));
+            })
             .orElse(ResponseEntity.notFound().build());
     }
 

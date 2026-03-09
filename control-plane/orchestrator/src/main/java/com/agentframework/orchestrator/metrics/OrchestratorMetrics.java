@@ -130,4 +130,32 @@ public class OrchestratorMetrics {
     public void recordCacheMiss() {
         cacheMisses.increment();
     }
+
+    // ─── Token Ledger (#33) ──────────────────────────────────────────────────
+
+    /** Per-workerType debit counters — tokens consumed. */
+    private final ConcurrentHashMap<String, Counter> ledgerDebits = new ConcurrentHashMap<>();
+
+    /** Per-(workerType:creditType) credit counters — tokens earned. */
+    private final ConcurrentHashMap<String, Counter> ledgerCredits = new ConcurrentHashMap<>();
+
+    public void recordLedgerDebit(String workerType, long amount) {
+        ledgerDebits.computeIfAbsent(workerType, wt ->
+                Counter.builder("orchestrator.ledger.debit")
+                        .tag("worker_type", wt)
+                        .description("Tokens consumed (debited) by worker type")
+                        .register(registry)
+        ).increment(amount);
+    }
+
+    public void recordLedgerCredit(String workerType, long amount, String creditType) {
+        String key = workerType + ":" + creditType;
+        ledgerCredits.computeIfAbsent(key, k ->
+                Counter.builder("orchestrator.ledger.credit")
+                        .tag("worker_type", workerType)
+                        .tag("credit_type", creditType)
+                        .description("Tokens earned (credited) by worker type and credit source")
+                        .register(registry)
+        ).increment(amount);
+    }
 }
