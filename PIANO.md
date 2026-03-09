@@ -311,12 +311,12 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | 4 | COMPENSATOR_MANAGER ✅ | 2g | Medio | — |
 | lib | Modulo agent-common (HookPolicy) | 0.5g | Medio | — |
 | **RAG** | **RAG Pipeline + Graph RAG (3 sessioni) ✅** | **10g** | **Molto alto** | — |
-| 16 | Ralph-Loop (Quality Gate Feedback) | 1.5g | Alto | — |
+| 16 | Ralph-Loop (Quality Gate Feedback) ✅ | 1.5g | Alto | — |
 | 17 | SDK Scaffold Worker ✅ | 0.5g | Basso | — |
 | 11 | GP Worker Selection ✅ | 3g | Molto alto | pgvector, Ollama |
 | 14 | DPO con GP Residual ✅ | 1g | Alto | #11 |
 | 12 | Serendipita' Context Manager ✅ | 2g | Alto | #11 |
-| 13 | Council Taste Profile | 2g | Medio | #11 |
+| 13 | Council Taste Profile ✅ | 2g | Medio | #11 |
 | 15 | Active Token Budget ✅ | 1g | Medio | #11 |
 | 18 | ADR-005 (GP Motivazioni) ✅ | 0.5g | Medio | — |
 | **S8** | **Fix bug critici + resilienza (B1-B7, B9, B14-B16) ✅** | **4g** | **Critico** | #27 (per S8-L) |
@@ -330,8 +330,8 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 | **25 ✅** | **mcp-bash-tool + mcp-python-tool** | **1.5g** | **Alto** | — |
 | **24 ✅** | **Tool configurabili (Livello 1: toolHints)** | **1g** | **Alto** | B13, #25 |
 | **19 ✅** | **Retry manuale TO_DISPATCH** | **1g** | **Alto** | S8 |
-| 20 | Modello LLM per task | 2g | Alto | — |
-| 22 | Orchestrator singleton (leader election) | 1.5g | Medio-alto | S8-H |
+| 20 | Modello LLM per task ✅ | 2g | Alto | — |
+| 22 | Orchestrator singleton (leader election) ✅ | 1.5g | Medio-alto | S8-H |
 | **26L1 ✅** | **Cost tracking per task** | 0.5g | Alto | — |
 | 24L2 | Tool configurabili (Livello 2: TOOL_MANAGER) | 1g | Medio | #23 |
 | 26L2 | Auto-split task costosi | 1.5g | Medio | #26L1, #11, #20 |
@@ -348,14 +348,13 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (21 item — nessun codice)
+## Non implementati (20 item — nessun codice)
 
 | # | Item |
 |---|------|
 | 21 | Redis topic splitting per workerType |
 | 24 L2 | TOOL_MANAGER (enrichment worker per singolo task) |
 | 26 L2 | Auto-split per task costosi |
-| 28 | Monitoring Dashboard UI |
 | 30 | Hash Chain Tamper-Proof |
 | 31 | Verifiable Compute (firma worker) |
 | 32 | Policy-as-Code Immutabile |
@@ -377,11 +376,12 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 48 | Content-Addressable Storage |
 | 49 | Quadratic Voting Council |
 
-## Parzialmente implementati (4 item — codice base, estensioni da fare)
+## Parzialmente implementati (5 item — codice base, estensioni da fare)
 
 | # | Item | Cosa c'e' | Cosa manca |
 |---|------|-----------|------------|
 | 5 | SSE + TrackerSync | `SseEmitterRegistry` (147 righe), endpoint `/events`, late-join replay | TrackerSync non wired |
+| 10 | HookPolicy extensions | `HookPolicyResolver.DEFAULT_TOOL_ALLOWLISTS` per WorkerType, `PolicyEnforcingToolCallback` L1+L2 | Policy dinamiche runtime, L3 enforcement |
 | 7 | Context Cache (TASK_MANAGER) | `ContextCacheService` (Redis, 99 righe), `ContextCacheInterceptor` (88 righe), `ContextCacheHolder`, `ContextCacheStore` SPI + `NoOpContextCacheStore`, `RedisContextCacheStore` ✅ (Redis-backed SPI, TTL 30min, `@ConditionalOnBean`), `AbstractWorker` integration (cache hit → skip LLM), `OrchestrationService` integration (PUT/GET), `Plan.sourceCommit`/`workingTreeDiffHash`, `PlanItem.issueSnapshot`, test completi (15 test: `ContextCacheInterceptorTest` + `RedisContextCacheStoreTest`) | TASK_MANAGER worker (bloccato da tracker-mcp) |
 | 8 | DAG + Mermaid | `PlanGraphService` (227 righe), `toMermaid()`, endpoint `/graph` | Miglioramenti UI |
 | 9 | Hierarchical Plans | `handleSubPlan()`, `SUB_PLAN` WorkerType, child plan | Estensioni previste |
