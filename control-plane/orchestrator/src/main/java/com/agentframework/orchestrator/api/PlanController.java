@@ -4,6 +4,8 @@ import com.agentframework.orchestrator.api.dto.DispatchAttemptResponse;
 import com.agentframework.orchestrator.api.dto.FileModificationResponse;
 import com.agentframework.orchestrator.api.dto.PlanCostResponse;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
+import com.agentframework.orchestrator.analytics.ShapleyDagService;
+import com.agentframework.orchestrator.api.dto.ShapleyDagResponse;
 import com.agentframework.orchestrator.api.dto.TokenLedgerResponse;
 import com.agentframework.orchestrator.api.dto.PlanResponse;
 import com.agentframework.orchestrator.api.dto.PlanSnapshotResponse;
@@ -64,6 +66,7 @@ public class PlanController {
     private final ObjectMapper objectMapper;
     private final FileModificationRepository fileModificationRepository;
     private final TokenLedgerService tokenLedgerService;
+    private final ShapleyDagService shapleyDagService;
 
     public PlanController(OrchestrationService orchestrationService,
                           PlanSnapshotService snapshotService,
@@ -78,7 +81,8 @@ public class PlanController {
                           Optional<RootCauseAnalyzer> rootCauseAnalyzer,
                           ObjectMapper objectMapper,
                           FileModificationRepository fileModificationRepository,
-                          TokenLedgerService tokenLedgerService) {
+                          TokenLedgerService tokenLedgerService,
+                          ShapleyDagService shapleyDagService) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
@@ -93,6 +97,7 @@ public class PlanController {
         this.objectMapper = objectMapper;
         this.fileModificationRepository = fileModificationRepository;
         this.tokenLedgerService = tokenLedgerService;
+        this.shapleyDagService = shapleyDagService;
     }
 
     /**
@@ -768,6 +773,43 @@ public class PlanController {
                     tokenLedgerService.getLedger(id).stream()
                             .map(TokenLedgerResponse.LedgerEntry::from)
                             .toList())))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/shapley
+     *
+     * <p>Returns DAG-aware Shapley value attribution for all completed items in the plan.
+     * If Shapley values have not been computed yet (plan not fully complete), computes
+     * them on-demand (#40).</p>
+     */
+    @GetMapping("/{id}/shapley")
+    public ResponseEntity<ShapleyDagResponse> getPlanShapley(@PathVariable UUID id) {
+        return orchestrationService.getPlan(id)
+            .map(plan -> {
+                List<PlanItem> doneItems = plan.getItems().stream()
+                        .filter(i -> i.getStatus() == ItemStatus.DONE)
+                        .toList();
+                if (doneItems.isEmpty()) {
+                    return ResponseEntity.noContent().<ShapleyDagResponse>build();
+                }
+
+                // Use precomputed values if available, otherwise compute
+                boolean hasPrecomputed = doneItems.stream()
+                        .anyMatch(i -> i.getShapleyValue() != null);
+                Map<String, Double> shapleyValues;
+                if (hasPrecomputed) {
+                    shapleyValues = doneItems.stream()
+                            .collect(java.util.stream.Collectors.toMap(
+                                    PlanItem::getTaskKey,
+                                    i -> i.getShapleyValue() != null ? i.getShapleyValue() : 0.0));
+                } else {
+                    shapleyValues = shapleyDagService.computeForPlan(plan);
+                }
+
+                return ResponseEntity.ok(ShapleyDagResponse.from(
+                        id, doneItems, shapleyValues, 1000));
+            })
             .orElse(ResponseEntity.notFound().build());
     }
 

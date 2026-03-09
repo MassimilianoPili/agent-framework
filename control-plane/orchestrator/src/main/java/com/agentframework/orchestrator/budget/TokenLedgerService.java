@@ -30,11 +30,17 @@ public class TokenLedgerService {
 
     /**
      * Worker types that produce direct value (code, schemas, contracts).
-     * Only these earn credits — infrastructure workers are cost-only.
+     * Only these earn standard credits — infrastructure workers are cost-only
+     * (but may earn Shapley credits via {@link #creditShapley}).
      */
     private static final Set<String> CREDIT_ELIGIBLE = Set.of(
             "BE", "FE", "AI_TASK", "CONTRACT", "DBA", "MOBILE"
     );
+
+    /** Returns true if the worker type earns standard credits (not Shapley). */
+    public static boolean isCreditEligible(String workerType) {
+        return CREDIT_ELIGIBLE.contains(workerType);
+    }
 
     private final TokenLedgerRepository repository;
 
@@ -100,6 +106,39 @@ public class TokenLedgerService {
 
         log.debug("Ledger CREDIT: plan={} task={} worker={} amount={} reward={} balance={}",
                 planId, taskKey, workerType, creditAmount, aggregatedReward, newBalance);
+    }
+
+    /**
+     * Records a Shapley-derived CREDIT for infrastructure workers (#40).
+     *
+     * <p>Converts the Shapley value fraction into token-equivalent credit using
+     * the plan's total token consumption as the base.</p>
+     *
+     * @param planId          the plan
+     * @param itemId          the plan item
+     * @param taskKey         short task identifier
+     * @param workerType      the worker type name
+     * @param shapleyValue    the computed Shapley value (φᵢ)
+     * @param planTotalTokens total tokens consumed across the plan
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void creditShapley(UUID planId, UUID itemId, String taskKey,
+                              String workerType, double shapleyValue, long planTotalTokens) {
+        if (shapleyValue <= 0) return;
+
+        long creditAmount = Math.round(shapleyValue * planTotalTokens);
+        if (creditAmount <= 0) return;
+
+        long currentBalance = repository.findLatestBalance(planId).orElse(0L);
+        long newBalance = currentBalance + creditAmount;
+
+        TokenLedger entry = TokenLedger.credit(planId, itemId, taskKey,
+                workerType, creditAmount, newBalance,
+                String.format("Shapley DAG credit: φ=%.4f", shapleyValue));
+        repository.save(entry);
+
+        log.debug("Ledger SHAPLEY CREDIT: plan={} task={} worker={} amount={} φ={} balance={}",
+                planId, taskKey, workerType, creditAmount, shapleyValue, newBalance);
     }
 
     /** Returns the current balance for a plan (0 if no entries). */

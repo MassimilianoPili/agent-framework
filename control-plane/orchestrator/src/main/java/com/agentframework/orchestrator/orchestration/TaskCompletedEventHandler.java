@@ -1,5 +1,8 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.analytics.ShapleyDagService;
+import com.agentframework.orchestrator.domain.ItemStatus;
+import com.agentframework.orchestrator.domain.Plan;
 import com.agentframework.orchestrator.domain.PlanItem;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.event.TaskCompletedSideEffectEvent;
@@ -42,6 +45,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *   <li>Tool Manager policy storage (for TOOL_MANAGER worker type — per-task, overrides HM)</li>
  *   <li>Context quality scoring (information-theoretic feedback on CM-selected context)</li>
  *   <li>Token ledger credit: record value production from aggregated reward (#33)</li>
+ *   <li>DAG Shapley: compute Shapley values when all plan items are DONE (#40)</li>
  * </ol>
  */
 @Component
@@ -56,6 +60,7 @@ public class TaskCompletedEventHandler {
     private final @Nullable ContextQualityService contextQualityService;
     private final HookManagerService hookManagerService;
     private final TokenLedgerService tokenLedgerService;
+    private final ShapleyDagService shapleyDagService;
 
     public TaskCompletedEventHandler(PlanItemRepository planItemRepository,
                                       RewardComputationService rewardComputationService,
@@ -63,7 +68,8 @@ public class TaskCompletedEventHandler {
                                       @Nullable SerendipityService serendipityService,
                                       @Nullable ContextQualityService contextQualityService,
                                       HookManagerService hookManagerService,
-                                      TokenLedgerService tokenLedgerService) {
+                                      TokenLedgerService tokenLedgerService,
+                                      ShapleyDagService shapleyDagService) {
         this.planItemRepository = planItemRepository;
         this.rewardComputationService = rewardComputationService;
         this.gpTaskOutcomeService = gpTaskOutcomeService;
@@ -71,6 +77,7 @@ public class TaskCompletedEventHandler {
         this.contextQualityService = contextQualityService;
         this.hookManagerService = hookManagerService;
         this.tokenLedgerService = tokenLedgerService;
+        this.shapleyDagService = shapleyDagService;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -146,6 +153,18 @@ public class TaskCompletedEventHandler {
                             result.taskKey(), freshItem.getWorkerType().name(),
                             tokens, freshItem.getAggregatedReward().doubleValue());
                 }
+            }
+        });
+
+        // 9. DAG Shapley: compute Shapley values when all plan items are DONE (#40)
+        runSafely("shapleyDag", result.taskKey(), () -> {
+            PlanItem freshItem = planItemRepository.findByIdWithPlan(event.itemId()).orElse(null);
+            if (freshItem == null) return;
+            Plan plan = freshItem.getPlan();
+            boolean allDone = plan.getItems().stream()
+                    .allMatch(i -> i.getStatus() == ItemStatus.DONE);
+            if (allDone) {
+                shapleyDagService.computeForPlan(plan);
             }
         });
     }

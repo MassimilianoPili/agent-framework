@@ -1,6 +1,7 @@
 package com.agentframework.orchestrator.api;
 
 import com.agentframework.orchestrator.analytics.*;
+import com.agentframework.orchestrator.api.dto.ShapleyDagResponse;
 import com.agentframework.orchestrator.analytics.CalibrationAudit.CalibrationReport;
 import com.agentframework.orchestrator.analytics.FisherInformationService.FisherUncertaintyReport;
 import com.agentframework.orchestrator.analytics.ContractTheoryService.ContractEvaluationReport;
@@ -13,9 +14,12 @@ import com.agentframework.orchestrator.analytics.VCGMechanismService.VCGPricingR
 import com.agentframework.orchestrator.analytics.ValueOfInformationService.VoiExplorationReport;
 import com.agentframework.orchestrator.budget.KellyCriterion.KellyRecommendation;
 import com.agentframework.orchestrator.budget.KellyCriterionService;
+import com.agentframework.orchestrator.domain.ItemStatus;
+import com.agentframework.orchestrator.domain.PlanItem;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.orchestration.OptimalStopping.StoppingDecision;
 import com.agentframework.orchestrator.orchestration.OptimalStoppingService;
+import com.agentframework.orchestrator.orchestration.OrchestrationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -58,6 +62,8 @@ public class AnalyticsController {
     private final Optional<GoodhartDetectorService> goodhartService;
     private final Optional<RealOptionsService> realOptionsService;
     private final Optional<ContractTheoryService> contractTheoryService;
+    private final ShapleyDagService shapleyDagService;
+    private final OrchestrationService orchestrationService;
 
     public AnalyticsController(ReplicatorDynamicsService replicatorDynamicsService,
                                 Optional<WorkerDriftMonitor> driftMonitor,
@@ -73,7 +79,9 @@ public class AnalyticsController {
                                 Optional<ValueOfInformationService> voiService,
                                 Optional<GoodhartDetectorService> goodhartService,
                                 Optional<RealOptionsService> realOptionsService,
-                                Optional<ContractTheoryService> contractTheoryService) {
+                                Optional<ContractTheoryService> contractTheoryService,
+                                ShapleyDagService shapleyDagService,
+                                OrchestrationService orchestrationService) {
         this.replicatorDynamicsService = replicatorDynamicsService;
         this.driftMonitor = driftMonitor;
         this.prospectTheoryService = prospectTheoryService;
@@ -89,6 +97,8 @@ public class AnalyticsController {
         this.goodhartService = goodhartService;
         this.realOptionsService = realOptionsService;
         this.contractTheoryService = contractTheoryService;
+        this.shapleyDagService = shapleyDagService;
+        this.orchestrationService = orchestrationService;
     }
 
     /**
@@ -244,6 +254,27 @@ public class AnalyticsController {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/shapley-dag?planId=&lt;uuid&gt;
+     *
+     * <p>Computes DAG-aware Shapley value attribution for all tasks in the plan,
+     * respecting dependency structure. Unlike {@code /shapley-attribution} which
+     * groups by worker profile, this endpoint attributes value per-task along the DAG.</p>
+     */
+    @GetMapping("/shapley-dag")
+    public ResponseEntity<ShapleyDagResponse> getShapleyDag(@RequestParam UUID planId) {
+        return orchestrationService.getPlan(planId)
+                .map(plan -> {
+                    java.util.Map<String, Double> shapleyValues = shapleyDagService.computeForPlan(plan);
+                    java.util.List<PlanItem> doneItems = plan.getItems().stream()
+                            .filter(i -> i.getStatus() == ItemStatus.DONE)
+                            .toList();
+                    return ResponseEntity.ok(ShapleyDagResponse.from(
+                            planId, doneItems, shapleyValues, 1000));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**
