@@ -1,7 +1,9 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.config.CriticalityProperties;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.event.SpringPlanEvent;
+import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +19,7 @@ import java.util.stream.Collectors;
 
 /**
  * Monitors system-level load using the Bak-Tang-Wiesenfeld sandpile model
- * for Self-Organized Criticality (SOC).
+ * for Self-Organized Criticality (SOC) (#56).
  *
  * <p>Load per WorkerType:
  * <pre>
@@ -31,9 +33,9 @@ import java.util.stream.Collectors;
  *
  * <p>Criticality index C = max(load[wt] / threshold[wt]):
  * <ul>
- *   <li>C &lt; 0.5 → STABLE (debug log)</li>
- *   <li>0.5 ≤ C &lt; 0.8 → WARNING (warn log)</li>
- *   <li>C ≥ 0.8 → ALERT (error log + publishes {@code SYSTEM_CRITICALITY} event)</li>
+ *   <li>C &lt; thresholdStable → STABLE (debug log)</li>
+ *   <li>thresholdStable ≤ C &lt; thresholdWarning → WARNING (warn log)</li>
+ *   <li>C ≥ thresholdWarning → ALERT (error log + publishes {@code SYSTEM_CRITICALITY} event)</li>
  * </ul>
  *
  * <p>Neighbours model retry-storm propagation paths:
@@ -48,54 +50,78 @@ public class CriticalityMonitor {
 
     private static final Logger log = LoggerFactory.getLogger(CriticalityMonitor.class);
 
-    static final double THRESHOLD_STABLE  = 0.5;
-    static final double THRESHOLD_WARNING = 0.8;
-
     private final PlanItemRepository planItemRepository;
     private final ApplicationEventPublisher eventPublisher;
-
-    @Value("${criticality.target-inventory:5}")
-    private int targetInventory;
+    private final OrchestratorMetrics metrics;
+    private final CriticalityProperties properties;
 
     @Value("${stale.timeout-minutes:30}")
     private int staleTimeoutMinutes;
 
-    @Value("${criticality.enabled:true}")
-    private boolean enabled;
-
     public CriticalityMonitor(PlanItemRepository planItemRepository,
-                               ApplicationEventPublisher eventPublisher) {
+                               ApplicationEventPublisher eventPublisher,
+                               OrchestratorMetrics metrics,
+                               CriticalityProperties properties) {
         this.planItemRepository = planItemRepository;
         this.eventPublisher = eventPublisher;
+        this.metrics = metrics;
+        this.properties = properties;
     }
 
-    @Scheduled(fixedDelayString = "${criticality.interval-ms:120000}")
+    @Scheduled(fixedDelayString = "${criticality.interval-ms:30000}")
     public void evaluate() {
-        if (!enabled) return;
+        if (!properties.enabled()) return;
 
-        Map<String, Double> loads      = computeLoads();
-        Map<String, Double> thresholds = computeThresholds();
-        Map<String, List<String>> neighbours = buildNeighbourGraph();
+        CriticalitySnapshot snapshot = computeSnapshot();
+        CriticalityLevel level = CriticalityLevel.from(
+                snapshot.criticalityIndex(),
+                properties.thresholdStable(),
+                properties.thresholdWarning());
 
-        if (loads.isEmpty()) return;
-
-        SandpileSimulator simulator = new SandpileSimulator(loads, thresholds, neighbours);
-        List<String> toppled = simulator.stabilise();
-        double c = simulator.criticalityIndex();
-
-        CriticalityLevel level = CriticalityLevel.from(c);
+        // Record Prometheus metrics
+        metrics.recordCriticalityIndex(snapshot.criticalityIndex());
+        snapshot.loads().forEach(metrics::recordWorkerLoad);
+        snapshot.toppled().forEach(metrics::recordToppleEvent);
 
         switch (level) {
-            case STABLE -> log.debug("CriticalityMonitor: C={} (STABLE)", format(c));
+            case STABLE -> log.debug("CriticalityMonitor: C={} (STABLE)", format(snapshot.criticalityIndex()));
             case WARNING -> log.warn("CriticalityMonitor: C={} (WARNING) — toppled: {}",
-                    format(c), toppled);
+                    format(snapshot.criticalityIndex()), snapshot.toppled());
             case ALERT -> {
                 log.error("CriticalityMonitor: C={} (ALERT) — toppled: {} — publishing SYSTEM_CRITICALITY",
-                        format(c), toppled);
+                        format(snapshot.criticalityIndex()), snapshot.toppled());
                 eventPublisher.publishEvent(
                         SpringPlanEvent.forSystem(SpringPlanEvent.SYSTEM_CRITICALITY));
             }
         }
+    }
+
+    /**
+     * Computes a full criticality snapshot on demand.
+     * Used by both the scheduled evaluation and the REST analytics endpoint.
+     */
+    public CriticalitySnapshot computeSnapshot() {
+        Map<String, Double> loads      = computeLoads();
+        Map<String, Double> thresholds = computeThresholds();
+        Map<String, List<String>> neighbours = buildNeighbourGraph();
+
+        if (loads.isEmpty()) {
+            return new CriticalitySnapshot(0.0, "STABLE",
+                    loads, thresholds, List.of(), loads, Instant.now());
+        }
+
+        SandpileSimulator simulator = new SandpileSimulator(
+                loads, thresholds, neighbours,
+                properties.spilloverRatio(), properties.maxToppleIterations());
+        List<String> toppled = simulator.stabilise();
+        double c = simulator.criticalityIndex();
+
+        String level = CriticalityLevel.from(c,
+                properties.thresholdStable(), properties.thresholdWarning()).name();
+
+        return new CriticalitySnapshot(
+                c, level, loads, thresholds, toppled,
+                simulator.getLoads(), Instant.now());
     }
 
     // ── package-private for testing ──────────────────────────────────────────
@@ -124,7 +150,7 @@ public class CriticalityMonitor {
 
     Map<String, Double> computeThresholds() {
         Map<String, Double> thresholds = new LinkedHashMap<>();
-        double t = targetInventory * 3.0;
+        double t = properties.targetInventory() * 3.0;
         for (WorkerType wt : WorkerType.values()) {
             thresholds.put(wt.name(), t);
         }
@@ -168,9 +194,9 @@ public class CriticalityMonitor {
     enum CriticalityLevel {
         STABLE, WARNING, ALERT;
 
-        static CriticalityLevel from(double c) {
-            if (c >= THRESHOLD_WARNING) return ALERT;
-            if (c >= THRESHOLD_STABLE)  return WARNING;
+        static CriticalityLevel from(double c, double stableThreshold, double warningThreshold) {
+            if (c >= warningThreshold) return ALERT;
+            if (c >= stableThreshold)  return WARNING;
             return STABLE;
         }
     }

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Central Micrometer metrics facade for the orchestrator.
@@ -157,5 +158,49 @@ public class OrchestratorMetrics {
                         .description("Tokens earned (credited) by worker type and credit source")
                         .register(registry)
         ).increment(amount);
+    }
+
+    // ─── Criticality (#56) ──────────────────────────────────────────────────
+
+    /** Backing store for the criticality index gauge — updated each evaluation cycle. */
+    private final AtomicReference<Double> criticalityIndexValue = new AtomicReference<>(0.0);
+
+    /** Per-workerType load gauges — updated each evaluation cycle. */
+    private final ConcurrentHashMap<String, AtomicReference<Double>> criticalityLoads = new ConcurrentHashMap<>();
+
+    /** Per-workerType topple counters. */
+    private final ConcurrentHashMap<String, Counter> criticalityTopples = new ConcurrentHashMap<>();
+
+    /** Flag to register the global criticality index gauge only once. */
+    private volatile boolean criticalityGaugeRegistered = false;
+
+    public void recordCriticalityIndex(double index) {
+        criticalityIndexValue.set(index);
+        if (!criticalityGaugeRegistered) {
+            Gauge.builder("orchestrator.criticality.index", criticalityIndexValue, AtomicReference::get)
+                    .description("Overall system criticality index C = max(load/threshold)")
+                    .register(registry);
+            criticalityGaugeRegistered = true;
+        }
+    }
+
+    public void recordWorkerLoad(String workerType, double load) {
+        criticalityLoads.computeIfAbsent(workerType, wt -> {
+            AtomicReference<Double> ref = new AtomicReference<>(0.0);
+            Gauge.builder("orchestrator.criticality.load", ref, AtomicReference::get)
+                    .tag("worker_type", wt)
+                    .description("Per-WorkerType load in the sandpile model")
+                    .register(registry);
+            return ref;
+        }).set(load);
+    }
+
+    public void recordToppleEvent(String workerType) {
+        criticalityTopples.computeIfAbsent(workerType, wt ->
+                Counter.builder("orchestrator.criticality.topples")
+                        .tag("worker_type", wt)
+                        .description("Topple events per WorkerType in the sandpile model")
+                        .register(registry)
+        ).increment();
     }
 }

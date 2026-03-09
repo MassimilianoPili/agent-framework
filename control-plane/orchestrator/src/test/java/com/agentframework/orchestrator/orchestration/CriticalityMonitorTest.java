@@ -1,7 +1,9 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.config.CriticalityProperties;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.event.SpringPlanEvent;
+import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.repository.PlanItemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,14 +19,15 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for {@link CriticalityMonitor}.
+ * Unit tests for {@link CriticalityMonitor} (#56).
  *
- * <p>Uses Mockito to mock {@link PlanItemRepository} and {@link ApplicationEventPublisher},
- * and {@link ReflectionTestUtils} to inject {@code @Value} fields.
+ * <p>Uses Mockito to mock {@link PlanItemRepository}, {@link ApplicationEventPublisher},
+ * and {@link OrchestratorMetrics}. {@link CriticalityProperties} is instantiated directly
+ * (no ReflectionTestUtils needed for config fields).</p>
  */
 @ExtendWith(MockitoExtension.class)
 class CriticalityMonitorTest {
@@ -35,14 +38,18 @@ class CriticalityMonitorTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private OrchestratorMetrics metrics;
+
     private CriticalityMonitor monitor;
+
+    private static final CriticalityProperties DEFAULT_PROPS =
+            new CriticalityProperties(true, 30_000L, 5, 0.3, 50, 0.5, 0.8);
 
     @BeforeEach
     void setUp() {
-        monitor = new CriticalityMonitor(planItemRepository, eventPublisher);
-        ReflectionTestUtils.setField(monitor, "targetInventory", 5);
+        monitor = new CriticalityMonitor(planItemRepository, eventPublisher, metrics, DEFAULT_PROPS);
         ReflectionTestUtils.setField(monitor, "staleTimeoutMinutes", 30);
-        ReflectionTestUtils.setField(monitor, "enabled", true);
     }
 
     @Test
@@ -85,6 +92,7 @@ class CriticalityMonitorTest {
         monitor.evaluate();
 
         verify(eventPublisher, never()).publishEvent(any());
+        verify(metrics).recordCriticalityIndex(anyDouble());
     }
 
     @Test
@@ -100,6 +108,7 @@ class CriticalityMonitorTest {
         monitor.evaluate();
 
         verify(eventPublisher, never()).publishEvent(any());
+        verify(metrics).recordCriticalityIndex(anyDouble());
     }
 
     @Test
@@ -124,11 +133,68 @@ class CriticalityMonitorTest {
 
     @Test
     void evaluate_disabled_doesNothing() {
-        ReflectionTestUtils.setField(monitor, "enabled", false);
+        CriticalityProperties disabledProps = new CriticalityProperties(
+                false, 30_000L, 5, 0.3, 50, 0.5, 0.8);
+        monitor = new CriticalityMonitor(planItemRepository, eventPublisher, metrics, disabledProps);
 
         monitor.evaluate();
 
         verifyNoInteractions(planItemRepository);
         verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(metrics);
+    }
+
+    @Test
+    void computeSnapshot_emptyLoads_returnsStableSnapshot() {
+        when(planItemRepository.countPendingByWorkerType()).thenReturn(Collections.emptyList());
+        when(planItemRepository.countFailedByWorkerType()).thenReturn(Collections.emptyList());
+        when(planItemRepository.countStaleDispatchedByWorkerType(any(Instant.class)))
+                .thenReturn(Collections.emptyList());
+
+        CriticalitySnapshot snapshot = monitor.computeSnapshot();
+
+        assertThat(snapshot.criticalityIndex()).isEqualTo(0.0);
+        assertThat(snapshot.level()).isEqualTo("STABLE");
+        assertThat(snapshot.toppled()).isEmpty();
+    }
+
+    @Test
+    void computeSnapshot_highLoad_topplesAndStabilises() {
+        // BE: 20 pending → load = 20, threshold = 15 → topple
+        // After topple: BE load = 20-15 = 5, spillover to REVIEW and CONTEXT_MANAGER
+        // Post-stabilisation C is computed on the stabilised loads
+        when(planItemRepository.countPendingByWorkerType())
+                .thenReturn(List.<Object[]>of(new Object[]{WorkerType.BE, 20L}));
+        when(planItemRepository.countFailedByWorkerType())
+                .thenReturn(Collections.emptyList());
+        when(planItemRepository.countStaleDispatchedByWorkerType(any(Instant.class)))
+                .thenReturn(Collections.emptyList());
+
+        CriticalitySnapshot snapshot = monitor.computeSnapshot();
+
+        // BE toppled during stabilisation
+        assertThat(snapshot.toppled()).contains("BE");
+        // Pre-stabilisation load was 20
+        assertThat(snapshot.loads().get("BE")).isEqualTo(20.0);
+        // Post-stabilisation BE load is reduced (20 - 15 = 5)
+        assertThat(snapshot.loadsAfterStabilise().get("BE")).isLessThan(20.0);
+    }
+
+    @Test
+    void evaluate_metricsRecorded_forEachWorkerType() {
+        when(planItemRepository.countPendingByWorkerType())
+                .thenReturn(List.<Object[]>of(
+                        new Object[]{WorkerType.BE, 5L},
+                        new Object[]{WorkerType.FE, 3L}));
+        when(planItemRepository.countFailedByWorkerType())
+                .thenReturn(Collections.emptyList());
+        when(planItemRepository.countStaleDispatchedByWorkerType(any(Instant.class)))
+                .thenReturn(Collections.emptyList());
+
+        monitor.evaluate();
+
+        verify(metrics).recordCriticalityIndex(anyDouble());
+        verify(metrics).recordWorkerLoad(eq("BE"), eq(5.0));
+        verify(metrics).recordWorkerLoad(eq("FE"), eq(3.0));
     }
 }

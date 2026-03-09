@@ -348,12 +348,11 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (13 item — nessun codice)
+## Non implementati (12 item — nessun codice)
 
 | # | Item |
 |---|------|
 | 21 | Redis topic splitting per workerType |
-| 31 | Verifiable Compute (firma worker) |
 | 32 | Policy-as-Code Immutabile |
 | 34 | Federazione Multi-Server |
 | 41 | Topological Pattern Detection |
@@ -366,7 +365,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 48 | Content-Addressable Storage |
 | 49 | Quadratic Voting Council |
 
-## Parzialmente implementati (13 item — codice base, estensioni da fare)
+## Parzialmente implementati (14 item — codice base, estensioni da fare)
 
 | # | Item | Cosa c'e' | Cosa manca |
 |---|------|-----------|------------|
@@ -383,6 +382,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 36 | Worker Pool Sizing (Queueing Theory) | `QueueAnalyzer` (Erlang C + Little's Law + CPM delegation), `QueuingCapacityPlanner` (M/G/1 P-K, 8 test), `CriticalPathCalculator` + `TropicalScheduler` (CPM), endpoint `GET /{id}/queue-analysis`, 15 test unitari ✅ S17 | Dashboard Grafana, live queue depth monitoring, multi-worker aggregate |
 | 38 | State Machine Verification (LTL) | `StateMachineVerifier` (BFS model checker, product state space), `@AllowedViolation` annotation, `StateMachineVerificationResult` DTO, 10 test unitari ✅ S15 | Integrazione CI/CD, verifica automatica su schema change |
 | 39 | Policy Lattice Composition | `PolicyLattice` (meet-semilattice, TOP/BOTTOM, wildcard handling), 17 test unitari ✅ S15 | Integrazione in `HookManagerService.resolvePolicy()` |
+| 31 | Verifiable Compute (Ed25519) | `Ed25519Signer` (keygen, sign, verify, key encode/decode — pure Java 21), `SignedResultEnvelope` (record con `sign()` factory + `verify()` TOFU/trusted), 12 test unitari ✅ S18 | Worker-SDK wiring (AbstractWorker signing), Flyway V11 (worker_keys), key registry endpoint, AgentResultConsumer verification |
 | 42 | Global Task Assignment (Hungarian) | `HungarianAlgorithm` (Kuhn-Munkres O(n³), standalone, gestisce matrici rettangolari e +INF), `GlobalAssignmentSolver` (cost matrix da GP predictions, critical path boost, `@ConditionalOnProperty`), `AssignmentResult` DTO (assignments, predictions, totalCost, criticalPath, details), `GlobalAssignmentProperties` + `GlobalAssignmentAutoConfiguration`, integrazione in `OrchestrationService` (pre-assign batch prima del loop per-item, param 36), `PlanController` (`GET /{id}/assignment-preview`, param 17), config `global-assignment:` in application.yml, 15 test unitari (9 HungarianAlgorithm + 6 GlobalAssignmentSolver) ✅ S16 | Tuning critical-path-boost con dati reali, metriche Prometheus, dashboard Grafana |
 
 **Nota**: #5, #8, #9 presenti dall'initial commit (`2c5d7cc`). Il piano li elenca come "da fare"
@@ -1214,9 +1214,15 @@ Se disabilitato (`false`), `onTaskCompleted()` accetta risultati senza firma.
 **Sforzo**: 2g. **Dipendenze**: promuovere `HashUtil` da worker-sdk a agent-common.
 **Impatto**: fondamentale per scenari multi-tenant e worker esterni.
 
+**Implementazione S18** (building blocks crittografici in `agent-common`):
+- `Ed25519Signer.java` — utility statica: `generateKeyPair()`, `sign(byte[], PrivateKey)`, `verify(byte[], String, PublicKey)`, `encodePublicKey/decodePublicKey`, `encodePrivateKey/decodePrivateKey`. Pure Java 21 (`java.security` EdDSA), zero dipendenze esterne. Jagerman-safe (nessun factorial).
+- `SignedResultEnvelope.java` — record: `resultJson`, `workerSignature`, `workerPublicKey`, `signedAt`. Factory `sign()` (payload = `resultJson + "|" + signedAt`), `verify(PublicKey trustedKey)` con TOFU mode (null → usa embedded key).
+- 12 test unitari (@Nested: KeyPair 3, SignVerify 4, Envelope 5). 38 test agent-common totali verdi.
+- **Scope escluso**: worker-SDK wiring, Flyway migration, key registry endpoint, AgentResultConsumer modification.
+
 ---
 
-## #32 — Policy-as-Code Immutabile (Commitment crittografico HookPolicy)
+## #32 — Policy-as-Code Immutabile (Commitment crittografico HookPolicy) ✅
 
 **Problema**: le HookPolicy generate dal HOOK_MANAGER sono conservate in-memory
 (`ConcurrentHashMap` in `HookManagerService`). Un bug, una race condition, o un attore
@@ -1229,29 +1235,25 @@ calcola `policy_hash = SHA-256(canonical_json(policy))` e lo persiste in DB.
 Il worker riceve sia la policy che il suo hash. `PolicyEnforcingToolCallback` verifica
 il match prima di applicare la policy.
 
-**Design**:
+**Implementazione** (completata 2026-03-09):
 
-- Al salvataggio in `HookManagerService.storePolicies()`:
-  - Calcola `SHA-256(canonical_json(policy))` per ogni task
-  - Persiste hash in `plan_items.policy_hash` (nuovo campo, Flyway V11)
-  - L'hash e' immutabile: nessun UPDATE successivo ammesso (enforced da CHECK constraint o applicativo)
-- `AgentTask` include gia' `HookPolicy policy`; aggiungere campo `String policyHash`
-- `PolicyEnforcingToolCallback.initialize()`: ricalcola hash dalla policy ricevuta,
-  confronta con `policyHash`. Mismatch → rifiuta esecuzione, segnala `POLICY_TAMPERED`
-
-```java
-// In PolicyEnforcingToolCallback
-String receivedHash = HashUtil.sha256(canonicalJson(taskPolicy));
-if (!receivedHash.equals(expectedPolicyHash)) {
-    throw new PolicyTamperedException("Policy hash mismatch: expected " + expectedPolicyHash);
-}
-```
-
-**Canonical JSON**: ObjectMapper con `ORDER_MAP_ENTRIES_BY_KEYS = true` e `SORT_PROPERTIES_ALPHABETICALLY = true`
-per garantire determinismo della serializzazione (altrimenti ordini diversi → hash diversi).
+- `PolicyHasher` (agent-common): canonical JSON senza Jackson (hand-built, chiavi ordinate
+  alfabeticamente, liste ordinate), 7 test (determinismo, order-invariance, golden test)
+- `HashedPolicy` record in `HookManagerService`: coppia `(HookPolicy, String hash)`,
+  calcolata al momento dello storage in `storePolicies()` e `storeToolManagerResult()`
+- `resolvePolicyWithHash()`: metodo dedicato che restituisce `Optional<HashedPolicy>`;
+  `resolvePolicy()` delega ad esso per backward compatibility
+- `AgentTask.policyHash` (campo 14 in entrambe le versioni orchestrator/worker-sdk)
+- `PlanItem.policyHash` (VARCHAR(64), Flyway V28)
+- `PolicyEnforcingToolCallback`: ThreadLocal `EXPECTED_POLICY_HASH`, verifica hash PRIMA
+  dell'allowlist check. Mismatch → JSON error `POLICY_TAMPERED` (coerente con denial pattern)
+- `AbstractWorker.process()`: set/clear ThreadLocal nella stessa posizione degli altri ThreadLocal
+- Hash calcolato DOPO `pidBudgetController.adjustPolicy()` (il PID modifica `maxTokenBudget`)
 
 **Sforzo**: 1g. **Dipendenze**: #23 (Enrichment Pipeline — senza HOOK_MANAGER attivo, non ci sono policy).
 **Impatto**: chiude il gap di trust tra generazione e enforcement delle policy.
+**Sinergia**: #31 (Ed25519 Verifiable Compute) — il commitment hash protegge la policy in transito,
+la firma Ed25519 protegge il risultato del worker. Insieme formano una catena di trust completa.
 
 ---
 
@@ -1980,7 +1982,7 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 | — | | | | | | | |
 | 0 | **52** | Finanza | Worker Greeks (B-S) | 1.5g | — | GP engine | Medio-Alto |
 | 0 | **55** | Complessi | Replicator Dynamics | 1.5g | — | ELO data | Medio |
-| 0 | **56** | Complessi | Criticality Monitor (Sandpile) | 1.5g | — | — | Alto |
+| 0 | **56** | Complessi | Criticality Monitor (Sandpile) | 1.5g | — | — | Alto | ✅ |
 | 0 | **58** | Matematica | Spectral DAG Decomposition | 2.0g | — | EJML lib | Alto |
 | 0 | **59** | Matematica | Tropical Scheduler | 1.5g | — | — | Medio-Alto |
 | 0 | **61** | Matematica | Submodular Council Selection | 2.0g | — | EmbeddingModel | Alto |
@@ -2046,12 +2048,12 @@ TIER 3 — Dipende da dipendenze esterne pesanti o Tier 2
 ```
 Fase 1 (fondazioni, ~3.5g):      #30 ✅ → #38 ✅ → #39 ✅
 Fase 2 (pratico, ~5g):           #36 ✅ → #33 ✅ → #40 ✅
-Fase 3 (trust, ~4g):             #31 → #32 → #37
+Fase 3 (trust, ~4g):             #31 ✅ → #32 ✅ → #37
 Fase 4 (avanzato, ~7g):          #34 → #35 ✅ → #42 ✅ → #41 → #43
 Fase 5 (advanced, ~5.5g):        #45 → #47 → #48  (parallelo)
 Fase 6 (~1.5g):                  #46
 Fase 7 (~2.5g):                  #49
-Fase 8a (fondazioni, ~6.5g):     #56 → #59 → #55 → #52
+Fase 8a (fondazioni, ~6.5g):     #56 ✅ → #59 → #55 → #52
 Fase 8b (strutturale, ~6.0g):    #58 → #61 → #57
 Fase 8c (economico, ~6.0g):      #50 → #51 → #53
 Fase 8d (avanzato, ~4.5g):       #54 → #60
@@ -3049,7 +3051,7 @@ TIER 0 — Nessuna dipendenza interna (~10g)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   #52  Worker Greeks (B-S)               1.5g
   #55  Replicator Dynamics               1.5g
-  #56  Criticality Monitor (Sandpile)    1.5g
+  #56  Criticality Monitor (Sandpile)    1.5g  ✅
   #58  Spectral DAG Decomposition        2.0g
   #59  Tropical Critical Path            1.5g
   #61  Submodular Council Selection      2.0g
@@ -3097,7 +3099,7 @@ TIER 2 — Dipende da Tier 1 (~4.5g)
 ### Ordine consigliato di implementazione
 
 ```
-Fase 8a (fondazioni, ~6.5g):   #56 → #59 → #55 → #52
+Fase 8a (fondazioni, ~6.5g):   #56 ✅ → #59 → #55 → #52
 Fase 8b (strutturale, ~6.0g):  #58 → #61 → #57
 Fase 8c (economico, ~6.0g):    #50 → #51 → #53
 Fase 8d (avanzato, ~4.5g):     #54 → #60
