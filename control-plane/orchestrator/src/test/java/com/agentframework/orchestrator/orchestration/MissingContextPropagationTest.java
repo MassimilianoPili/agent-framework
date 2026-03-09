@@ -94,6 +94,7 @@ class MissingContextPropagationTest {
                 tokenLedgerService,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);

@@ -299,6 +299,15 @@ public class PlanItem {
     public String getResultHash() { return resultHash; }
     public void setResultHash(String resultHash) { this.resultHash = resultHash; }
 
+    // ── Policy commitment hash (#32) ──────────────────────────────────────────
+
+    /** SHA-256 commitment hash of the HookPolicy assigned to this task. Null if no policy. */
+    @Column(name = "policy_hash", length = 64)
+    private String policyHash;
+
+    public String getPolicyHash() { return policyHash; }
+    public void setPolicyHash(String policyHash) { this.policyHash = policyHash; }
+
     // ─────────────────────────────────────────────────────────────────────────
 
     // ── Model routing (#20) ──────────────────────────────────────────────────
@@ -338,6 +347,15 @@ public class PlanItem {
 
     public java.math.BigDecimal getEstimatedCostUsd() { return estimatedCostUsd; }
     public void setEstimatedCostUsd(java.math.BigDecimal estimatedCostUsd) { this.estimatedCostUsd = estimatedCostUsd; }
+
+    // ── Reputation staking (#47) ─────────────────────────────────────────────
+
+    /** ELO reputation staked at dispatch. Null if staking is disabled or not applicable. */
+    @Column(name = "staked_amount")
+    private Double stakedAmount;
+
+    public Double getStakedAmount() { return stakedAmount; }
+    public void setStakedAmount(Double stakedAmount) { this.stakedAmount = stakedAmount; }
 
     // ── Task auto-split fields (#26L2) ───────────────────────────────────────
 

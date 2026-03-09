@@ -49,7 +49,7 @@ public class InProcessWorkerAutoConfiguration {
     public WorkerResultProducer workerResultProducer(
             MessageSender sender,
             ObjectMapper objectMapper) {
-        return new WorkerResultProducer(sender, objectMapper, RESULTS_TOPIC);
+        return new WorkerResultProducer(sender, objectMapper, RESULTS_TOPIC, null);
     }
 
     @Bean

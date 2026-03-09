@@ -7,6 +7,8 @@ import com.agentframework.worker.AbstractWorker;
 import com.agentframework.worker.claude.WorkerChatClientFactory;
 import com.agentframework.worker.context.AgentContextBuilder;
 import com.agentframework.worker.context.SkillLoader;
+import com.agentframework.worker.crypto.WorkerCryptoProperties;
+import com.agentframework.worker.crypto.WorkerSigningService;
 import com.agentframework.worker.event.WorkerEventPublisher;
 import com.agentframework.worker.messaging.WorkerResultProducer;
 import com.agentframework.worker.messaging.WorkerTaskConsumer;
@@ -49,17 +51,25 @@ import java.util.Optional;
 @AutoConfiguration
 @ConditionalOnProperty(name = "agent.worker.task-topic")
 @ConditionalOnMissingBean(type = "com.agentframework.messaging.inprocess.InProcessMessageBroker")
-@EnableConfigurationProperties(WorkerProperties.class)
+@EnableConfigurationProperties({WorkerProperties.class, WorkerCryptoProperties.class})
 @Import({SkillLoader.class, AgentContextBuilder.class, WorkerChatClientFactory.class})
 public class WorkerAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    public WorkerSigningService workerSigningService(WorkerCryptoProperties cryptoProps) {
+        return new WorkerSigningService(cryptoProps);
+    }
 
     @Bean
     @ConditionalOnMissingBean
     public WorkerResultProducer workerResultProducer(
             MessageSender sender,
             ObjectMapper objectMapper,
-            WorkerProperties props) {
-        return new WorkerResultProducer(sender, objectMapper, props.getResultsTopic());
+            WorkerProperties props,
+            Optional<WorkerSigningService> signingService) {
+        return new WorkerResultProducer(sender, objectMapper, props.getResultsTopic(),
+                signingService.orElse(null));
     }
 
     @Bean

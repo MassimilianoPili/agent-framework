@@ -14,3 +14,8 @@ messaging:
 # No Redis messaging config needed — InProcessMessageBroker is fully in-memory.
 # Disable Spring Redis auto-config for messaging streams to avoid connection errors
 # if Redis DB 3 is not available. Cache Redis (DB 4/5) is configured in application.yml.
+
+# Ed25519 signing enabled by default for in-process workers (#31)
+agent:
+  crypto:
+    signing-enabled: true

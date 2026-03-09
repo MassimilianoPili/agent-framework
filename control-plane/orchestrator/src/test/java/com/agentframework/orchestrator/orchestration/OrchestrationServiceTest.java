@@ -20,6 +20,7 @@ import com.agentframework.orchestrator.domain.*;
 import com.agentframework.orchestrator.event.PlanCompletedEvent;
 import com.agentframework.orchestrator.event.TaskCompletedSideEffectEvent;
 import com.agentframework.orchestrator.eventsourcing.PlanEventStore;
+import com.agentframework.common.policy.PolicyHasher;
 import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.orchestrator.messaging.AgentTaskProducer;
 import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
@@ -106,6 +107,7 @@ class OrchestrationServiceTest {
                 tokenLedgerService,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
@@ -137,7 +139,7 @@ class OrchestrationServiceTest {
         });
         when(planItemRepository.findDispatchableItems(any(UUID.class))).thenReturn(List.of(item));
         when(planItemRepository.findByPlanId(any(UUID.class))).thenReturn(List.of(item));
-        when(hookManagerService.resolvePolicy(any(), any(), any())).thenReturn(Optional.empty());
+        when(hookManagerService.resolvePolicyWithHash(any(), any(), any())).thenReturn(Optional.empty());
         when(attemptRepository.findMaxAttemptNumber(any())).thenReturn(Optional.of(0));
         when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -631,8 +633,9 @@ class OrchestrationServiceTest {
         when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(item));
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
         when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
-        when(hookManagerService.resolvePolicy(planId, "BE-001", WorkerType.BE))
-                .thenReturn(Optional.of(criticalPolicy));
+        when(hookManagerService.resolvePolicyWithHash(planId, "BE-001", WorkerType.BE))
+                .thenReturn(Optional.of(new HookManagerService.HashedPolicy(
+                        criticalPolicy, PolicyHasher.hash(criticalPolicy))));
         when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(item));
 
@@ -911,7 +914,7 @@ class OrchestrationServiceTest {
         when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(item));
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
-        when(hookManagerService.resolvePolicy(any(), any(), any())).thenReturn(Optional.empty());
+        when(hookManagerService.resolvePolicyWithHash(any(), any(), any())).thenReturn(Optional.empty());
         when(attemptRepository.findMaxAttemptNumber(any())).thenReturn(Optional.of(0));
         when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));

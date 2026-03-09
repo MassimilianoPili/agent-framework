@@ -98,6 +98,7 @@ class KillItemTest {
                 tokenLedgerService,
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);

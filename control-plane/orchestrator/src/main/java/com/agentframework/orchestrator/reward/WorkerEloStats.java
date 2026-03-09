@@ -35,6 +35,18 @@ public class WorkerEloStats {
     @Column(name = "cumulative_reward", nullable = false)
     private double cumulativeReward = 0.0;
 
+    /** ELO currently locked as stakes on in-flight tasks. */
+    @Column(name = "staked_reputation", nullable = false)
+    private double stakedReputation = 0.0;
+
+    /** Cumulative ELO staked across all tasks (historical). */
+    @Column(name = "total_staked", nullable = false)
+    private double totalStaked = 0.0;
+
+    /** Cumulative ELO forfeited due to task failures. */
+    @Column(name = "total_forfeited", nullable = false)
+    private double totalForfeited = 0.0;
+
     @Column(name = "last_updated_at")
     private Instant lastUpdatedAt;
 
@@ -69,6 +81,33 @@ public class WorkerEloStats {
         this.cumulativeReward += reward;
     }
 
+    // ── Staking methods (#47) ───────────────────────────────────────────────
+
+    /** Debits a stake from this profile's reputation pool. */
+    public void addStake(double amount) {
+        this.stakedReputation += amount;
+        this.totalStaked += amount;
+        this.lastUpdatedAt = Instant.now();
+    }
+
+    /**
+     * Settles a stake after task completion.
+     *
+     * @param stakeAmount the amount originally staked
+     * @param success     true if the task completed successfully
+     * @param bonusRate   fraction of stake awarded as bonus on success (e.g. 0.30)
+     */
+    public void settleStake(double stakeAmount, boolean success, double bonusRate) {
+        this.stakedReputation -= stakeAmount;
+        if (success) {
+            this.eloRating += stakeAmount * bonusRate;
+        } else {
+            this.eloRating -= stakeAmount;
+            this.totalForfeited += stakeAmount;
+        }
+        this.lastUpdatedAt = Instant.now();
+    }
+
     // ── Getters ─────────────────────────────────────────────────────────────
 
     public String getWorkerProfile() { return workerProfile; }
@@ -76,5 +115,8 @@ public class WorkerEloStats {
     public int getMatchCount() { return matchCount; }
     public int getWinCount() { return winCount; }
     public double getCumulativeReward() { return cumulativeReward; }
+    public double getStakedReputation() { return stakedReputation; }
+    public double getTotalStaked() { return totalStaked; }
+    public double getTotalForfeited() { return totalForfeited; }
     public Instant getLastUpdatedAt() { return lastUpdatedAt; }
 }
