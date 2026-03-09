@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Information-theoretic context quality scoring (#35).
@@ -28,10 +29,13 @@ import java.util.*;
  *
  * <h3>Metrics</h3>
  * <ol>
- *   <li><b>File Relevance</b> (weight 0.6): ratio of CM-selected files that appear
+ *   <li><b>File Relevance</b> (weight 0.45): ratio of CM-selected files that appear
  *       in the worker's result or file modifications (proxy for Mutual Information)</li>
- *   <li><b>Context Entropy penalty</b> (weight 0.4): penalises contexts that are
+ *   <li><b>Context Entropy penalty</b> (weight 0.30): penalises contexts that are
  *       either too broad (many large dependencies) or too narrow (single tiny dep)</li>
+ *   <li><b>KL Divergence Score</b> (weight 0.25): measures alignment between
+ *       CM-selected and worker-used file distributions. Uses geometric mean of
+ *       bidirectional coverage as a proxy for {@code 1 - D_KL(P_used || P_selected)}</li>
  * </ol>
  */
 @Service
@@ -40,8 +44,9 @@ public class ContextQualityService {
 
     private static final Logger log = LoggerFactory.getLogger(ContextQualityService.class);
 
-    private static final double FILE_RELEVANCE_WEIGHT = 0.6;
-    private static final double ENTROPY_WEIGHT = 0.4;
+    static final double FILE_RELEVANCE_WEIGHT = 0.45;
+    static final double ENTROPY_WEIGHT = 0.30;
+    static final double KL_DIVERGENCE_WEIGHT = 0.25;
 
     private final TaskOutcomeRepository taskOutcomeRepository;
     private final PlanItemRepository planItemRepository;
@@ -60,7 +65,9 @@ public class ContextQualityService {
      * and returns the composite score for reward integration.
      *
      * <p>Reconstructs the context from the item's completed dependencies
-     * (the same data that was sent at dispatch time via {@code buildContextJson}).</p>
+     * (the same data that was sent at dispatch time via {@code buildContextJson}).
+     * Produces a {@link ContextQualityFeedback} with detailed metrics and
+     * actionable suggestions, logged at INFO level for observability.</p>
      *
      * @param item   the completed PlanItem (loaded with plan)
      * @param result the AgentResult with resultJson and fileModifications
@@ -79,22 +86,37 @@ public class ContextQualityService {
             return null;
         }
 
-        double fileRelevance = computeFileRelevance(depResults, result);
+        // Extract file sets once — shared by fileRelevance and klDivergence
+        Set<String> selectedFiles = extractSelectedFiles(depResults);
+        Set<String> usedFiles = extractUsedFiles(result);
+
+        double fileRelevance = computeFileRelevance(selectedFiles, usedFiles);
         double entropyScore = computeEntropyScore(depResults);
+        double klScore = computeKlDivergenceScore(selectedFiles, usedFiles);
+
         double composite = FILE_RELEVANCE_WEIGHT * fileRelevance
-                         + ENTROPY_WEIGHT * entropyScore;
+                         + ENTROPY_WEIGHT * entropyScore
+                         + KL_DIVERGENCE_WEIGHT * klScore;
 
         // Clamp to [0, 1]
         composite = Math.max(0.0, Math.min(1.0, composite));
 
-        // Persist to task_outcomes
+        // Build structured feedback for observability
+        Set<String> unused = computeUnusedSelectedFiles(selectedFiles, usedFiles);
+        Set<String> missing = computeMissingFiles(selectedFiles, usedFiles);
+        String suggestion = buildSuggestion(unused, missing);
+
+        // Persist composite score to task_outcomes for GP training
         taskOutcomeRepository.updateContextQualityScore(item.getId(), composite);
 
-        log.debug("Context quality: task={} fileRelevance={} entropy={} composite={}",
-                  item.getTaskKey(),
-                  String.format("%.3f", fileRelevance),
-                  String.format("%.3f", entropyScore),
-                  String.format("%.3f", composite));
+        log.info("Context quality: task={} composite={} [fileRel={} entropy={} kl={}] "
+                        + "unused={} missing={} | {}",
+                item.getTaskKey(),
+                String.format("%.3f", composite),
+                String.format("%.3f", fileRelevance),
+                String.format("%.3f", entropyScore),
+                String.format("%.3f", klScore),
+                unused.size(), missing.size(), suggestion);
 
         return composite;
     }
@@ -113,24 +135,22 @@ public class ContextQualityService {
      * File Relevance Score — proxy for Mutual Information I(Context; Result).
      *
      * <p>Measures what fraction of CM-selected files appear in the worker's output.
-     * Files are extracted from {@code relevant_files} arrays in dependency results
-     * and matched against file paths in the result JSON and file modifications.</p>
+     * Uses fuzzy path matching (substring containment) to handle different path
+     * representations (relative vs absolute, with/without leading dirs).</p>
      *
      * @return score in [0, 1], or 0.5 if no file selection data available
      */
-    double computeFileRelevance(Map<String, String> depResults, AgentResult result) {
-        Set<String> selectedFiles = extractSelectedFiles(depResults);
+    double computeFileRelevance(Set<String> selectedFiles, Set<String> usedFiles) {
         if (selectedFiles.isEmpty()) {
             return 0.5; // neutral — no CM dependency with relevant_files
         }
 
-        Set<String> usedFiles = extractUsedFiles(result);
         if (usedFiles.isEmpty()) {
             return 0.5; // worker didn't report file usage
         }
 
         long hits = selectedFiles.stream()
-                .filter(f -> usedFiles.stream().anyMatch(u -> u.contains(f) || f.contains(u)))
+                .filter(f -> usedFiles.stream().anyMatch(u -> fuzzyMatch(f, u)))
                 .count();
 
         return (double) hits / selectedFiles.size();
@@ -155,6 +175,79 @@ public class ContextQualityService {
         double sizeFactor = 1.0 - Math.abs(sigmoid((totalLen - 5000.0) / 3000.0) - 0.5) * 2.0;
 
         return depFactor * 0.5 + sizeFactor * 0.5;
+    }
+
+    /**
+     * KL Divergence Score — measures alignment between CM-selected and worker-used files.
+     *
+     * <p>Approximates the KL divergence between the two file distributions using
+     * geometric mean of bidirectional coverage as a proxy:
+     * {@code sqrt(coverage_used × coverage_selected)}, where:
+     * <ul>
+     *   <li>{@code coverage_used = overlap / |used|} — fraction of worker usage covered by CM</li>
+     *   <li>{@code coverage_selected = overlap / |selected|} — fraction of CM selection relevant</li>
+     * </ul>
+     * Returns 1.0 when sets are identical, 0.0 when disjoint.</p>
+     *
+     * @return score in [0, 1], or 0.5 if either set is empty
+     */
+    double computeKlDivergenceScore(Set<String> selectedFiles, Set<String> usedFiles) {
+        if (selectedFiles.isEmpty() || usedFiles.isEmpty()) {
+            return 0.5; // neutral — insufficient data
+        }
+
+        long overlap = usedFiles.stream()
+                .filter(u -> selectedFiles.stream().anyMatch(s -> fuzzyMatch(s, u)))
+                .count();
+
+        if (overlap == 0) {
+            return 0.0; // complete mismatch — maximum divergence
+        }
+
+        double coverageUsed = (double) overlap / usedFiles.size();
+        double coverageSelected = (double) overlap / selectedFiles.size();
+
+        // Geometric mean: penalizes asymmetry (CM selects too many OR worker uses unexpected files)
+        return Math.sqrt(coverageUsed * coverageSelected);
+    }
+
+    // ── Feedback helpers (package-private for testing) ───────────────────────
+
+    /**
+     * Files selected by CM but never referenced by the worker (wasted context).
+     */
+    Set<String> computeUnusedSelectedFiles(Set<String> selected, Set<String> used) {
+        return selected.stream()
+                .filter(s -> used.stream().noneMatch(u -> fuzzyMatch(s, u)))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Files used by the worker but not in CM selection (missing context).
+     */
+    Set<String> computeMissingFiles(Set<String> selected, Set<String> used) {
+        return used.stream()
+                .filter(u -> selected.stream().noneMatch(s -> fuzzyMatch(s, u)))
+                .collect(Collectors.toSet());
+    }
+
+    static String buildSuggestion(Set<String> unused, Set<String> missing) {
+        if (unused.isEmpty() && missing.isEmpty()) {
+            return "Context well-aligned";
+        }
+        StringBuilder sb = new StringBuilder();
+        if (!unused.isEmpty()) {
+            sb.append("Consider removing ").append(unused.size()).append(" unused file(s): ")
+              .append(unused.stream().sorted().limit(3).collect(Collectors.joining(", ")));
+            if (unused.size() > 3) sb.append(", ...");
+        }
+        if (!missing.isEmpty()) {
+            if (!sb.isEmpty()) sb.append(". ");
+            sb.append("Consider adding ").append(missing.size()).append(" missing file(s): ")
+              .append(missing.stream().sorted().limit(3).collect(Collectors.joining(", ")));
+            if (missing.size() > 3) sb.append(", ...");
+        }
+        return sb.toString();
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
@@ -192,7 +285,7 @@ public class ContextQualityService {
         return depResults;
     }
 
-    private Set<String> extractSelectedFiles(Map<String, String> depResults) {
+    Set<String> extractSelectedFiles(Map<String, String> depResults) {
         Set<String> files = new HashSet<>();
         for (String depResult : depResults.values()) {
             if (depResult == null || depResult.isBlank()) continue;
@@ -210,7 +303,7 @@ public class ContextQualityService {
         return files;
     }
 
-    private Set<String> extractUsedFiles(AgentResult result) {
+    Set<String> extractUsedFiles(AgentResult result) {
         Set<String> files = new HashSet<>();
 
         // Extract from result JSON — look for file paths
@@ -258,7 +351,7 @@ public class ContextQualityService {
                 && !text.contains(" ") && !text.startsWith("http");
     }
 
-    private static String normalizeFilePath(String path) {
+    static String normalizeFilePath(String path) {
         if (path == null) return "";
         String normalized = path.replace("\\", "/");
         if (normalized.startsWith("./")) normalized = normalized.substring(2);
@@ -266,7 +359,15 @@ public class ContextQualityService {
         return normalized;
     }
 
-    private static boolean isInfrastructureWorker(WorkerType wt) {
+    /**
+     * Fuzzy path matching: checks if either path contains the other as a substring.
+     * Handles different path representations (relative vs absolute, different roots).
+     */
+    private static boolean fuzzyMatch(String a, String b) {
+        return a.contains(b) || b.contains(a);
+    }
+
+    static boolean isInfrastructureWorker(WorkerType wt) {
         return wt == WorkerType.CONTEXT_MANAGER
                 || wt == WorkerType.HOOK_MANAGER
                 || wt == WorkerType.SCHEMA_MANAGER
