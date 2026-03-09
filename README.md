@@ -25,7 +25,7 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 - **COMPENSATOR_MANAGER**: saga-based compensating transactions via dedicated worker; triggered via `POST .../items/{itemId}/compensate`.
 - **SUB_PLAN**: orchestrator-inline hierarchical sub-plans; depth-guarded (default max-depth: 3); `awaitCompletion` flag controls fire-and-forget vs blocking dispatch.
 - **agent-common module**: canonical `HookPolicy`, `ApprovalMode`, `RiskLevel` in `com.agentframework.common.policy` — single source of truth shared by orchestrator and worker-sdk.
-- **Reward Signal System**: multi-source Bayesian scoring per `PlanItem` (`reviewScore` weight 0.50 + `processScore` weight 0.30 + `qualityGateScore` fallback 0.20); ELO ratings per worker profile (K=32, chess-like) and DPO preference pairs generated automatically at plan completion. Zero additional LLM calls.
+- **Reward Signal System**: 4-source Bayesian scoring per `PlanItem` (`reviewScore` 0.45 + `processScore` 0.25 + `contextQuality` 0.15 + `qualityGateScore` 0.15); weights re-normalised when sources unavailable. ELO ratings per worker profile (K=32, chess-like) and DPO preference pairs generated automatically at plan completion. Zero additional LLM calls.
 - **GP Engine** (`shared/gp-engine`): Gaussian Process regression module for adaptive worker selection. RBF kernel, Cholesky decomposition, posterior caching (`GpModelCache` with TTL). `TaskOutcomeService` records embedding + GP prediction at dispatch, updates actual reward at completion. `GpWorkerSelectionService` selects optimal profile via UCB (Upper Confidence Bound) exploration-exploitation. Conditional on `gp.enabled=true`.
 - **DPO GP Residual**: third preference pair strategy `gp_residual_surprise` — filters cross-profile pairs by GP residual `|actual - predicted|` ≥ 0.15, so the DPO trainer learns from informative surprises rather than obvious outcomes. `gpResidual` field on `PreferencePair` entity stores the informativity score.
 - **Council System**: pre-planning advisory sessions with dynamic member selection (`MANAGER` + `SPECIALIST` workers via `COUNCIL_MANAGER`); `CouncilReport` (8-field record) injected into `PlannerService` to guide task decomposition.
@@ -36,7 +36,15 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 - **Cost Tracking**: per-task token breakdown (`inputTokens`, `outputTokens`, `estimatedCostUsd`) on `PlanItem` (Flyway V13). `CostEstimationService` computes USD cost from configurable model pricing (`cost.models.*`). `GET /api/v1/plans/{planId}/cost` returns plan-level cost summary with per-item breakdown.
 - **Analytics Modules**: `RealOptions` (Black-Scholes task deferral) and `ContractTheory` (mechanism design incentives) for advanced dispatch strategies. REST endpoints in `AnalyticsController`.
 - **TrackerSyncService**: external issue tracker synchronization, controlled by `tracker.sync.enabled` feature-flag (`@ConditionalOnProperty`, disabled by default).
-- **RAG Engine** (`shared/rag-engine`): full search pipeline with hybrid search (pgvector + BM25 + RRF fusion), HyDE query transformation, cascade reranking (cosine → LLM), Apache AGE graph services (knowledge_graph + code_graph), parallel enrichment via Java 21 virtual threads; ingestion pipeline with recursive code chunking + proposition chunking; contextual enrichment (Anthropic pattern); pgvector (1024 dim, HNSW); Redis DB 5 embedding cache. Docker: `sol/postgres:pg16-age` + Ollama (`mxbai-embed-large`).
+- **Context Quality Scoring** (#35): 4th reward source (`contextQuality`, weight 0.15) via information-theoretic analysis of CONTEXT_MANAGER output — file relevance scoring + entropy proxy. Integrated into `RewardComputationService` (Bayesian weighted aggregation) and `BayesianSuccessPredictor` (slot 1027).
+- **Token Economics Double-Entry** (#33): `TokenLedger` entity with append-only double-entry accounting. Debit on token consumption (dispatch), credit on task completion (proportional to `aggregatedReward`). Balance/efficiency tracking per plan. `GET /api/v1/plans/{id}/budget/ledger`.
+- **Adaptive Token Budget PID** (#37): `PidBudgetController` implements a PID (proportional-integral-derivative) controller that dynamically adjusts `HookPolicy.maxTokenBudget` per `planId×workerType`. Closed-loop control: setpoint = budgeted tokens, measured = actual usage, output = adjusted budget.
+- **DAG-aware Shapley Value** (#40): `ShapleyDagService` computes Shapley values at the task level respecting the dependency DAG. Monte Carlo random permutations with DAG-constrained coalition value function `v(S)`. Infrastructure workers (CONTEXT_MANAGER, HOOK_MANAGER) receive positive Shapley credit for enabling downstream domain workers. Integrated with `TokenLedger` (#33) for credit attribution.
+- **Worker Lifecycle Management** (#29): Phase 1b — JVM consolidation for in-process worker execution (multiple worker types in a single JVM). Phase 2 — hybrid deployment with REST dispatch + HTTP callback (`POST /internal/results`). `WorkerController` for listing/cancelling running tasks.
+- **Monitoring Dashboard** (#28/S14): real-time SSE dashboard with conversation history (G1), file modification tracking (G3), and worker event pipeline (G6). Prometheus/Micrometer metrics (G4).
+- **RedisContextCacheStore** (#7): Redis-backed SPI implementation for worker-side context caching with 30-minute TTL. `@ConditionalOnBean` activation — degrades to `NoOpContextCacheStore` when Redis is unavailable.
+- **63 Analytics Services**: game theory (Shapley, VCG, contract theory), finance (real options, prospect theory, Kelly criterion), information theory (Fisher information, MDL), control theory (MPC, PID, H-infinity), formal methods (LTL, Petri nets, CSP), complex systems (replicator dynamics, spin glass, stigmergy), and more. See [Analytics Services](#analytics-services) section.
+- **RAG Engine** (`shared/rag-engine`): full search pipeline with hybrid search (pgvector + BM25 + RRF fusion), HyDE query transformation, cascade reranking (cosine → LLM), Apache AGE graph services (knowledge_graph + code_graph), parallel enrichment via Java 21 virtual threads; ingestion pipeline with recursive code chunking + proposition chunking; contextual enrichment (Anthropic pattern); pgvector (1024 dim, HNSW); Redis DB 5 embedding cache. Docker: `sol/postgres:pg18-age` + Ollama (`mxbai-embed-large`).
 
 ## Architecture
 
@@ -741,9 +749,10 @@ profile and generates DPO preference pairs for offline fine-tuning.
 
 | Source | Weight | When available |
 |--------|--------|----------------|
-| `reviewScore` | 0.50 | After REVIEW worker completes (parsed from `per_task` JSON or global `severity`) |
-| `processScore` | 0.30 | Immediately after each DONE transition (deterministic from `Provenance`) |
-| `qualityGateScore` | 0.20 | After plan completion — fallback for items without `reviewScore` |
+| `reviewScore` | 0.45 | After REVIEW worker completes (parsed from `per_task` JSON or global `severity`) |
+| `processScore` | 0.25 | Immediately after each DONE transition (deterministic from `Provenance`) |
+| `contextQuality` | 0.15 | After CONTEXT_MANAGER completes (#35 — information-theoretic file relevance + entropy proxy) |
+| `qualityGateScore` | 0.15 | After plan completion — fallback for items without `reviewScore` |
 
 Weights are re-normalised when sources are unavailable (e.g. plan without a REVIEW task).
 
@@ -782,6 +791,100 @@ GET /api/v1/rewards/preference-pairs?minDelta=0.3&limit=500
 GET /api/v1/rewards?planId={planId}
 # → NDJSON: {"taskKey":"BE-001","aggregatedReward":0.72,"reviewScore":0.8,"processScore":0.6,…}
 ```
+
+### Token Economics & Advanced Budget
+
+#### Double-Entry Token Ledger (#33)
+
+`TokenLedger` entity provides append-only double-entry accounting for token consumption per plan:
+
+- **DEBIT** entries recorded at dispatch (token consumption from `Provenance.tokenUsage`)
+- **CREDIT** entries recorded at task completion (proportional to `aggregatedReward`)
+- **Shapley CREDIT** entries recorded for infrastructure workers via DAG-aware Shapley (#40)
+- **Balance** tracked per plan (running total), **efficiency ratio** = credits / debits
+
+```bash
+GET /api/v1/plans/{planId}/budget/ledger
+# → {"planId":"…","balance":12450,"efficiency":0.73,"entries":[…]}
+```
+
+Flyway V24 (`token_ledger` table). All ledger operations use `Propagation.REQUIRES_NEW` for isolation.
+
+#### PID Budget Controller (#37)
+
+`PidBudgetController` implements a closed-loop PID controller that dynamically adjusts `HookPolicy.maxTokenBudget` per `planId × workerType`:
+
+- **Setpoint**: budgeted tokens from `HookPolicy.maxTokenBudget`
+- **Measured**: actual tokens consumed (from `Provenance`)
+- **Output**: adjusted budget for next dispatch
+
+```
+error(t) = setpoint - measured
+P = Kp × error(t)                    — proportional correction
+I = Ki × Σ error(τ)                   — integral (accumulated bias)
+D = Kd × (error(t) - error(t-1))     — derivative (rate of change)
+adjusted = setpoint + P + I + D
+```
+
+Configurable via `pid.budget.*` properties (default Kp=0.3, Ki=0.1, Kd=0.05). In-memory state evicted on plan completion.
+
+#### DAG-aware Shapley Value (#40)
+
+`ShapleyDagService` computes Shapley values at the **task level** respecting the dependency DAG. Unlike profile-level `ShapleyValueService` (additive `v(S)`), this uses a DAG-constrained coalition value function where a task contributes only if all its predecessors are in the coalition.
+
+**Algorithm**: Monte Carlo random permutations (Fisher-Yates shuffle) — critically, all permutations are used (not just topological orderings), so infrastructure workers (enablers with reward=0) receive positive credit when they "unlock" blocked successors.
+
+```bash
+GET /api/v1/plans/{planId}/shapley
+# → {"planId":"…","grandCoalitionValue":3.2,"tasks":[{"taskKey":"CM-001","shapleyValue":0.45},…]}
+```
+
+Triggered automatically when all plan items reach DONE (side-effect #9 in `TaskCompletedEventHandler`). Shapley credits for infra workers recorded in `TokenLedger` (#33).
+
+#### Context Quality Scoring (#35)
+
+`ContextQualityService` provides an information-theoretic 4th reward source (`contextQuality`, weight 0.15):
+
+- **File relevance scoring**: measures how relevant the CONTEXT_MANAGER output files are to the domain task
+- **Entropy proxy**: information density of the context provided
+
+Integrated into `RewardComputationService` as the 4th Bayesian-weighted source (Flyway V23, `BayesianSuccessPredictor` slot 1027).
+
+### Worker Lifecycle Management (#29)
+
+Two-phase deployment model for worker execution:
+
+**Phase 1b — JVM Consolidation**: multiple worker types execute in a single JVM process. `WorkerRegistry` manages lifecycle, `ConcurrentHashMap` prevents double-processing.
+
+**Phase 2 — Hybrid Deployment**: workers can run remotely with REST dispatch + HTTP callback:
+- Orchestrator dispatches via `POST /internal/results` callback URL
+- Remote workers receive tasks via REST, execute, and POST results back
+- `ResultCallbackController` receives results in hybrid mode
+
+```bash
+GET /api/v1/workers          # list running task keys
+GET /api/v1/workers/count    # count of running tasks
+POST /api/v1/workers/{taskKey}/cancel  # cancel specific task
+```
+
+### Analytics Services
+
+63 analytics services in `control-plane/orchestrator/src/main/java/.../analytics/`, spanning 10 research domains:
+
+| Domain | Services | Key Classes |
+|--------|----------|-------------|
+| Game Theory | 7 | `ShapleyValue`, `ShapleyDagService`, `VCGMechanism`, `ContractTheory`, `SuperrationalityService` |
+| Finance/Economics | 6 | `RealOptions`, `ProspectTheory`, `HedgeAlgorithm`, `ErgodicBudgetAnalyzer` |
+| Information Theory | 5 | `FisherInformation`, `MDLService`, `InformationBottleneckService`, `BayesianSurpriseService` |
+| Control Theory | 4 | `ModelPredictiveControl`, `HInfinityRobustService`, `ActiveInferenceService` |
+| Formal Methods | 5 | `LTLPolicyVerifier`, `PetriNetAnalyzer`, `CSPChannelVerifier`, `FixedPointAnalyzer` |
+| Complex Systems | 6 | `ReplicatorDynamicsService`, `SpinGlassDispatchService`, `EdgeOfChaosService`, `StigmergyCoordinator` |
+| DAG/Graph | 5 | `CriticalPathCalculator`, `SpectralAnalyzer`, `CausalDag`, `PersistentHomologyService` |
+| Distributed | 3 | `ByzantineFaultToleranceService`, `ChandyLamportSnapshotter`, `ActorModelSupervisor` |
+| Quality/Safety | 5 | `GoodhartDetector`, `CalibrationAudit`, `WorkerDriftMonitor`, `ValueOfInformation`, `PACBayesService` |
+| Optimization | 5 | `CompressedSensingRetriever`, `ThompsonSamplingSelector`, `QueuingCapacityPlanner`, `VotingProtocolService` |
+
+16 analytics REST endpoints exposed via `AnalyticsController`: `/population`, `/worker-drift`, `/prospect-evaluation`, `/hedge-weights`, `/kelly-fraction`, `/stopping-threshold`, `/calibration-report`, `/vcg-pricing`, `/shapley-attribution`, `/shapley-dag`, `/mpc-schedule`, `/fisher-uncertainty`, `/voi-exploration`, `/goodhart-audit`, `/real-options-valuation`, `/contract-evaluation`.
 
 ### SUB_PLAN (Hierarchical Plans)
 
@@ -897,32 +1000,50 @@ curl -X POST http://localhost:8080/api/v1/plans \
 
 | Method | Path | Description |
 |---|---|---|
+| `GET` | `/api/v1/plans` | List recent plans (ordered by createdAt DESC, filterable by status) |
 | `POST` | `/api/v1/plans` | Create and start a new plan |
-| `GET` | `/api/v1/plans/{planId}` | Get plan status and items |
-| `GET` | `/api/v1/plans/{planId}/quality-gate` | Get quality gate report |
-| `POST` | `/api/v1/plans/{planId}/resume` | Resume a PAUSED plan |
-| `GET`  | `/api/v1/plans/{planId}/events` | SSE stream of plan events (late-join replay via `Last-Event-ID`) |
-| `GET`  | `/api/v1/plans/{planId}/graph` | Visual DAG (`?format=mermaid\|json`) |
-| `POST` | `/api/v1/plans/{planId}/items/{itemId}/retry` | Retry a failed plan item (FAILED → WAITING → dep check → dispatch) |
-| `POST` | `/api/v1/plans/{planId}/items/{itemId}/redispatch` | Redispatch FAILED/DONE item directly (→ TO_DISPATCH → DISPATCHED, bypasses deps) |
-| `POST` | `/api/v1/plans/{planId}/items/{itemId}/approve` | Approve AWAITING_APPROVAL item (→ WAITING) |
-| `POST` | `/api/v1/plans/{planId}/items/{itemId}/reject` | Reject AWAITING_APPROVAL item (→ FAILED) |
-| `POST` | `/api/v1/plans/{planId}/items/{itemId}/compensate` | Start compensating transaction via COMPENSATOR_MANAGER |
-| `GET` | `/api/v1/plans/{planId}/items/{itemId}/attempts` | List dispatch attempts for an item |
-| `GET` | `/api/v1/plans/{planId}/snapshots` | List plan snapshots |
-| `POST` | `/api/v1/plans/{planId}/restore/{snapshotId}` | Restore plan from snapshot |
-| `POST` | `/audit/events` | Receive audit event from `audit-log.sh` (AuditManagerService) |
-| `GET`  | `/audit/events?taskKey=` | Query stored audit events |
-| `POST` | `/events/violation` | Receive hook violation event from shell script (EventManagerService) |
-| `GET`  | `/events/violations?taskKey=` | Query violations per task |
-| `GET`  | `/events/health` | Violation count summary |
+| `GET` | `/api/v1/plans/{id}` | Get plan state with item statuses |
+| `POST` | `/api/v1/plans/{id}/cancel` | Cancel RUNNING/PAUSED plan |
+| `POST` | `/api/v1/plans/{id}/resume` | Resume a PAUSED plan |
+| `POST` | `/api/v1/plans/{id}/dispatch` | Manually trigger dispatch of ready items |
+| `POST` | `/api/v1/plans/{id}/compensate` | Plan-level compensation (UNDO, RETRY, AMENDMENT) |
+| `GET` | `/api/v1/plans/{id}/quality-gate` | Get quality gate report |
+| `GET`  | `/api/v1/plans/{id}/events` | SSE stream (late-join replay via `Last-Event-ID`) |
+| `GET`  | `/api/v1/plans/{id}/graph` | Visual DAG (`?format=mermaid\|json`) |
+| `GET` | `/api/v1/plans/{id}/cost` | Total and per-task token usage & estimated USD cost |
+| `GET` | `/api/v1/plans/{id}/budget/ledger` | Double-entry token ledger (balance, efficiency, entries) |
+| `GET` | `/api/v1/plans/{id}/shapley` | DAG-aware Shapley attribution for completed items |
+| `GET` | `/api/v1/plans/{id}/council-report` | Pre-planning council advisory report |
+| `GET` | `/api/v1/plans/{id}/schedule` | Tropical-geometry critical path (EST, LST, float) |
+| `GET` | `/api/v1/plans/{id}/spectral` | Spectral graph metrics (Fiedler value, bottlenecks) |
+| `GET` | `/api/v1/plans/{id}/portfolio-analysis` | Markowitz mean-variance portfolio on worker types |
+| `GET` | `/api/v1/plans/{id}/required-workers` | Worker types needed for non-terminal items |
+| `GET` | `/api/v1/plans/{id}/snapshots` | List plan snapshots |
+| `POST` | `/api/v1/plans/{id}/restore/{snapshotId}` | Restore plan from snapshot |
+| `GET` | `/api/v1/plans/{id}/files` | File modifications for plan |
+| `POST` | `/api/v1/plans/{id}/items/{itemId}/retry` | Retry failed item (→ WAITING → dep check → dispatch) |
+| `POST` | `/api/v1/plans/{id}/items/{itemId}/redispatch` | Redispatch directly (→ TO_DISPATCH, bypasses deps) |
+| `POST` | `/api/v1/plans/{id}/items/{itemId}/approve` | Approve AWAITING_APPROVAL item |
+| `POST` | `/api/v1/plans/{id}/items/{itemId}/reject` | Reject AWAITING_APPROVAL item |
+| `POST` | `/api/v1/plans/{id}/items/{itemId}/compensate` | Start compensating transaction via COMPENSATOR_MANAGER |
+| `POST` | `/api/v1/plans/{id}/items/{itemId}/kill` | Kill DISPATCHED/WAITING task immediately |
+| `POST` | `/api/v1/plans/{id}/items/{itemId}/skip` | Skip WAITING/DISPATCHED item |
+| `GET` | `/api/v1/plans/{id}/items/{itemId}/attempts` | List dispatch attempts for an item |
+| `GET` | `/api/v1/plans/{id}/items/{taskKey}/root-cause` | Pearl's do-calculus root cause analysis |
+| `PUT` | `/api/v1/plans/{id}/items/{itemId}/issue-snapshot` | Store issue snapshot from TASK_MANAGER |
 | `GET` | `/api/v1/rewards` | Per-task reward records, NDJSON (`?planId=` optional) |
 | `GET` | `/api/v1/rewards/stats` | ELO leaderboard per worker profile (JSON) |
 | `GET` | `/api/v1/rewards/preference-pairs` | DPO preference pairs, NDJSON (`?minDelta=0.3&limit=500`) |
-| `GET` | `/api/v1/plans/{planId}/council-report` | Get pre-planning council advisory report |
-| `PUT` | `/api/v1/plans/{planId}/items/{itemId}/issue-snapshot` | Store issue snapshot from TASK_MANAGER |
-| `GET` | `/api/v1/plans/{planId}/cost` | Plan cost summary: total tokens, estimated USD, per-item breakdown |
-| `GET` | `/api/v1/analytics/*` | Analytics: real-options, contract-theory, population, drift, calibration, etc. (16 endpoints) |
+| `GET` | `/api/v1/analytics/*` | 16 analytics endpoints (see [Analytics Services](#analytics-services)) |
+| `GET` | `/api/v1/workers` | List currently running task keys (in-process mode) |
+| `GET` | `/api/v1/workers/count` | Count of running tasks |
+| `POST` | `/api/v1/workers/{taskKey}/cancel` | Cancel specific running task |
+| `POST` | `/internal/results` | Receive task results from remote workers (hybrid mode) |
+| `POST` | `/audit/events` | Receive audit event from `audit-log.sh` (AuditManagerService) |
+| `GET`  | `/audit/events?taskKey=` | Query stored audit events |
+| `POST` | `/events/violation` | Receive hook violation event (EventManagerService) |
+| `GET`  | `/events/violations?taskKey=` | Query violations per task |
+| `GET`  | `/events/health` | Violation count summary |
 
 Attempts and snapshots endpoints return DTOs (`DispatchAttemptResponse`, `PlanSnapshotResponse`), not JPA entities.
 
@@ -1001,9 +1122,9 @@ hooks:
 
 ## Test Coverage
 
-719 unit tests across the three modules (JUnit 5 + Mockito):
+~1097 unit tests across six modules (JUnit 5 + Mockito):
 
-### Orchestrator (576 tests, 85 classes incl. inner)
+### Orchestrator (862 tests, ~120 classes incl. inner)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
@@ -1059,7 +1180,14 @@ hooks:
 | `MissingContextPropagationTest` | 3 | context enrichment loop |
 | `MarketMakingDispatcherTest` | 2 | market-based dispatch |
 | `StaleTaskDetectorSchedulerTest` | 2 | stale task cleanup |
-| _+ 34 more service/analytics test classes_ | | _analytics endpoints, budget, council, etc._ |
+| `ShapleyDagServiceTest` | 13 | DAG-aware Shapley, Monte Carlo, efficiency axiom, ledger credit |
+| `TokenLedgerServiceTest` | 14 | double-entry debit/credit, balance, efficiency, Shapley credit |
+| `PidBudgetControllerTest` | 10 | PID tuning, convergence, windup guard |
+| `LeaderElectionServiceTest` | 3 | PostgreSQL advisory lock leader election |
+| `CancelPlanTest` | 2 | cancel RUNNING/PAUSED plans |
+| `KillItemTest` | 3 | kill DISPATCHED/WAITING items |
+| `OrchestratorMetricsTest` | 4 | Prometheus/Micrometer metrics |
+| _+ 50 more service/analytics test classes_ | | _analytics, budget, council, lifecycle, etc._ |
 
 ### GP Engine (30 tests, 5 classes)
 
@@ -1071,7 +1199,7 @@ hooks:
 | `CholeskyDecompositionTest` | 5 | decompose, solve, positive-definite check |
 | `DenseMatrixTest` | 5 | multiply, transpose, toArray |
 
-### RAG Engine (113 tests, 21 classes)
+### RAG Engine (116 tests, 22 classes)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
@@ -1094,8 +1222,36 @@ hooks:
 | `GraphRagServiceTest` | 4 | parallel cross-graph, empty, null/blank query, correlate |
 | `CosineRerankerTest` | 3 | rescore + sort, topK limit, empty candidates |
 
+### Worker SDK (58 tests, 9 classes)
+
+| Test Class | Tests | Scope |
+|-----------|-------|-------|
+| `ContextCacheInterceptorTest` | 12 | cache hit/miss, TTL, skip-when-disabled |
+| `CompactingToolCallingManagerTest` | 9 | tool call compaction, context limits |
+| `SandboxBuildInterceptorTest` | 7 | sandbox build verification |
+| `PolicyEnforcingToolCallbackTest` | 7 | ownership, audit, tool tracking |
+| `SandboxExecutorTest` | 7 | containerized execution |
+| `AgentContextBuilderTest` | 6 | dependency context, enrichment |
+| `RedisContextCacheStoreTest` | 5 | Redis SPI, TTL, fallback |
+| `WorkerChatClientFactoryModelOverrideTest` | 3 | model routing per task |
+| `ProvenanceModelTest` | 2 | provenance record construction |
+
+### Compiler Plugin (22 tests, 2 classes)
+
+| Test Class | Tests | Scope |
+|-----------|-------|-------|
+| `WorkerGeneratorTest` | 12 | module generation from manifests |
+| `ManifestLoaderTest` | 10 | YAML parsing, validation |
+
+### Common (9 tests, 2 classes)
+
+| Test Class | Tests | Scope |
+|-----------|-------|-------|
+| `HashUtilTest` | 6 | SHA-256 hashing |
+| `ToolNamesTest` | 3 | canonical tool name registry |
+
 ```bash
-# Run all tests (orchestrator + dependencies: common, messaging, rag-engine, gp-engine)
+# Run all tests (orchestrator + dependencies: common, messaging, rag-engine, gp-engine, worker-sdk)
 mvn clean test -pl control-plane/orchestrator -am
 
 # Run orchestrator tests only
@@ -1106,6 +1262,9 @@ cd shared/gp-engine && mvn test
 
 # Run RAG engine tests only
 cd shared/rag-engine && mvn test
+
+# Run worker SDK tests only
+cd execution-plane/worker-sdk && mvn test
 ```
 
 ## Known Gaps
@@ -1156,8 +1315,8 @@ before `build.sh` can invoke it.
 - Java 21 (virtual threads, sequenced collections)
 - Spring Boot 3.4.1
 - Spring AI 1.0.0 (Anthropic, Ollama, pgvector)
-- pgvector (vector similarity search, HNSW index, 1024 dim)
-- Apache AGE (graph extension for PostgreSQL: knowledge_graph + code_graph)
+- PostgreSQL 18 + pgvector (vector similarity search, HNSW index, 1024 dim)
+- Apache AGE v1.7.0 (graph extension for PostgreSQL: knowledge_graph + code_graph + task_graph)
 - Ollama (mxbai-embed-large embedding, qwen2.5:1.5b reranking)
 - GP Engine (Gaussian Process regression for adaptive worker selection, RBF kernel, Cholesky solver)
 - Azure Service Bus / Redis Streams / JMS Artemis
@@ -1199,6 +1358,22 @@ before `build.sh` can invoke it.
 | [Architecture Overview](docs/architecture/overview.md) | Diagrammi architetturali (panoramica) |
 | [Architecture Diagrams](docs/architecture/architecture-diagram.md) | 8 diagrammi Mermaid dettagliati (orchestrazione, dispatch, reward, event sourcing, missing-context, SUB_PLAN, auto-retry, token budget) |
 | [Branching Flow](docs/branching/flow-vertical-horizontal.md) | Strategia branching vertical-horizontal |
+
+## Roadmap (#1-#106)
+
+106 items across 7 phases, documented in detail in [PIANO.md](PIANO.md).
+
+| Phase | Items | Theme | Status |
+|-------|-------|-------|--------|
+| Core (#1-#29) | 29 | Orchestration, messaging, planning, reward, budget, lifecycle | Mostly complete |
+| Blockchain-Inspired (#30-#34) | 5 | Hash chain, worker signatures, policy-as-code, token economics, federation | #33 complete |
+| Mathematical Foundations (#35-#43) | 9 | Context quality, queueing, PID, LTL, lattice, Shapley, topology, assignment, DP | #35, #37, #40 complete |
+| Execution Sandbox (#44) | 1 | Containerized worker isolation | Partial (`SandboxExecutor`) |
+| Advanced Mechanisms (#45-#49) | 5 | Merkle DAG, verifiable council, reputation staking, CAS, quadratic voting | Not implemented |
+| Research Domains (#50-#61) | 12 | Portfolio theory, market making, Greeks, causal inference, evolutionary GT, swarm | All implemented as analytics services |
+| Research Extended (#62-#106) | 45 | VCG, MPC, prospect theory, active inference, BFT, Petri nets, stigmergy, etc. | All implemented as analytics services |
+
+**16 items not yet implemented**: #21 (Redis topic splitting), #24L2 (TOOL_MANAGER), #26L2 (auto-split costly tasks), #30 (hash chain), #31 (verifiable compute), #32 (policy-as-code), #34 (federation), #36 (queueing theory pool sizing), #38 (LTL state machine verification), #39 (policy lattice), #41 (topological pattern detection), #42 (global task assignment), #43 (differential privacy), #45 (Merkle tree DAG), #46 (verifiable council), #47 (reputation staking), #48 (content-addressable storage), #49 (quadratic voting).
 
 ## License
 
