@@ -2,6 +2,7 @@ package com.agentframework.orchestrator.hooks;
 
 import com.agentframework.common.policy.ApprovalMode;
 import com.agentframework.common.policy.HookPolicy;
+import com.agentframework.common.policy.PolicyHasher;
 import com.agentframework.common.policy.RiskLevel;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -30,14 +31,26 @@ import java.util.concurrent.ConcurrentHashMap;
  * to prevent memory growth. This is intentional: if the orchestrator restarts,
  * the HM worker's result is re-read from the database via the completed results
  * map in {@code dispatchReadyItems()}.</p>
+ *
+ * <p>Each stored policy is paired with its SHA-256 commitment hash (#32), computed
+ * at storage time via {@link PolicyHasher}. The hash is propagated in
+ * {@code AgentTask.policyHash} and verified by the worker before enforcement.</p>
  */
 @Service
 public class HookManagerService {
 
     private static final Logger log = LoggerFactory.getLogger(HookManagerService.class);
 
-    /** planId → (taskKey → HookPolicy) */
-    private final Map<UUID, Map<String, HookPolicy>> policiesByPlan = new ConcurrentHashMap<>();
+    /**
+     * A policy paired with its SHA-256 commitment hash (#32).
+     *
+     * @param policy the HookPolicy
+     * @param hash   SHA-256 hex digest of the policy's canonical JSON
+     */
+    public record HashedPolicy(HookPolicy policy, String hash) {}
+
+    /** planId → (taskKey → HashedPolicy) */
+    private final Map<UUID, Map<String, HashedPolicy>> policiesByPlan = new ConcurrentHashMap<>();
 
     private final ObjectMapper objectMapper;
     private final HookPolicyResolver fallbackResolver;
@@ -76,11 +89,13 @@ public class HookManagerService {
                 return;
             }
 
-            Map<String, HookPolicy> policyMap = new ConcurrentHashMap<>();
+            Map<String, HashedPolicy> policyMap = new ConcurrentHashMap<>();
             policies.fields().forEachRemaining(entry -> {
                 try {
                     HookPolicy policy = objectMapper.treeToValue(entry.getValue(), HookPolicy.class);
-                    policyMap.put(entry.getKey(), policy);
+                    String hash = PolicyHasher.hash(policy);
+                    policyMap.put(entry.getKey(), new HashedPolicy(policy, hash));
+                    log.debug("Policy hash for task {} (plan {}): {}", entry.getKey(), planId, hash);
                 } catch (Exception e) {
                     log.warn("Failed to parse HookPolicy for task '{}' in plan {}: {}",
                              entry.getKey(), planId, e.getMessage());
@@ -110,20 +125,37 @@ public class HookManagerService {
      * @return the resolved HookPolicy, or empty if no policy applies
      */
     public Optional<HookPolicy> resolvePolicy(UUID planId, String taskKey, WorkerType workerType) {
-        Map<String, HookPolicy> planPolicies = policiesByPlan.get(planId);
+        return resolvePolicyWithHash(planId, taskKey, workerType)
+                .map(HashedPolicy::policy);
+    }
+
+    /**
+     * Resolves the HookPolicy and its commitment hash for a specific task (#32).
+     *
+     * <p>Same resolution order as {@link #resolvePolicy(UUID, String, WorkerType)},
+     * but returns the {@link HashedPolicy} pair (policy + SHA-256 hash).</p>
+     *
+     * @param planId     the plan the task belongs to
+     * @param taskKey    the task key to look up
+     * @param workerType the worker type (used for fallback resolution)
+     * @return the resolved policy with hash, or empty if no policy applies
+     */
+    public Optional<HashedPolicy> resolvePolicyWithHash(UUID planId, String taskKey, WorkerType workerType) {
+        Map<String, HashedPolicy> planPolicies = policiesByPlan.get(planId);
         if (planPolicies != null) {
-            HookPolicy taskPolicy = planPolicies.get(taskKey);
-            if (taskPolicy != null) {
+            HashedPolicy hashed = planPolicies.get(taskKey);
+            if (hashed != null) {
                 log.debug("Using HM-generated HookPolicy for task {} (plan={})", taskKey, planId);
-                return Optional.of(taskPolicy);
+                return Optional.of(hashed);
             }
         }
 
-        // Fallback: resolve from static config by worker type
+        // Fallback: resolve from static config by worker type, compute hash on-the-fly
         Optional<HookPolicy> fallback = fallbackResolver.resolve(workerType);
-        fallback.ifPresent(p ->
-            log.debug("Using static HookPolicy fallback for task {} (workerType={})", taskKey, workerType));
-        return fallback;
+        return fallback.map(p -> {
+            log.debug("Using static HookPolicy fallback for task {} (workerType={})", taskKey, workerType);
+            return new HashedPolicy(p, PolicyHasher.hash(p));
+        });
     }
 
     /**
@@ -169,12 +201,13 @@ public class HookManagerService {
             HookPolicy policy = new HookPolicy(
                     allowedTools, ownedPaths, allowedMcpServers, true,
                     null, List.of(), ApprovalMode.NONE, 0, RiskLevel.LOW, null, false);
+            String hash = PolicyHasher.hash(policy);
 
             policiesByPlan.computeIfAbsent(planId, k -> new ConcurrentHashMap<>())
-                          .put(targetTaskKey, policy);
+                          .put(targetTaskKey, new HashedPolicy(policy, hash));
 
-            log.info("Tool Manager policy stored for task {} (plan {}): {} tools, {} paths",
-                     targetTaskKey, planId, allowedTools.size(), ownedPaths.size());
+            log.info("Tool Manager policy stored for task {} (plan {}): {} tools, {} paths, hash={}",
+                     targetTaskKey, planId, allowedTools.size(), ownedPaths.size(), hash);
 
         } catch (Exception e) {
             log.warn("Failed to parse ToolManager result for plan {} — policy not stored: {}",

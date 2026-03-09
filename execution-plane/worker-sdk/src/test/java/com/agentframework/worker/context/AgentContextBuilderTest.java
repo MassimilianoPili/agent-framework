@@ -154,6 +154,7 @@ class AgentContextBuilderTest {
                 null,                // traceId
                 null,                // dispatchedAt
                 null,                // policy
+                null,                // policyHash
                 null,                // councilContext
                 null,                // dynamicOwnsPaths
                 null,                // toolHints

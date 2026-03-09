@@ -330,6 +330,7 @@ public abstract class AbstractWorker {
             context = contextBuilder.build(task, resolveSystemPromptFile(task), skillPaths());
             PolicyEnforcingToolCallback.setContextFiles(context.relevantFiles());
             PolicyEnforcingToolCallback.setTaskPolicy(context.policy()); // task-level HookPolicy (may be null)
+            PolicyEnforcingToolCallback.setExpectedPolicyHash(task.policyHash()); // #32: commitment hash
             PolicyEnforcingToolCallback.setDynamicOwnsPaths(task.dynamicOwnsPaths());
 
             // Run beforeExecute interceptors
@@ -484,6 +485,7 @@ public abstract class AbstractWorker {
             PolicyEnforcingToolCallback.clearFileMods();       // G3: clear file mod accumulator
             PolicyEnforcingToolCallback.clearContextFiles(); // clear read-context allowlist
             PolicyEnforcingToolCallback.clearTaskPolicy();   // clear task-level HookPolicy
+            PolicyEnforcingToolCallback.clearExpectedPolicyHash(); // #32: clear policy commitment hash
             PolicyEnforcingToolCallback.clearDynamicOwnsPaths(); // clear dynamic ownsPaths
             PolicyEnforcingToolCallback.clearCurrentContext();     // G6: clear plan/task context
             PolicyEnforcingToolCallback.clearEventPublisher();     // G6: clear event publisher

@@ -1,6 +1,7 @@
 package com.agentframework.worker.policy;
 
 import com.agentframework.common.policy.HookPolicy;
+import com.agentframework.common.policy.PolicyHasher;
 import com.agentframework.worker.dto.FileModificationEvent;
 import com.agentframework.worker.event.WorkerEventPublisher;
 import com.agentframework.worker.policy.ToolAuditLogger.Outcome;
@@ -77,6 +78,16 @@ public class PolicyEnforcingToolCallback implements ToolCallback {
 
     /** Clears the task-level HookPolicy. Call in finally to prevent ThreadLocal leaks. */
     public static void clearTaskPolicy() { TASK_POLICY.remove(); }
+
+    // #32: Holds the expected SHA-256 commitment hash of the task-level HookPolicy.
+    // When set, executeWithPolicy() verifies the policy hash before every tool call.
+    private static final ThreadLocal<String> EXPECTED_POLICY_HASH = new ThreadLocal<>();
+
+    /** Sets the expected policy commitment hash (#32). Call after AgentContext is built. */
+    public static void setExpectedPolicyHash(String hash) { EXPECTED_POLICY_HASH.set(hash); }
+
+    /** Clears the expected policy hash. Call in finally to prevent ThreadLocal leaks. */
+    public static void clearExpectedPolicyHash() { EXPECTED_POLICY_HASH.remove(); }
 
     // Holds dynamic ownsPaths resolved from Plan.projectPath + profile's relative paths.
     // Merged with the static/task-policy ownsPaths for the current task.
@@ -171,8 +182,19 @@ public class PolicyEnforcingToolCallback implements ToolCallback {
         TOOL_NAMES.get().add(toolName);
         long startMs = System.currentTimeMillis();
 
-        // 0. Task-level tool allowlist check (HookPolicy from HOOK_MANAGER overrides static config)
+        // -1. Policy commitment hash verification (#32) — tampered policy → deny all tool calls
         HookPolicy taskPolicy = TASK_POLICY.get();
+        String expectedHash = EXPECTED_POLICY_HASH.get();
+        if (taskPolicy != null && expectedHash != null
+                && !PolicyHasher.verify(taskPolicy, expectedHash)) {
+            String msg = "POLICY_TAMPERED: hash mismatch (expected=" + expectedHash + ")";
+            auditLogger.logToolCall(new ToolAuditEvent(
+                    toolName, workerType, workerProfile,
+                    Outcome.DENIED, 0, null, msg));
+            return "{\"error\":true,\"message\":\"" + escapeJson(msg) + "\"}";
+        }
+
+        // 0. Task-level tool allowlist check (HookPolicy from HOOK_MANAGER overrides static config)
         if (taskPolicy != null && !taskPolicy.allowedTools().isEmpty()
                 && !taskPolicy.allowedTools().contains(toolName)) {
             long durationMs = System.currentTimeMillis() - startMs;

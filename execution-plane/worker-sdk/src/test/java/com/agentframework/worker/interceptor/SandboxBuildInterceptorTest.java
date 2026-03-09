@@ -63,7 +63,7 @@ class SandboxBuildInterceptorTest {
         return new AgentTask(
             UUID.randomUUID(), UUID.randomUUID(), "T1", "title", "desc",
             workerType, workerProfile, null, null, 1, null, null, null,
-            null, null, null, null, null, null
+            null, null, null, null, null, null, null
         );
     }
 
