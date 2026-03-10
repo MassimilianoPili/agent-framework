@@ -120,9 +120,15 @@ public class FunctorialSemanticsService {
         double maxCompositionalityError = 0.0;
 
         if (compositionalityCheck) {
-            // Build adjacency: taskKey of B → set of taskKeys that B depends on (A→B edges)
-            // Equivalently: for each B, its predecessors are its dependsOn list
-            // We need: for each pair (A,B) where A∈B.dependsOn, and (B,C) where B∈C.dependsOn
+            // Build adjacency: for each length-2 path A→B→C, check if the functor
+            // (GP prediction) composes correctly against actual observed rewards.
+            //
+            // predicted_composite(A→C) = gp_mu(C) - gp_mu(A)
+            // actual_composite(A→C) = actual_reward(C) - actual_reward(A)
+            // error = |predicted - actual|
+            //
+            // This is non-trivially zero: it measures whether GP predictions
+            // accurately model reality across composite dependency paths.
             Map<String, PlanItem> keyToItem = new LinkedHashMap<>();
             for (PlanItem item : items) {
                 keyToItem.put(item.getTaskKey(), item);
@@ -130,30 +136,30 @@ public class FunctorialSemanticsService {
 
             for (PlanItem itemC : items) {
                 UUID idC = itemC.getId();
-                Double fc = functor.get(idC);
-                if (fc == null) continue;
+                Double gpC = functor.get(idC);
+                Double actualC = naturalTransform.get(idC);
+                if (gpC == null || actualC == null) continue;
+                // actual_reward(C) = η(C) + F(C) = naturalTransform + functor
+                double realC = gpC + actualC;
 
                 for (String keyB : itemC.getDependsOn()) {
                     PlanItem itemB = keyToItem.get(keyB);
                     if (itemB == null) continue;
                     UUID idB = itemB.getId();
-                    Double fb = functor.get(idB);
-                    if (fb == null) continue;
+                    if (functor.get(idB) == null) continue; // only needed for path existence
 
                     for (String keyA : itemB.getDependsOn()) {
                         UUID idA = keyToId.get(keyA);
                         if (idA == null) continue;
-                        Double fa = functor.get(idA);
-                        if (fa == null) continue;
+                        Double gpA = functor.get(idA);
+                        Double actualA = naturalTransform.get(idA);
+                        if (gpA == null || actualA == null) continue;
+                        double realA = gpA + actualA;
 
-                        // Path A→B→C: compositionality requires F(A→C) ≈ F(A→B) + F(B→C)
-                        // Approximate: F(A→B) = fb - fa, F(B→C) = fc - fb
-                        // Sum = fc - fa; direct = fc - fa → always 0 by linearity
-                        // Use absolute deviation from 0 (testing functor additivity)
-                        double edgeAB = fb - fa;
-                        double edgeBC = fc - fb;
-                        double compositeAC = fc - fa;
-                        double error = Math.abs(compositeAC - (edgeAB + edgeBC));
+                        // Functor prediction for composite path vs actual observation
+                        double predictedComposite = gpC - gpA;
+                        double actualComposite = realC - realA;
+                        double error = Math.abs(predictedComposite - actualComposite);
 
                         if (error > maxCompositionalityError) maxCompositionalityError = error;
                     }

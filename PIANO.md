@@ -348,7 +348,7 @@ B17 L2 (CompactingTCM) ─────► (standalone, BeanPostProcessor nel wor
 
 Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-03-09.
 
-## Non implementati (12 item — nessun codice)
+## Non implementati (5 item — nessun codice)
 
 | # | Item |
 |---|------|
@@ -356,14 +356,7 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 | 32 | Policy-as-Code Immutabile |
 | 34 | Federazione Multi-Server |
 | 41 | Topological Pattern Detection |
-| 42 | Global Task Assignment (combinatoria) |
-| 43 | Differential Privacy metriche | ✅ |
 | 44 | Execution Sandbox Containerizzato |
-| 45 | Merkle Tree DAG Verification |
-| 46 | Verifiable Council Deliberation |
-| 47 | Reputation Staking |
-| 48 | Content-Addressable Storage |
-| 49 | Quadratic Voting Council |
 
 ## Parzialmente implementati (14 item — codice base, estensioni da fare)
 
@@ -2029,7 +2022,7 @@ Fase 3 (trust, ~4g):             #31 ✅ → #32 ✅ → #37 ✅
 Fase 4 (avanzato, ~7g):          #34 ✅ → #35 ✅ → #42 ✅ → #41 ✅ → #43 ✅
 Fase 5 (advanced, ~5.5g):        #45 ✅ → #47 ✅ → #48 ✅  (parallelo)
 Fase 6 (~1.5g):                  #46 ✅
-Fase 7 (~2.5g):                  #49
+Fase 7 (~2.5g):                  #49 ✅
 Fase 8a (fondazioni, ~6.5g):     #56 ✅ → #59 ✅ → #55 ✅ → #52 ✅
 Fase 8b (strutturale, ~6.0g):    #58 ✅ → #61 ✅ → #57 ✅
 Fase 8c (economico, ~6.0g):      #50 ✅ → #51 ✅ → #53 ✅
@@ -2409,6 +2402,19 @@ public class QuadraticVotingService {
 **Sforzo**: 2.5g. **Dipendenze**: nessuna bloccante. Complementare a #46 (le allocazioni QV sono incluse
 nel commitment per audit trail). Sinergia con #40 (Shapley: QV totalVotes come proxy del contributo).
 **Impatto**: alto — prima metrica di intensita' delle preferenze nel council.
+
+**✅ Implementato** (S22, 2026-03-10):
+- `QuadraticVotingService.java`: servizio stateless — computeVoiceCredits (ELO-aware, clamp [70,160]), validateBudget, parseAndAggregate (3-level JSON extraction), aggregate (merge by id), formatForSynthesis, scaleDown (sqrt proportional)
+- `WeightedRecommendation.java`: record top-level (id, text, totalVotes, voters)
+- `CouncilProperties`: +`quadraticVotingEnabled` (default false), +`baseVoiceCredits` (default 100)
+- `CouncilReport`: +`weightedRecommendations` (nullable, `@JsonInclude NON_NULL`)
+- `CouncilService`: +consultMember QV suffix, +parseAndAggregate overlay tra commit-reveal e synthesize, +synthesize con QvAggregation param, +enrichWithGpPrediction copia campo
+- `member-qv.prompt.md`: suffix QV per prompt membro (JSON output con id/text/votesAllocated/rationale)
+- `council-manager.agent.md`: sezione weighted recommendations per prioritizzazione
+- `CouncilPromptLoader`: +loadQvSuffix()
+- Nessuna migration DB (dati QV nel CouncilReport JSON già persistito)
+- 28 test in `QuadraticVotingServiceTest` (nested: VoiceCredits, BudgetValidation, Aggregation, JsonExtraction, ParseAndAggregate, Formatting)
+- 1074 test totali passano
 
 ---
 
@@ -3322,6 +3328,46 @@ Fase 12b (avanzato, ~9.5g):       #98 ✅ → #103 ✅ → #104 ✅ → #106 ✅
 - **GP Engine (#15)** prerequisito per #97, #99, #102 (prior/posterior, reward, convergenza)
 - **OrchestrationService** target di #100, #101, #105, #106 (supervision, snapshot, policy, coordinamento)
 - Nessuna Flyway migration — tutti in-memory, Redis, o metriche runtime
+
+### Audit qualità Fase 9-12 (2026-03-10)
+
+Audit sistematico di tutte le 45 implementazioni (#62-#106). Classificazione:
+- **GENUINE**: implementa l'algoritmo reale dal paper
+- **ACCEPTABLE**: semplificato ma cattura l'insight core
+- **STUB**: query+mean+DTO con naming cosmetico
+
+| Fase | GENUINE | ACCEPTABLE | STUB |
+|------|---------|------------|------|
+| 9 (#62-#76) | 15/15 | 0 | 0 |
+| 10 (#77-#86) | 9/10 | 1 (#86) | 0 |
+| 11 (#87-#96) | 10/10 | 0 | 0 |
+| 12 (#97-#106) | 9/10 | 0 | 1 (#100) |
+| **Totale** | **43** | **1** | **1** |
+
+**Fix applicati (stesso giorno)**:
+
+1. **#100 ActorModelSupervisor — REWRITE** (STUB → GENUINE)
+   - Prima: calcolo crash-rate + soglie, nessuno stato
+   - Dopo: supervision tree con ChildActor (state machine RUNNING→CRASHED→RESTARTING→STOPPED),
+     restart policy (maxRestarts in time window), escalation on limit exceeded,
+     REST_FOR_ONE strategy con ordine di registrazione, restart event history
+   - 11 test (erano 7)
+
+2. **#86 FunctorialSemanticsService — BUG FIX** (ACCEPTABLE → GENUINE)
+   - Bug: `error = |compositeAC - (edgeAB + edgeBC)|` era una tautologia algebrica (sempre 0)
+     perché `(fc-fa) - ((fb-fa)+(fc-fb)) = 0` per telescoping sum
+   - Fix: confronta functor (GP prediction) con ground truth (actual_reward) su path compositi:
+     `error = |(gp_mu(C)-gp_mu(A)) - (actual(C)-actual(A))|`
+   - 7 test (erano 5), inclusi test di non-zero error e non-compositional detection
+
+3. **#101 ChandyLamportSnapshotter — IMPROVEMENT** (ACCEPTABLE → GENUINE)
+   - Prima: solo task_outcomes + PlanEvent, nessun local state reale
+   - Dopo: PlanItemRepository per stato locale reale (WAITING/DISPATCHED/RUNNING/DONE/FAILED),
+     marker sequence (ultimo PlanEvent.sequenceNumber), state-event coherence check
+     (DISPATCHED senza evento = violazione), ProcessState record per item
+   - 8 test (erano 6), inclusi coherence violation e mixed states
+
+**Test suite**: 1082 test, 0 failure (era 1074, +8 test netti)
 
 ### Arricchimenti inclusi (Fasi 9-12)
 

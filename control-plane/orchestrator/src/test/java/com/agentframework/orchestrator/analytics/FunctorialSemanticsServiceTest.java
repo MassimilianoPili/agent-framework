@@ -112,8 +112,8 @@ class FunctorialSemanticsServiceTest {
     }
 
     @Test
-    @DisplayName("compositionality is declared for near-additive functor on length-2 path")
-    void compute_compositionality_nearAdditivePathDeclaredCompositional() {
+    @DisplayName("compositionality: GP predictions match actuals → compositional (error ≈ 0)")
+    void compute_compositionality_gpMatchesActual_compositional() {
         UUID planId = UUID.randomUUID();
         UUID idA = UUID.randomUUID();
         UUID idB = UUID.randomUUID();
@@ -125,20 +125,82 @@ class FunctorialSemanticsServiceTest {
         PlanItem itemC = makeItem(idC, 3, "C", List.of("B"));
 
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(itemA, itemB, itemC));
+        // GP predictions = actual rewards → functor composes perfectly
         when(taskOutcomeRepository.findOutcomeByPlanItemId(idA))
-                .thenReturn(outcomeRow(0.0, 0.0));
+                .thenReturn(outcomeRow(0.2, 0.2));
         when(taskOutcomeRepository.findOutcomeByPlanItemId(idB))
                 .thenReturn(outcomeRow(0.5, 0.5));
         when(taskOutcomeRepository.findOutcomeByPlanItemId(idC))
-                .thenReturn(outcomeRow(1.0, 1.0));
+                .thenReturn(outcomeRow(0.9, 0.9));
 
         FunctorialReport report = service.compute(planId);
 
         assertThat(report).isNotNull();
-        // Compositionality error on A→B→C: edgeAB=0.5, edgeBC=0.5, compositeAC=1.0
-        // error = |1.0 - (0.5+0.5)| = 0.0 → compositional
+        // predicted(A→C) = 0.9-0.2=0.7, actual(A→C) = 0.9-0.2=0.7 → error=0
         assertThat(report.isCompositional()).isTrue();
         assertThat(report.maxCompositionalityError()).isCloseTo(0.0, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("compositionality: GP diverges from actuals → non-zero error")
+    void compute_compositionality_gpDivergesFromActual_nonZeroError() {
+        UUID planId = UUID.randomUUID();
+        UUID idA = UUID.randomUUID();
+        UUID idB = UUID.randomUUID();
+        UUID idC = UUID.randomUUID();
+
+        PlanItem itemA = makeItem(idA, 1, "A", List.of());
+        PlanItem itemB = makeItem(idB, 2, "B", List.of("A"));
+        PlanItem itemC = makeItem(idC, 3, "C", List.of("B"));
+
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(itemA, itemB, itemC));
+        // GP predictions diverge from actual rewards
+        when(taskOutcomeRepository.findOutcomeByPlanItemId(idA))
+                .thenReturn(outcomeRow(0.2, 0.1));  // η = -0.1
+        when(taskOutcomeRepository.findOutcomeByPlanItemId(idB))
+                .thenReturn(outcomeRow(0.5, 0.8));  // η = +0.3
+        when(taskOutcomeRepository.findOutcomeByPlanItemId(idC))
+                .thenReturn(outcomeRow(0.9, 0.5));  // η = -0.4
+
+        FunctorialReport report = service.compute(planId);
+
+        assertThat(report).isNotNull();
+        // predicted(A→C) = 0.9-0.2 = 0.7
+        // actual(A→C) = 0.5-0.1 = 0.4
+        // error = |0.7 - 0.4| = 0.3 → exactly at threshold → still compositional
+        assertThat(report.maxCompositionalityError()).isCloseTo(0.3, within(1e-9));
+        assertThat(report.isCompositional()).isTrue(); // ≤ 0.3 threshold
+    }
+
+    @Test
+    @DisplayName("compositionality: large GP divergence → non-compositional")
+    void compute_compositionality_largeDivergence_nonCompositional() {
+        UUID planId = UUID.randomUUID();
+        UUID idA = UUID.randomUUID();
+        UUID idB = UUID.randomUUID();
+        UUID idC = UUID.randomUUID();
+
+        PlanItem itemA = makeItem(idA, 1, "A", List.of());
+        PlanItem itemB = makeItem(idB, 2, "B", List.of("A"));
+        PlanItem itemC = makeItem(idC, 3, "C", List.of("B"));
+
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(itemA, itemB, itemC));
+        // GP predicts increasing trend, actual is flat
+        when(taskOutcomeRepository.findOutcomeByPlanItemId(idA))
+                .thenReturn(outcomeRow(0.1, 0.5));  // η = +0.4
+        when(taskOutcomeRepository.findOutcomeByPlanItemId(idB))
+                .thenReturn(outcomeRow(0.5, 0.5));  // η = 0.0
+        when(taskOutcomeRepository.findOutcomeByPlanItemId(idC))
+                .thenReturn(outcomeRow(0.9, 0.5));  // η = -0.4
+
+        FunctorialReport report = service.compute(planId);
+
+        assertThat(report).isNotNull();
+        // predicted(A→C) = 0.9-0.1 = 0.8
+        // actual(A→C) = 0.5-0.5 = 0.0
+        // error = |0.8 - 0.0| = 0.8 → exceeds 0.3 threshold
+        assertThat(report.maxCompositionalityError()).isCloseTo(0.8, within(1e-9));
+        assertThat(report.isCompositional()).isFalse();
     }
 
     @Test
