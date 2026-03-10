@@ -102,6 +102,10 @@ public class Plan {
     @Column(name = "compensation_mode", length = 20)
     private CompensationMode compensationMode;
 
+    /** Merkle root: SHA-256 of sorted sink-node dagHashes. Set by DagHashService (#45). */
+    @Column(name = "merkle_root", length = 64)
+    private String merkleRoot;
+
     @Version
     private Long version;
 
@@ -183,6 +187,9 @@ public class Plan {
 
     public CompensationMode getCompensationMode() { return compensationMode; }
     public void setCompensationMode(CompensationMode compensationMode) { this.compensationMode = compensationMode; }
+
+    public String getMerkleRoot() { return merkleRoot; }
+    public void setMerkleRoot(String merkleRoot) { this.merkleRoot = merkleRoot; }
 
     public Long getVersion() { return version; }
 

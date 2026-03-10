@@ -138,6 +138,8 @@ public class OrchestrationService {
     private final GlobalAssignmentSolver globalAssignmentSolver;
     // #47: reputation staking (nullable — only when reputation.staking.enabled=true)
     private final com.agentframework.orchestrator.reward.ReputationStakingService reputationStakingService;
+    // #45: Merkle DAG hash for structural integrity verification
+    private final com.agentframework.orchestrator.graph.DagHashService dagHashService;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -175,7 +177,8 @@ public class OrchestrationService {
                                 Optional<PidBudgetController> pidBudgetController,
                                 Optional<TaskSplitterService> taskSplitterService,
                                 Optional<GlobalAssignmentSolver> globalAssignmentSolver,
-                                Optional<com.agentframework.orchestrator.reward.ReputationStakingService> reputationStakingService) {
+                                Optional<com.agentframework.orchestrator.reward.ReputationStakingService> reputationStakingService,
+                                com.agentframework.orchestrator.graph.DagHashService dagHashService) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -213,6 +216,7 @@ public class OrchestrationService {
         this.taskSplitterService = taskSplitterService.orElse(null);
         this.globalAssignmentSolver = globalAssignmentSolver.orElse(null);
         this.reputationStakingService = reputationStakingService.orElse(null);
+        this.dagHashService = dagHashService;
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -254,7 +258,7 @@ public class OrchestrationService {
         // The CouncilReport is stored on the plan and passed to the planner as enriched context.
         if (councilProperties.enabled() && councilProperties.prePlanningEnabled()) {
             try {
-                CouncilReport councilReport = councilService.conductPrePlanningSession(spec);
+                CouncilReport councilReport = councilService.conductPrePlanningSession(plan.getId(), spec);
                 plan.setCouncilReport(objectMapper.writeValueAsString(councilReport));
                 log.info("Pre-planning council complete: {} members, {} decisions (plan={})",
                          councilReport.selectedMembers() != null ? councilReport.selectedMembers().size() : 0,
@@ -274,6 +278,9 @@ public class OrchestrationService {
         if (enrichmentProperties.autoInject()) {
             enrichmentInjectorService.inject(plan);
         }
+
+        // #45: compute Merkle DAG hashes for structural integrity verification
+        dagHashService.recomputeHashes(plan);
 
         plan.transitionTo(PlanStatus.RUNNING);
         plan = planRepository.save(plan);
@@ -361,6 +368,11 @@ public class OrchestrationService {
                 } catch (Exception e) {
                     log.warn("Failed to store artifact for {}: {}", result.taskKey(), e.getMessage());
                 }
+            }
+
+            // Persist prompt hash from worker provenance (#48)
+            if (result.promptHash() != null) {
+                item.setPromptHash(result.promptHash());
             }
 
             // Cache CONTEXT_MANAGER results so downstream tasks can retrieve context
@@ -1683,7 +1695,7 @@ public class OrchestrationService {
             item.transitionTo(ItemStatus.RUNNING);
 
             CouncilReport report = councilService.conductTaskSession(
-                    item.getTitle(), item.getDescription(), depResults);
+                    plan.getId(), item.getTaskKey(), item.getTitle(), item.getDescription(), depResults);
 
             String resultJson = objectMapper.writeValueAsString(
                     Map.of("council_report", report, "taskKey", item.getTaskKey()));

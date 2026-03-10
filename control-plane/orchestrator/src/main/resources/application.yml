@@ -294,6 +294,8 @@ council:
   pre-planning-enabled: true    # Run council before PlannerService.decompose()
   task-session-enabled: true    # Handle COUNCIL_MANAGER tasks in-process
   submodular-selection-enabled: false  # Use CELF greedy (SubmodularSelector) instead of LLM for member selection
+  quadratic-voting-enabled: false      # #49: Quadratic Voting for recommendation weighting
+  base-voice-credits: 100             # Voice credit budget per council member (QV)
   taste-profile:
     enabled: true               # GP predictor for plan decomposition quality (#13)
     max-training-points: 200    # Max historical plans used for GP fit

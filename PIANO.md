@@ -2027,15 +2027,28 @@ Fase 1 (fondazioni, ~3.5g):      #30 ✅ → #38 ✅ → #39 ✅
 Fase 2 (pratico, ~5g):           #36 ✅ → #33 ✅ → #40 ✅
 Fase 3 (trust, ~4g):             #31 ✅ → #32 ✅ → #37 ✅
 Fase 4 (avanzato, ~7g):          #34 ✅ → #35 ✅ → #42 ✅ → #41 ✅ → #43 ✅
-Fase 5 (advanced, ~5.5g):        #45 → #47 ✅ → #48  (parallelo)
-Fase 6 (~1.5g):                  #46
+Fase 5 (advanced, ~5.5g):        #45 ✅ → #47 ✅ → #48 ✅  (parallelo)
+Fase 6 (~1.5g):                  #46 ✅
 Fase 7 (~2.5g):                  #49
 Fase 8a (fondazioni, ~6.5g):     #56 ✅ → #59 ✅ → #55 ✅ → #52 ✅
 Fase 8b (strutturale, ~6.0g):    #58 ✅ → #61 ✅ → #57 ✅
 Fase 8c (economico, ~6.0g):      #50 ✅ → #51 ✅ → #53 ✅
 Fase 8d (avanzato, ~4.5g):       #54 ✅ → #60 ✅
+Fase 9a (fondazioni, ~8.0g):     #64 ✅ → #65 ✅ → #69 ✅ → #71 ✅ → #75 ✅
+Fase 9b (game theory, ~5.0g):    #62 ✅ → #67 ✅
+Fase 9c (controllo+info, ~10.5g):#63 ✅ → #68 ✅ → #73 ✅ → #74 ✅
+Fase 9d (avanzato, ~5.0g):       #66 ✅ → #70 ✅
+Fase 9e (agent found., ~5.5g):   #76 ✅ → #72 ✅
+Fase 10a (fondazioni, ~6.0g):    #79 ✅ → #82 ✅ → #84 ✅
+Fase 10b (core, ~10.0g):         #77 ✅ → #78 ✅ → #81 ✅ → #83 ✅
+Fase 10c (avanzato, ~8.0g):      #80 ✅ → #85 ✅ → #86 ✅
+Fase 11a (formal+voting, ~9.5g): #87 ✅ → #90 ✅ → #89 ✅ → #88 ✅
+Fase 11b (council+econ, ~6.5g):  #91 ✅ → #95 ✅ → #96 ✅
+Fase 11c (avanzato, ~6.5g):      #93 ✅ → #94 ✅ → #92 ✅
+Fase 12a (core, ~12.0g):         #97 ✅ → #99 ✅ → #100 ✅ → #101 ✅ → #102 ✅ → #105 ✅
+Fase 12b (avanzato, ~9.5g):      #98 ✅ → #103 ✅ → #104 ✅ → #106 ✅
                                    ─────────────────────
-                                   Totale: ~52g (#30-#61)
+                                   Totale: ~155g (#30-#106)
 ```
 
 ### Codice condiviso tra items
@@ -2144,6 +2157,16 @@ public class DagHashService {
 **Sforzo**: 1.5g. **Dipendenze**: `HashUtil` (opz. aspetta #30 per promozione a agent-common, oppure duplica locale).
 **Impatto**: alto — ogni piano ha un fingerprint crittografico verificabile. Prerequisito per federazione (#34).
 
+**✅ Implementato** (S21, 2026-03-10):
+- `DagHashService.java`: Kahn topo-sort con fallback cicli, `recomputeHashes()` + `verify()` non-mutante
+- `DagVerificationResult.java`: record con `valid`, `computedMerkleRoot`, `storedMerkleRoot`, `mismatchedTaskKeys`
+- `PlanItem.dagHash` + `Plan.merkleRoot` (JPA fields)
+- Flyway V32 (V31 gia' occupata da `prompt_hash`)
+- `PlanGraphService.toJson()`: dagHash nei nodi, merkleRoot nella root
+- `PlanController`: `GET /{id}/dag-verify` endpoint
+- Hash call in `OrchestrationService` dopo enrichment injection, prima di `RUNNING`
+- 11 test in `DagHashServiceTest` (nested classes: single, linear, diamond, multi-sink, empty, deterministic, order-independent, verify valid/tampered/merkle/non-mutating)
+
 ---
 
 ## #46 — Verifiable Council Deliberation (Crittografia)
@@ -2188,6 +2211,17 @@ Flyway V12 (`council_commitments` table)
 
 **Sforzo**: 1.5g. **Dipendenze**: `HashUtil`. Nessuna dipendenza bloccante.
 **Impatto**: medio-alto — audit trail crittografico delle deliberazioni. Base per federazione (#34).
+
+**✅ Implementato** (S21, 2026-03-10):
+- `CouncilCommitment.java`: JPA entity con factory `create()`, auto-genera nonce+commitHash, `verify()` con flags
+- `CouncilCommitmentRepository.java`: `findByPlanIdOrderByCommittedAtAsc()`
+- `CouncilCommitmentDto.java`: record audit-only (omette rawOutput e nonce)
+- Flyway V33 (`council_commitments` table + index)
+- `CouncilService`: `commitAndVerify()` privato, SECURITY WARNING per fallimenti, `verifiedViews` a `synthesize()`
+- Signature change: `conductPrePlanningSession(UUID planId, ...)`, `conductTaskSession(UUID planId, String taskKey, ...)`
+- `PlanController`: `GET /{id}/council-audit` endpoint
+- 6 test in `CouncilCommitmentTest` (create/verify/tamper output/tamper nonce/idempotent/flags)
+- `CouncilServiceTest` aggiornato per nuove signature + commitmentRepository mock
 
 ---
 
@@ -2236,7 +2270,7 @@ con GP disabilitato: sigma2=0 → stake basale senza complexity bonus.
 
 ---
 
-## #48 — Content-Addressable Storage per Artifact (Crittografia)
+## #48 — Content-Addressable Storage per Artifact (Crittografia) ✅
 
 **Problema**: i risultati dei worker sono salvati inline in `plan_items.result` (TEXT).
 Nessuna deduplicazione: due task con output identico → due copie. Nessuna verifica di integrita'.
@@ -3132,13 +3166,13 @@ Documentazione completa: [`docs/agent-framework/research-domains.md`](../docs/ag
 ### Ordine implementazione Fase 9
 
 ```
-Fase 9a (fondazioni, ~8.0g):      #64 → #65 → #69 → #71 → #75
-Fase 9b (game theory, ~5.0g):     #62 → #67
-Fase 9c (controllo+info, ~10.5g): #63 → #68 → #73 → #74
-Fase 9d (avanzato, ~5.0g):        #66 → #70
-Fase 9e (agent found., ~5.5g):    #76 → #72
+Fase 9a (fondazioni, ~8.0g):      #64 ✅ → #65 ✅ → #69 ✅ → #71 ✅ → #75 ✅
+Fase 9b (game theory, ~5.0g):     #62 ✅ → #67 ✅
+Fase 9c (controllo+info, ~10.5g): #63 ✅ → #68 ✅ → #73 ✅ → #74 ✅
+Fase 9d (avanzato, ~5.0g):        #66 ✅ → #70 ✅
+Fase 9e (agent found., ~5.5g):    #76 ✅ → #72 ✅
                                    ─────────────────────
-                                   Totale: ~33.0g (#62-#76)
+                                   Totale: ~33.0g (#62-#76) ✅
 ```
 
 ### Dipendenze critiche Fase 9
@@ -3188,11 +3222,11 @@ Consolidamento: research-domains-consolidation.md
 ### Ordine implementazione Fase 10
 
 ```
-Fase 10a (fondazioni, ~6.0g):       #79 → #82 → #84
-Fase 10b (core, ~10.0g):            #77 → #78 → #81 → #83
-Fase 10c (avanzato, ~8.0g):         #80 → #85 → #86
+Fase 10a (fondazioni, ~6.0g):       #79 ✅ → #82 ✅ → #84 ✅
+Fase 10b (core, ~10.0g):            #77 ✅ → #78 ✅ → #81 ✅ → #83 ✅
+Fase 10c (avanzato, ~8.0g):         #80 ✅ → #85 ✅ → #86 ✅
                                      ─────────────────────
-                                     Totale: ~24.0g (#77-#86)
+                                     Totale: ~24.0g (#77-#86) ✅
 ```
 
 ### Dipendenze critiche Fase 10
@@ -3230,11 +3264,11 @@ Fase 10c (avanzato, ~8.0g):         #80 → #85 → #86
 ### Ordine implementazione Fase 11
 
 ```
-Fase 11a (formal+voting, ~9.5g):   #87 → #90 → #89 → #88
-Fase 11b (council+econ, ~6.5g):    #91 → #95 → #96
-Fase 11c (avanzato, ~6.5g):        #93 → #94 → #92
+Fase 11a (formal+voting, ~9.5g):   #87 ✅ → #90 ✅ → #89 ✅ → #88 ✅
+Fase 11b (council+econ, ~6.5g):    #91 ✅ → #95 ✅ → #96 ✅
+Fase 11c (avanzato, ~6.5g):        #93 ✅ → #94 ✅ → #92 ✅
                                      ─────────────────────
-                                     Totale: ~22.5g (#87-#96)
+                                     Totale: ~22.5g (#87-#96) ✅
 ```
 
 ### Dipendenze critiche Fase 11
@@ -3273,10 +3307,10 @@ Fase 11c (avanzato, ~6.5g):        #93 → #94 → #92
 ### Ordine implementazione Fase 12
 
 ```
-Fase 12a (core, ~12.0g):          #97 → #99 → #100 → #101 → #102 → #105
-Fase 12b (avanzato, ~9.5g):       #98 → #103 → #104 → #106
+Fase 12a (core, ~12.0g):          #97 ✅ → #99 ✅ → #100 ✅ → #101 ✅ → #102 ✅ → #105 ✅
+Fase 12b (avanzato, ~9.5g):       #98 ✅ → #103 ✅ → #104 ✅ → #106 ✅
                                     ─────────────────────
-                                    Totale: ~21.5g (#97-#106)
+                                    Totale: ~21.5g (#97-#106) ✅
 ```
 
 ### Dipendenze critiche Fase 12

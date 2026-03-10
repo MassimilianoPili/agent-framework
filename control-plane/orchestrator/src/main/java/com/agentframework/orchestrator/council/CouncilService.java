@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -59,19 +60,25 @@ public class CouncilService {
     private final ObjectMapper objectMapper;
     private final Optional<CouncilRagEnricher> ragEnricher;
     private final Optional<PlanDecompositionPredictor> decompositionPredictor;
+    private final CouncilCommitmentRepository commitmentRepository;
+    private final QuadraticVotingService quadraticVotingService;
 
     public CouncilService(ChatClient chatClient,
                           CouncilPromptLoader promptLoader,
                           CouncilProperties properties,
                           ObjectMapper objectMapper,
                           Optional<CouncilRagEnricher> ragEnricher,
-                          Optional<PlanDecompositionPredictor> decompositionPredictor) {
+                          Optional<PlanDecompositionPredictor> decompositionPredictor,
+                          CouncilCommitmentRepository commitmentRepository,
+                          QuadraticVotingService quadraticVotingService) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.ragEnricher = ragEnricher;
         this.decompositionPredictor = decompositionPredictor;
+        this.commitmentRepository = commitmentRepository;
+        this.quadraticVotingService = quadraticVotingService;
     }
 
     @PreDestroy
@@ -99,7 +106,7 @@ public class CouncilService {
      * @param spec the original natural language specification
      * @return synthesised council consensus
      */
-    public CouncilReport conductPrePlanningSession(String spec) {
+    public CouncilReport conductPrePlanningSession(UUID planId, String spec) {
         log.info("Starting pre-planning council session (maxMembers={})", properties.maxMembers());
 
         // RAG enrichment: augment spec with relevant codebase context before consulting members
@@ -109,7 +116,21 @@ public class CouncilService {
         log.info("Council selected {} members: {}", selected.size(), selected);
 
         Map<String, String> memberViews = consultMembersParallel(enrichedSpec, selected);
-        CouncilReport report = synthesize(enrichedSpec, memberViews);
+
+        // #46: commit-reveal — commit all member outputs, verify, extract verified views
+        Map<String, String> verifiedViews = commitAndVerify(planId, "PRE_PLANNING", null, memberViews);
+
+        // #49: Quadratic Voting aggregation (overlay on verified views)
+        QuadraticVotingService.QvAggregation qvAggregation = null;
+        if (properties.quadraticVotingEnabled()) {
+            qvAggregation = quadraticVotingService.parseAndAggregate(
+                verifiedViews, properties.baseVoiceCredits());
+            log.info("QV aggregation: {} weighted recommendations, {} fallback members",
+                     qvAggregation.weightedRecommendations().size(),
+                     qvAggregation.fallbackMembers().size());
+        }
+
+        CouncilReport report = synthesize(enrichedSpec, verifiedViews, qvAggregation);
 
         // Enrich with GP taste-profile prediction (informational, does not alter LLM decisions)
         report = enrichWithGpPrediction(report, selected.size());
@@ -130,7 +151,8 @@ public class CouncilService {
      * @param dependencyResults JSON results from completed dependency items (taskKey → resultJson)
      * @return synthesised task-scoped council report
      */
-    public CouncilReport conductTaskSession(String taskTitle,
+    public CouncilReport conductTaskSession(UUID planId, String taskKey,
+                                             String taskTitle,
                                              String taskDescription,
                                              Map<String, String> dependencyResults) {
         log.info("Starting task-level council session for: {}", taskTitle);
@@ -145,7 +167,18 @@ public class CouncilService {
         log.info("Task council selected {} members: {}", selected.size(), selected);
 
         Map<String, String> memberViews = consultMembersParallel(enrichedContext, selected);
-        CouncilReport report = synthesize(enrichedContext, memberViews);
+
+        // #46: commit-reveal — commit all member outputs, verify, extract verified views
+        Map<String, String> verifiedViews = commitAndVerify(planId, "TASK", taskKey, memberViews);
+
+        // #49: Quadratic Voting aggregation
+        QuadraticVotingService.QvAggregation qvAggregation = null;
+        if (properties.quadraticVotingEnabled()) {
+            qvAggregation = quadraticVotingService.parseAndAggregate(
+                verifiedViews, properties.baseVoiceCredits());
+        }
+
+        CouncilReport report = synthesize(enrichedContext, verifiedViews, qvAggregation);
 
         log.info("Task council session complete for: {}", taskTitle);
         return report;
@@ -266,7 +299,16 @@ public class CouncilService {
      */
     private String consultMember(String profile, String context) {
         String memberPrompt = promptLoader.loadMemberPrompt(profile);
-        log.debug("Consulting council member: {}", profile);
+
+        // #49: append QV instructions when Quadratic Voting is enabled
+        if (properties.quadraticVotingEnabled()) {
+            String qvSuffix = promptLoader.loadQvSuffix()
+                .replace("{voiceCredits}", String.valueOf(properties.baseVoiceCredits()));
+            memberPrompt = memberPrompt + "\n\n" + qvSuffix;
+        }
+
+        log.debug("Consulting council member: {}{}", profile,
+                  properties.quadraticVotingEnabled() ? " (QV enabled)" : "");
 
         return chatClient.prompt()
             .system(memberPrompt)
@@ -277,8 +319,13 @@ public class CouncilService {
 
     /**
      * Calls the COUNCIL_MANAGER LLM to synthesise all member views into a {@link CouncilReport}.
+     *
+     * @param context      enriched spec or task context
+     * @param memberViews  verified member outputs (profile → raw text)
+     * @param qvAggregation QV aggregation results, or null if QV is disabled
      */
-    private CouncilReport synthesize(String context, Map<String, String> memberViews) {
+    private CouncilReport synthesize(String context, Map<String, String> memberViews,
+                                     QuadraticVotingService.QvAggregation qvAggregation) {
         BeanOutputConverter<CouncilReport> converter = new BeanOutputConverter<>(CouncilReport.class);
 
         StringBuilder memberViewsText = new StringBuilder();
@@ -286,8 +333,14 @@ public class CouncilService {
             memberViewsText.append("### ").append(profile).append("\n").append(view).append("\n\n"));
 
         String userMessage = "Original context:\n" + context
-            + "\n\n## Member Views\n\n" + memberViewsText
-            + "\n\n" + converter.getFormat();
+            + "\n\n## Member Views\n\n" + memberViewsText;
+
+        // #49: inject weighted recommendations into synthesis prompt
+        if (qvAggregation != null && !qvAggregation.weightedRecommendations().isEmpty()) {
+            userMessage += "\n\n" + quadraticVotingService.formatForSynthesis(qvAggregation);
+        }
+
+        userMessage += "\n\n" + converter.getFormat();
 
         String raw = chatClient.prompt()
             .system(promptLoader.loadManagerPrompt())
@@ -303,8 +356,21 @@ public class CouncilService {
                 new ArrayList<>(memberViews.keySet()),
                 List.of(), null, List.of(), null, null, null,
                 memberViews,
-                null, null, null  // taste-profile: null on fallback
+                null, null, null,  // taste-profile: null on fallback
+                qvAggregation != null ? qvAggregation.weightedRecommendations() : null
             );
+        }
+
+        // Attach QV weighted recommendations to the report
+        if (qvAggregation != null) {
+            report = new CouncilReport(
+                report.selectedMembers(), report.architectureDecisions(),
+                report.techStackRationale(), report.securityConsiderations(),
+                report.dataModelingGuidelines(), report.apiDesignGuidelines(),
+                report.testingStrategy(), report.memberInsights(),
+                report.predictedReward(), report.predictionUncertainty(),
+                report.decompositionHint(),
+                qvAggregation.weightedRecommendations());
         }
         return report;
     }
@@ -340,9 +406,43 @@ public class CouncilService {
                             report.techStackRationale(), report.securityConsiderations(),
                             report.dataModelingGuidelines(), report.apiDesignGuidelines(),
                             report.testingStrategy(), report.memberInsights(),
-                            mu, pred.sigma2(), hint);
+                            mu, pred.sigma2(), hint,
+                            report.weightedRecommendations());
                 })
                 .orElse(report);  // cold start: return original report unchanged
+    }
+
+    /**
+     * Commit-reveal: commits all member outputs, verifies integrity, returns only verified views (#46).
+     *
+     * <p>Any member whose hash verification fails is excluded from the synthesis input
+     * and a SECURITY WARNING is logged. This prevents tampered outputs from influencing
+     * the council report.</p>
+     */
+    private Map<String, String> commitAndVerify(UUID planId, String sessionType, String taskKey,
+                                                 Map<String, String> memberViews) {
+        List<CouncilCommitment> commitments = memberViews.entrySet().stream()
+                .map(e -> CouncilCommitment.create(planId, sessionType, taskKey, e.getKey(), e.getValue()))
+                .toList();
+        commitmentRepository.saveAll(commitments);
+
+        Map<String, String> verifiedViews = new LinkedHashMap<>();
+        for (CouncilCommitment commitment : commitments) {
+            if (commitment.verify()) {
+                verifiedViews.put(commitment.getMemberProfile(), commitment.getRawOutput());
+            } else {
+                log.error("SECURITY WARNING: Council commitment verification failed for member={} plan={} session={}",
+                        commitment.getMemberProfile(), planId, sessionType);
+            }
+        }
+        commitmentRepository.saveAll(commitments); // persist verified/verificationFailed flags
+
+        if (verifiedViews.size() < memberViews.size()) {
+            log.warn("Council commit-reveal: {} of {} members failed verification (plan={}, session={})",
+                    memberViews.size() - verifiedViews.size(), memberViews.size(), planId, sessionType);
+        }
+
+        return verifiedViews;
     }
 
     /**

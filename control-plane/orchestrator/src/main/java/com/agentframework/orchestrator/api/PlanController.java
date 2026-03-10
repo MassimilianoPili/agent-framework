@@ -1,9 +1,11 @@
 package com.agentframework.orchestrator.api;
 
+import com.agentframework.orchestrator.api.dto.CouncilCommitmentDto;
 import com.agentframework.orchestrator.api.dto.DispatchAttemptResponse;
 import com.agentframework.orchestrator.api.dto.FileModificationResponse;
 import com.agentframework.orchestrator.api.dto.PlanCostResponse;
 import com.agentframework.orchestrator.api.dto.PlanRequest;
+import com.agentframework.orchestrator.council.CouncilCommitmentRepository;
 import com.agentframework.orchestrator.assignment.AssignmentResult;
 import com.agentframework.orchestrator.assignment.GlobalAssignmentSolver;
 import com.agentframework.orchestrator.analytics.QueueAnalyzer;
@@ -30,6 +32,8 @@ import com.agentframework.orchestrator.domain.Plan;
 import com.agentframework.orchestrator.domain.PlanItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.agentframework.orchestrator.graph.CriticalPathCalculator;
+import com.agentframework.orchestrator.graph.DagHashService;
+import com.agentframework.orchestrator.graph.DagVerificationResult;
 import com.agentframework.orchestrator.graph.PlanGraphService;
 import com.agentframework.orchestrator.graph.SpectralAnalyzer;
 import com.agentframework.orchestrator.graph.SpectralMetrics;
@@ -75,6 +79,8 @@ public class PlanController {
     private final HashChainVerifier hashChainVerifier;
     private final QueueAnalyzer queueAnalyzer;
     private final GlobalAssignmentSolver globalAssignmentSolver;
+    private final DagHashService dagHashService;
+    private final CouncilCommitmentRepository councilCommitmentRepository;
 
     public PlanController(OrchestrationService orchestrationService,
                           PlanSnapshotService snapshotService,
@@ -93,7 +99,9 @@ public class PlanController {
                           ShapleyDagService shapleyDagService,
                           HashChainVerifier hashChainVerifier,
                           QueueAnalyzer queueAnalyzer,
-                          Optional<GlobalAssignmentSolver> globalAssignmentSolver) {
+                          Optional<GlobalAssignmentSolver> globalAssignmentSolver,
+                          DagHashService dagHashService,
+                          CouncilCommitmentRepository councilCommitmentRepository) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
@@ -112,6 +120,8 @@ public class PlanController {
         this.hashChainVerifier = hashChainVerifier;
         this.queueAnalyzer = queueAnalyzer;
         this.globalAssignmentSolver = globalAssignmentSolver.orElse(null);
+        this.dagHashService = dagHashService;
+        this.councilCommitmentRepository = councilCommitmentRepository;
     }
 
     /**
@@ -596,6 +606,20 @@ public class PlanController {
     }
 
     /**
+     * GET /api/v1/plans/{id}/dag-verify
+     *
+     * <p>Verifies the Merkle DAG structural integrity of the plan (#45).
+     * Recomputes all dagHash values and the merkleRoot, then compares
+     * with the stored values. Returns any mismatched task keys.</p>
+     */
+    @GetMapping("/{id}/dag-verify")
+    public ResponseEntity<DagVerificationResult> verifyDag(@PathVariable UUID id) {
+        return planRepository.findById(id)
+            .map(plan -> ResponseEntity.ok(dagHashService.verify(plan)))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
      * GET /api/v1/plans/{id}/schedule
      *
      * <p>Returns the tropical-geometry critical path schedule: EST, LST, float, makespan,
@@ -698,6 +722,22 @@ public class PlanController {
         return ResponseEntity.ok()
             .contentType(MediaType.APPLICATION_JSON)
             .body(report);
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/council-audit
+     *
+     * <p>Returns the commit-reveal audit trail for all council sessions in this plan (#46).
+     * Each entry shows the member profile, commit hash, and verification status.
+     * Raw output and nonce are omitted for security.</p>
+     */
+    @GetMapping("/{id}/council-audit")
+    public ResponseEntity<List<CouncilCommitmentDto>> getCouncilAudit(@PathVariable UUID id) {
+        List<CouncilCommitmentDto> commitments = councilCommitmentRepository
+                .findByPlanIdOrderByCommittedAtAsc(id).stream()
+                .map(CouncilCommitmentDto::from)
+                .toList();
+        return ResponseEntity.ok(commitments);
     }
 
     /**

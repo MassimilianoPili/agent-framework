@@ -13,6 +13,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *   max-members: 5
  *   pre-planning-enabled: true
  *   task-session-enabled: true
+ *   quadratic-voting-enabled: false
+ *   base-voice-credits: 100
  * </pre>
  */
 @ConfigurationProperties(prefix = "council")
@@ -48,13 +50,29 @@ public record CouncilProperties(
      * for council member selection. The submodular approach maximises topic coverage diversity
      * with a provable (1 - 1/e) ≈ 63% optimality guarantee.
      */
-    boolean submodularSelectionEnabled
+    boolean submodularSelectionEnabled,
+
+    /**
+     * When true, enables Quadratic Voting (#49) for council recommendation weighting.
+     * Each member receives voice credits and allocates votes to recommendations with
+     * quadratic cost (k votes cost k² credits). This expresses preference intensity.
+     */
+    boolean quadraticVotingEnabled,
+
+    /**
+     * Base voice credit budget per council member for Quadratic Voting.
+     * Formula: {@code max(70, min(160, base + floor((elo - 1600) / 100) * 10))}.
+     * Currently all council members use the base value (no ELO differentiation).
+     */
+    int baseVoiceCredits
 
 ) {
-    /** Defaults: enabled=true, maxMembers=5, prePlanningEnabled=true, taskSessionEnabled=true, submodularSelectionEnabled=false. */
     public CouncilProperties {
         if (maxMembers <= 0) {
             throw new IllegalArgumentException("council.max-members must be > 0, got: " + maxMembers);
+        }
+        if (baseVoiceCredits < 10) {
+            throw new IllegalArgumentException("council.base-voice-credits must be >= 10, got: " + baseVoiceCredits);
         }
     }
 }

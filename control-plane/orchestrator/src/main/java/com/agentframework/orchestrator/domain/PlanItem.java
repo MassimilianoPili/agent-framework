@@ -299,6 +299,13 @@ public class PlanItem {
     public String getResultHash() { return resultHash; }
     public void setResultHash(String resultHash) { this.resultHash = resultHash; }
 
+    /** SHA-256 of the system prompt sent to the LLM for this task. Enables prompt traceability. */
+    @Column(name = "prompt_hash", length = 64)
+    private String promptHash;
+
+    public String getPromptHash() { return promptHash; }
+    public void setPromptHash(String promptHash) { this.promptHash = promptHash; }
+
     // ── Policy commitment hash (#32) ──────────────────────────────────────────
 
     /** SHA-256 commitment hash of the HookPolicy assigned to this task. Null if no policy. */
@@ -307,6 +314,15 @@ public class PlanItem {
 
     public String getPolicyHash() { return policyHash; }
     public void setPolicyHash(String policyHash) { this.policyHash = policyHash; }
+
+    // ── Merkle DAG hash (#45) ───────────────────────────────────────────────
+
+    /** SHA-256 hash of (taskKey|workerType|title|sorted predecessor dagHashes). Set by DagHashService. */
+    @Column(name = "dag_hash", length = 64)
+    private String dagHash;
+
+    public String getDagHash() { return dagHash; }
+    public void setDagHash(String dagHash) { this.dagHash = dagHash; }
 
     // ─────────────────────────────────────────────────────────────────────────
 
