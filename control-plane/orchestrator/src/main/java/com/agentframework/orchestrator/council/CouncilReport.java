@@ -2,6 +2,8 @@ package com.agentframework.orchestrator.council;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 import java.util.Map;
 
@@ -85,6 +87,16 @@ public record CouncilReport(
      * Example: "GP: predicted reward 0.72 ± 0.15 for a 5-task plan (based on 42 past plans)".
      * Null when GP is in cold-start mode.
      */
-    String decompositionHint
+    String decompositionHint,
+
+    // ── Quadratic Voting (#49) ────────────────────────────────────────────
+
+    /**
+     * Aggregated recommendations weighted by Quadratic Voting.
+     * Each entry carries its vote total and the list of members who voted for it.
+     * Null when QV is disabled or when no member produced valid QV allocations.
+     */
+    @JsonProperty("weightedRecommendations")
+    List<WeightedRecommendation> weightedRecommendations
 
 ) {}

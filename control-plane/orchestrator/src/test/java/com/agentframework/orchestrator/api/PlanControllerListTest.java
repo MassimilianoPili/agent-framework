@@ -58,6 +58,8 @@ class PlanControllerListTest {
     @Mock private ShapleyDagService shapleyDagService;
     @Mock private HashChainVerifier hashChainVerifier;
     @Mock private QueueAnalyzer queueAnalyzer;
+    @Mock private com.agentframework.orchestrator.graph.DagHashService dagHashService;
+    @Mock private com.agentframework.orchestrator.council.CouncilCommitmentRepository councilCommitmentRepository;
 
     private PlanController controller;
 
@@ -73,7 +75,9 @@ class PlanControllerListTest {
                 shapleyDagService,
                 hashChainVerifier,
                 queueAnalyzer,
-                Optional.empty());
+                Optional.empty(),
+                dagHashService,
+                councilCommitmentRepository);
     }
 
     @Test

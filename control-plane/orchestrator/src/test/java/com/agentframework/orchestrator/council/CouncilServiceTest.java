@@ -11,9 +11,11 @@ import org.springframework.ai.chat.client.ChatClient;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.*;
@@ -31,6 +33,9 @@ class CouncilServiceTest {
     @Mock
     private CouncilPromptLoader promptLoader;
 
+    @Mock
+    private CouncilCommitmentRepository commitmentRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private CouncilService service;
@@ -39,14 +44,18 @@ class CouncilServiceTest {
     private ChatClient.ChatClientRequestSpec requestSpec;
     private ChatClient.CallResponseSpec callResponse;
 
+    private static final UUID PLAN_ID = UUID.randomUUID();
+
     private static final CouncilProperties DEFAULT_PROPS =
-        new CouncilProperties(true, 3, true, true, false);
+        new CouncilProperties(true, 3, true, true, false, false, 100);
 
     @BeforeEach
     void setUp() {
-        service = new CouncilService(chatClient, promptLoader, DEFAULT_PROPS, objectMapper, Optional.empty(), Optional.empty());
+        service = new CouncilService(chatClient, promptLoader, DEFAULT_PROPS, objectMapper, Optional.empty(), Optional.empty(), commitmentRepository, new QuadraticVotingService());
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callResponse = mock(ChatClient.CallResponseSpec.class);
+        // Stub commitmentRepository.saveAll to return its input (pass-through)
+        lenient().when(commitmentRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     // ── Pre-planning session ──────────────────────────────────────────────────
@@ -68,7 +77,7 @@ class CouncilServiceTest {
         );
 
         // Act
-        CouncilReport report = service.conductPrePlanningSession("Build a REST API");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Build a REST API");
 
         // Assert
         assertThat(report).isNotNull();
@@ -91,7 +100,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        CouncilReport report = service.conductPrePlanningSession("Data migration task");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Data migration task");
 
         assertThat(report).isNotNull();
         verify(promptLoader).loadMemberPrompt("database-specialist");
@@ -107,7 +116,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        CouncilReport report = service.conductPrePlanningSession("API design spec");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"API design spec");
 
         assertThat(report).isNotNull();
         verify(promptLoader).loadMemberPrompt("api-specialist");
@@ -127,7 +136,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        CouncilReport report = service.conductPrePlanningSession("Some spec");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Some spec");
 
         assertThat(report).isNotNull();
         // Default fallback: ["be-manager", "security-specialist"]
@@ -154,7 +163,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        CouncilReport report = service.conductPrePlanningSession("Some spec");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Some spec");
 
         // The service should still produce a report; the failed member gets an error message
         assertThat(report).isNotNull();
@@ -171,7 +180,7 @@ class CouncilServiceTest {
             "null"
         );
 
-        CouncilReport report = service.conductPrePlanningSession("Some spec");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Some spec");
 
         // Fallback: selectedMembers from memberViews keys, empty lists
         assertThat(report).isNotNull();
@@ -193,7 +202,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        CouncilReport report = service.conductTaskSession(
+        CouncilReport report = service.conductTaskSession(PLAN_ID, "CM_001",
             "Design DB schema",
             "Create tables for user management",
             Map.of()
@@ -221,7 +230,7 @@ class CouncilServiceTest {
             "SM-001", "{\"schema\":\"v1\"}"
         );
 
-        CouncilReport report = service.conductTaskSession(
+        CouncilReport report = service.conductTaskSession(PLAN_ID, "BE_001",
             "Implement user service",
             "CRUD operations for users",
             deps
@@ -243,7 +252,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        CouncilReport report = service.conductTaskSession(
+        CouncilReport report = service.conductTaskSession(PLAN_ID, "TEST_001",
             "Write integration tests",
             "Cover the user service endpoints",
             Map.of()
@@ -267,7 +276,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        service.conductPrePlanningSession("Full-stack app with auth");
+        service.conductPrePlanningSession(PLAN_ID,"Full-stack app with auth");
 
         verify(promptLoader).loadMemberPrompt("fe-manager");
         verify(promptLoader).loadMemberPrompt("api-specialist");
@@ -276,8 +285,8 @@ class CouncilServiceTest {
 
     @Test
     void selectMembers_respectsMaxMembers_passesMaxToPrompt() {
-        CouncilProperties smallProps = new CouncilProperties(true, 2, true, true, false);
-        CouncilService smallService = new CouncilService(chatClient, promptLoader, smallProps, objectMapper, Optional.empty(), Optional.empty());
+        CouncilProperties smallProps = new CouncilProperties(true, 2, true, true, false, false, 100);
+        CouncilService smallService = new CouncilService(chatClient, promptLoader, smallProps, objectMapper, Optional.empty(), Optional.empty(), commitmentRepository, new QuadraticVotingService());
 
         stubPromptLoader();
         stubChatClientChain();
@@ -287,7 +296,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        smallService.conductPrePlanningSession("Simple backend");
+        smallService.conductPrePlanningSession(PLAN_ID, "Simple backend");
 
         // Verify the user message mentions maxMembers=2
         verify(requestSpec, atLeastOnce()).user(contains("up to 2 members"));
@@ -306,7 +315,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        CouncilReport report = service.conductPrePlanningSession("Enterprise API");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Enterprise API");
 
         // Verify both members were consulted (prompt loaded for each)
         verify(promptLoader).loadMemberPrompt("be-manager");
@@ -325,7 +334,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        CouncilReport report = service.conductPrePlanningSession("Security audit");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Security audit");
 
         assertThat(report).isNotNull();
         verify(promptLoader).loadMemberPrompt("security-specialist");
@@ -350,7 +359,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        CouncilReport report = service.conductPrePlanningSession("Database task");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Database task");
 
         // Report should still be produced despite one member failing
         assertThat(report).isNotNull();
@@ -386,7 +395,7 @@ class CouncilServiceTest {
             fullReport
         );
 
-        CouncilReport report = service.conductPrePlanningSession("Complex enterprise app");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Complex enterprise app");
 
         assertThat(report.selectedMembers()).containsExactly("be-manager", "security-specialist");
         assertThat(report.architectureDecisions()).containsExactly("Hexagonal architecture", "CQRS for writes");
@@ -411,7 +420,7 @@ class CouncilServiceTest {
             "null"
         );
 
-        CouncilReport report = service.conductPrePlanningSession("Spec that causes null synthesis");
+        CouncilReport report = service.conductPrePlanningSession(PLAN_ID,"Spec that causes null synthesis");
 
         assertThat(report).isNotNull();
         assertThat(report.selectedMembers()).containsExactly("be-manager");
@@ -435,7 +444,7 @@ class CouncilServiceTest {
             "completely invalid, not JSON"
         );
 
-        assertThatThrownBy(() -> service.conductPrePlanningSession("Bad synthesis spec"))
+        assertThatThrownBy(() -> service.conductPrePlanningSession(PLAN_ID,"Bad synthesis spec"))
             .isInstanceOf(RuntimeException.class);
     }
 
@@ -443,21 +452,21 @@ class CouncilServiceTest {
 
     @Test
     void councilProperties_maxMembersZero_throwsException() {
-        assertThatThrownBy(() -> new CouncilProperties(true, 0, true, true, false))
+        assertThatThrownBy(() -> new CouncilProperties(true, 0, true, true, false, false, 100))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("max-members must be > 0");
     }
 
     @Test
     void councilProperties_maxMembersNegative_throwsException() {
-        assertThatThrownBy(() -> new CouncilProperties(true, -5, true, true, false))
+        assertThatThrownBy(() -> new CouncilProperties(true, -5, true, true, false, false, 100))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("max-members must be > 0");
     }
 
     @Test
     void councilProperties_validProperties_created() {
-        CouncilProperties props = new CouncilProperties(false, 7, false, true, false);
+        CouncilProperties props = new CouncilProperties(false, 7, false, true, false, false, 100);
 
         assertThat(props.enabled()).isFalse();
         assertThat(props.maxMembers()).isEqualTo(7);
@@ -499,7 +508,7 @@ class CouncilServiceTest {
             validCouncilReportJson()
         );
 
-        service.conductPrePlanningSession("Some spec");
+        service.conductPrePlanningSession(PLAN_ID,"Some spec");
 
         // 1 (select) + 2 (consult) + 1 (synthesize) = 4 calls
         verify(chatClient, times(4)).prompt();

@@ -108,7 +108,8 @@ class OrchestrationServiceTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
-                Optional.empty());
+                Optional.empty(),
+                new com.agentframework.orchestrator.graph.DagHashService());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);
@@ -175,18 +176,18 @@ class OrchestrationServiceTest {
         CouncilReport report = new CouncilReport(
                 List.of("be-manager"), List.of("Use Repository pattern"),
                 null, null, null, null, null, Map.of(),
-                null, null, null);
+                null, null, null, null);
 
         when(councilProperties.enabled()).thenReturn(true);
         when(councilProperties.prePlanningEnabled()).thenReturn(true);
-        when(councilService.conductPrePlanningSession(spec)).thenReturn(report);
+        when(councilService.conductPrePlanningSession(any(UUID.class), eq(spec))).thenReturn(report);
         when(plannerService.decompose(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findDispatchableItems(any(UUID.class))).thenReturn(List.of());
 
         Plan result = service.createAndStart(spec, null, null);
 
-        verify(councilService).conductPrePlanningSession(spec);
+        verify(councilService).conductPrePlanningSession(any(UUID.class), eq(spec));
         assertThat(result.getCouncilReport()).isNotNull();
         assertThat(result.getCouncilReport()).contains("be-manager");
     }
@@ -202,7 +203,7 @@ class OrchestrationServiceTest {
 
         Plan result = service.createAndStart(spec, null, null);
 
-        verify(councilService, never()).conductPrePlanningSession(any());
+        verify(councilService, never()).conductPrePlanningSession(any(UUID.class), any());
         assertThat(result.getCouncilReport()).isNull();
     }
 
@@ -212,7 +213,7 @@ class OrchestrationServiceTest {
 
         when(councilProperties.enabled()).thenReturn(true);
         when(councilProperties.prePlanningEnabled()).thenReturn(true);
-        when(councilService.conductPrePlanningSession(spec)).thenThrow(new RuntimeException("LLM timeout"));
+        when(councilService.conductPrePlanningSession(any(UUID.class), eq(spec))).thenThrow(new RuntimeException("LLM timeout"));
         when(plannerService.decompose(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(planItemRepository.findDispatchableItems(any(UUID.class))).thenReturn(List.of());
@@ -592,11 +593,11 @@ class OrchestrationServiceTest {
         CouncilReport report = new CouncilReport(
                 List.of("security-specialist"), List.of("Use OAuth2"),
                 null, null, null, null, null, Map.of(),
-                null, null, null);
+                null, null, null, null);
 
         when(councilProperties.enabled()).thenReturn(true);
         when(councilProperties.taskSessionEnabled()).thenReturn(true);
-        when(councilService.conductTaskSession(eq("Council session"), eq("Advise on auth"), anyMap()))
+        when(councilService.conductTaskSession(any(UUID.class), any(), eq("Council session"), eq("Advise on auth"), anyMap()))
                 .thenReturn(report);
         when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(councilItem));
         when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(councilItem));
@@ -609,7 +610,7 @@ class OrchestrationServiceTest {
 
         assertThat(councilItem.getStatus()).isEqualTo(ItemStatus.DONE);
         assertThat(councilItem.getResult()).contains("council_report");
-        verify(councilService).conductTaskSession(any(), any(), anyMap());
+        verify(councilService).conductTaskSession(any(UUID.class), any(), any(), any(), anyMap());
         verify(taskProducer, never()).dispatch(any());
     }
 

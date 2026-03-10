@@ -39,6 +39,17 @@ You MUST respond with a valid JSON object matching this structure. No markdown, 
 }
 ```
 
+## Weighted Recommendations (Quadratic Voting)
+
+If the input includes a "Weighted Recommendations (Quadratic Voting)" section, this represents
+the aggregate vote allocations from all council members. Higher vote counts indicate stronger
+collective conviction — members paid quadratic cost to allocate those votes.
+
+- **Prioritise** recommendations with more votes when they conflict with lower-voted alternatives
+- **Reference** vote counts in your `architectureDecisions` when relevant (e.g., "Use bcrypt cost=12 [14 votes]")
+- **Do not ignore** low-voted recommendations entirely — they may still be valid for specific scenarios
+- If no weighted recommendations section is present, treat all member views with equal weight
+
 ## Quality Criteria
 
 - `architectureDecisions`: 3–10 items, each a single actionable sentence

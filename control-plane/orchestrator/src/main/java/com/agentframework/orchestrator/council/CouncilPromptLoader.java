@@ -58,6 +58,11 @@ public class CouncilPromptLoader {
      * @return system prompt text
      * @throws RuntimeException if the prompt file is not found
      */
+    /** Loads the Quadratic Voting suffix to append to member prompts when QV is enabled (#49). */
+    public String loadQvSuffix() {
+        return load(BASE + "member-qv.prompt.md");
+    }
+
     public String loadMemberPrompt(String profile) {
         // Determine sub-directory from profile naming convention:
         // profiles ending in "-manager" → managers/, others → specialists/

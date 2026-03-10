@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -29,6 +30,7 @@ class CouncilServiceTasteProfileTest {
     @Mock private ChatClient chatClient;
     @Mock private CouncilPromptLoader promptLoader;
     @Mock private PlanDecompositionPredictor decompositionPredictor;
+    @Mock private CouncilCommitmentRepository commitmentRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -37,14 +39,16 @@ class CouncilServiceTasteProfileTest {
     private ChatClient.CallResponseSpec callResponse;
 
     private static final CouncilProperties PROPS =
-            new CouncilProperties(true, 3, true, true, false);
+            new CouncilProperties(true, 3, true, true, false, false, 100);
 
     @BeforeEach
     void setUp() {
         service = new CouncilService(
                 chatClient, promptLoader, PROPS, objectMapper,
                 Optional.empty(),
-                Optional.of(decompositionPredictor));
+                Optional.of(decompositionPredictor),
+                commitmentRepository,
+                new QuadraticVotingService());
 
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callResponse = mock(ChatClient.CallResponseSpec.class);
@@ -79,7 +83,7 @@ class CouncilServiceTasteProfileTest {
                 + "\"testingStrategy\":null,\"memberInsights\":{},"
                 + "\"predictedReward\":null,\"predictionUncertainty\":null,\"decompositionHint\":null}");
 
-        CouncilReport report = service.conductPrePlanningSession("Build a REST API");
+        CouncilReport report = service.conductPrePlanningSession(UUID.randomUUID(), "Build a REST API");
 
         assertThat(report).isNotNull();
         // GP enrichment: predictedReward should be set
@@ -115,7 +119,7 @@ class CouncilServiceTasteProfileTest {
                 + "\"testingStrategy\":null,\"memberInsights\":{},"
                 + "\"predictedReward\":null,\"predictionUncertainty\":null,\"decompositionHint\":null}");
 
-        CouncilReport report = service.conductPrePlanningSession("Simple script");
+        CouncilReport report = service.conductPrePlanningSession(UUID.randomUUID(), "Simple script");
 
         assertThat(report).isNotNull();
         // Cold start: all GP fields remain null

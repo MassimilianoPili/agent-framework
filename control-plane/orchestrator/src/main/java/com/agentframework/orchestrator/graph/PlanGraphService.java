@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -104,15 +105,18 @@ public class PlanGraphService {
         List<Map<String, String>> edges = new ArrayList<>();
 
         for (PlanItem item : plan.getItems()) {
-            nodes.add(Map.of(
-                "taskKey",      item.getTaskKey(),
-                "title",        item.getTitle(),
-                "workerType",   item.getWorkerType().name(),
-                "workerProfile", item.getWorkerProfile() != null ? item.getWorkerProfile() : "",
-                "status",       item.getStatus().name(),
-                "durationMs",   computeDurationMs(item),
-                "tokensUsed",   extractTokens(item)
-            ));
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("taskKey",      item.getTaskKey());
+            node.put("title",        item.getTitle());
+            node.put("workerType",   item.getWorkerType().name());
+            node.put("workerProfile", item.getWorkerProfile() != null ? item.getWorkerProfile() : "");
+            node.put("status",       item.getStatus().name());
+            node.put("durationMs",   computeDurationMs(item));
+            node.put("tokensUsed",   extractTokens(item));
+            if (item.getDagHash() != null) {
+                node.put("dagHash", item.getDagHash());
+            }
+            nodes.add(node);
             for (String dep : item.getDependsOn()) {
                 edges.add(Map.of(
                     "from", dep,
@@ -123,12 +127,15 @@ public class PlanGraphService {
         }
 
         try {
-            return mapper.writeValueAsString(Map.of(
-                "planId", plan.getId().toString(),
-                "status", plan.getStatus().name(),
-                "nodes",  nodes,
-                "edges",  edges
-            ));
+            Map<String, Object> root = new LinkedHashMap<>();
+            root.put("planId", plan.getId().toString());
+            root.put("status", plan.getStatus().name());
+            if (plan.getMerkleRoot() != null) {
+                root.put("merkleRoot", plan.getMerkleRoot());
+            }
+            root.put("nodes", nodes);
+            root.put("edges", edges);
+            return mapper.writeValueAsString(root);
         } catch (Exception e) {
             log.warn("Failed to serialize plan DAG to JSON: {}", e.getMessage());
             return "{\"error\":\"serialization failed\"}";
