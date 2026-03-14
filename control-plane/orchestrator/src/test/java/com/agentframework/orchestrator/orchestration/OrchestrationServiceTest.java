@@ -23,6 +23,7 @@ import com.agentframework.orchestrator.eventsourcing.PlanEventStore;
 import com.agentframework.common.policy.PolicyHasher;
 import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.orchestrator.messaging.AgentTaskProducer;
+import com.agentframework.orchestrator.messaging.dto.AgentTask;
 import com.agentframework.orchestrator.metrics.OrchestratorMetrics;
 import com.agentframework.orchestrator.messaging.dto.AgentResult;
 import com.agentframework.orchestrator.messaging.dto.Provenance;
@@ -34,10 +35,13 @@ import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
 import com.agentframework.orchestrator.cache.ContextCacheService;
 import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -79,6 +83,7 @@ class OrchestrationServiceTest {
     @Mock private ContextCacheService contextCacheService;
     @Mock private OrchestratorMetrics metrics;
     @Mock private FileModificationRepository fileModificationRepository;
+    @Captor private ArgumentCaptor<AgentTask> taskCaptor;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private OrchestrationService service;
@@ -1283,6 +1288,104 @@ class OrchestrationServiceTest {
 
         assertThat(item.getFailureReason()).isNull();
         assertThat(item.getCompletedAt()).isNull();
+    }
+
+    // ── B8: buildContextJson dependency resolution ───────────────────────────
+
+    @Test
+    void dispatch_contextJsonContainsOnlyResolvedDependencies() throws Exception {
+        UUID planId = UUID.randomUUID();
+        // CM-001 is completed with result; FE-001 is completed with result; BE-002 is NOT completed
+        PlanItem cm = createItemWithPlan(WorkerType.CONTEXT_MANAGER, "CM-001", planId, List.of());
+        cm.forceStatus(ItemStatus.DONE);
+        cm.setResult("{\"files\":[\"schema.sql\"]}");
+
+        PlanItem fe = createItemWithPlan(WorkerType.FE, "FE-001", planId, List.of());
+        fe.forceStatus(ItemStatus.DONE);
+        fe.setResult("{\"summary\":\"UI done\"}");
+
+        // The task to dispatch depends on CM-001, FE-001, and BE-002 (which is NOT done)
+        PlanItem target = createItemWithPlan(WorkerType.BE, "BE-003", planId, List.of("CM-001", "FE-001", "BE-002"));
+        target.forceStatus(ItemStatus.WAITING);
+
+        // loadCompletedResults returns CM-001 and FE-001 (both DONE with results)
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(cm, fe, target));
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(target));
+        when(planRepository.findById(planId)).thenReturn(Optional.of(target.getPlan()));
+        when(hookManagerService.resolvePolicyWithHash(any(), any(), any())).thenReturn(Optional.empty());
+        when(attemptRepository.findMaxAttemptNumber(any())).thenReturn(Optional.of(0));
+        when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        // BE-002 not in cache either
+        when(contextCacheService.get(eq(planId), eq("BE-002"))).thenReturn(Optional.empty());
+        // checkPlanCompletion needs active items
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(target));
+
+        service.triggerDispatch(planId);
+
+        verify(taskProducer).dispatch(taskCaptor.capture());
+        AgentTask dispatched = taskCaptor.getValue();
+        Map<String, String> contextMap = objectMapper.readValue(
+                dispatched.contextJson(), new TypeReference<>() {});
+
+        // B8 fix: missing dependency BE-002 should NOT be in the context (no "{}" placeholder)
+        assertThat(contextMap).containsKey("CM-001");
+        assertThat(contextMap).containsKey("FE-001");
+        assertThat(contextMap).doesNotContainKey("BE-002");
+        assertThat(contextMap.get("CM-001")).contains("schema.sql");
+    }
+
+    @Test
+    void dispatch_contextJsonResolvesDependencyFromCacheFallback() throws Exception {
+        UUID planId = UUID.randomUUID();
+        // CM-001 completed but NOT yet visible in DB (race condition scenario)
+        PlanItem target = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of("CM-001"));
+        target.forceStatus(ItemStatus.WAITING);
+
+        // loadCompletedResults finds NO completed items (race: CM-001 not committed yet)
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(target));
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(target));
+        when(planRepository.findById(planId)).thenReturn(Optional.of(target.getPlan()));
+        when(hookManagerService.resolvePolicyWithHash(any(), any(), any())).thenReturn(Optional.empty());
+        when(attemptRepository.findMaxAttemptNumber(any())).thenReturn(Optional.of(0));
+        when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        // CM-001 IS in Redis cache (fallback)
+        when(contextCacheService.get(eq(planId), eq("CM-001")))
+                .thenReturn(Optional.of("{\"cached\":true}"));
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(target));
+
+        service.triggerDispatch(planId);
+
+        verify(taskProducer).dispatch(taskCaptor.capture());
+        Map<String, String> contextMap = objectMapper.readValue(
+                taskCaptor.getValue().contextJson(), new TypeReference<>() {});
+
+        assertThat(contextMap).containsKey("CM-001");
+        assertThat(contextMap.get("CM-001")).contains("cached");
+    }
+
+    // ── B12: optional GP service null safety ──────────────────────────────────
+
+    // B12: gpTaskOutcomeService is already null-safe (protected by if-null check).
+    // This test verifies the code path doesn't throw when the service is absent (Optional.empty).
+    @Test
+    void dispatch_gpServiceAbsent_dispatchesNormally() {
+        UUID planId = UUID.randomUUID();
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        // WAITING → dispatchReadyItems will transition to DISPATCHED
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(item));
+        when(planRepository.findById(planId)).thenReturn(Optional.of(item.getPlan()));
+        when(hookManagerService.resolvePolicyWithHash(any(), any(), any())).thenReturn(Optional.empty());
+        when(attemptRepository.findMaxAttemptNumber(any())).thenReturn(Optional.of(0));
+        when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(item));
+        // Should not throw even though gpTaskOutcomeService is Optional.empty() in setUp()
+        assertThatCode(() -> service.triggerDispatch(planId)).doesNotThrowAnyException();
+        verify(taskProducer).dispatch(any());
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

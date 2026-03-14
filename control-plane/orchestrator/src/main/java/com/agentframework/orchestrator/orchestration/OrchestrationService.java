@@ -1464,30 +1464,34 @@ public class OrchestrationService {
     private String buildContextJson(PlanItem item, Map<String, String> completedResults) {
         Map<String, String> deps = new LinkedHashMap<>();
         List<String> missing = new java.util.ArrayList<>();
+        int fromDb = 0, fromCache = 0;
         for (String depKey : item.getDependsOn()) {
             String result = completedResults.get(depKey);
-            if (result == null) {
+            if (result != null) {
+                fromDb++;
+            } else {
                 // Cache fallback: covers race conditions where the CM result is cached in Redis
                 // but not yet visible in completedResults (e.g. during rapid retry dispatch).
                 result = contextCacheService.get(item.getPlan().getId(), depKey).orElse(null);
-                if (result != null) { metrics.recordCacheHit(); } else { metrics.recordCacheMiss(); }
+                if (result != null) { fromCache++; metrics.recordCacheHit(); } else { metrics.recordCacheMiss(); }
             }
-            deps.put(depKey, result != null ? result : "{}");
-            if (result == null) {
+            if (result != null) {
+                deps.put(depKey, result);
+            } else {
                 missing.add(depKey);
             }
         }
-        // B8: diagnostic log to catch dependsOn/completedResults key mismatch.
-        // Shows resolved/expected ratio and only the missing keys (not the full completedResults pool).
+        // B8 fix: log distinguishes DB vs cache sources; missing deps are excluded from JSON
+        // (not padded with "{}") so workers can detect incomplete context.
         int expected = item.getDependsOn().size();
-        int resolved = expected - missing.size();
+        int resolved = fromDb + fromCache;
         if (missing.isEmpty()) {
-            log.debug("Context for task {}: resolved={}/{} dependency results",
-                      item.getTaskKey(), resolved, expected);
+            log.debug("Context for task {}: resolved={}/{} dependency results ({} DB, {} cache)",
+                      item.getTaskKey(), resolved, expected, fromDb, fromCache);
         } else {
-            log.warn("Context for task {}: resolved={}/{} dependency results — missing keys={}. " +
+            log.warn("Context for task {}: resolved={}/{} dependency results ({} DB, {} cache) — missing keys={}. " +
                      "Available in completedResults pool: {}",
-                     item.getTaskKey(), resolved, expected, missing,
+                     item.getTaskKey(), resolved, expected, fromDb, fromCache, missing,
                      completedResults.keySet());
         }
         try {

@@ -355,14 +355,10 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 
 # Bug noti e fix
 
-17 bug fixati (B1-B7, B9-B11, B13-B19 ✅). Dettagli fix: [documentazione/01-fondazioni-core.md](documentazione/01-fondazioni-core.md) (S8-bugfix).
+19 bug fixati (B1-B19 ✅). Dettagli fix: [documentazione/01-fondazioni-core.md](documentazione/01-fondazioni-core.md) (S8-bugfix).
 
-## Bug aperti
-
-| # | Bug | Severita' | File |
-|---|-----|-----------|------|
-| B8 | **Dependency results "1 vs 3"** — task con 3 dipendenze logga "with 1 dependency results". `buildContextJson()` filtra male. | MEDIUM | `OrchestrationService.java:748-759`, `AgentContextBuilder.java:67-80` |
-| B12 | **Optional service null checks** — `gpTaskOutcomeService` potrebbe essere null in path non protetti | LOW | `OrchestrationService.java:124-126, 549-554` |
+- **B8** ✅ `buildContextJson()`: dipendenze mancanti non piu' iniettate come `"{}"` placeholder — escluse dal JSON. Log distingue fonti (DB vs cache).
+- **B12** ✅ `gpTaskOutcomeService`: null-check gia' presente su tutti i path. Aggiunto test di verifica.
 
 ---
 
@@ -619,6 +615,80 @@ Fase 14d (resilience, ~5.5g):        #118 → #126
 |   |     | **Totale Fase 14** | | **23.0g** | |
 
 Documentazione completa: `docs/agent-framework/research-domains-ext.md` (§56-§65)
+
+### Risultati ricerca Fase 14 — Sintesi accademica (S24)
+
+Ricerca completata su 10 item (#117-#126). 50+ paper validati, 6 correzioni al design originale, 5 connessioni trasversali.
+
+#### #117 Anomaly Detection — BOCPD validato, 7 raccomandazioni
+
+**Paper validati:** Adams & MacKay 2007 (arXiv:0710.3742, ~1800 cit, BOCPD), Turner et al. 2009 (ICML, GP-BOCPD), Fearnhead & Liu 2007 (hazard adattivo).
+
+**Correzioni al design:** (1) hazard lambda deve essere per-SLI-type (latency cambia più di availability), (2) servono detector paralleli a 3 scale temporali (raw, 1min, 5min) per catturare sia spike che drift, (3) AR(1) observation model per latency autocorrelate, (4) run-length pruning hard cap 500 (memory safety), (5) alert con posterior parameters (non solo binary), (6) independent per-stream + correlation aggregation (non joint multivariate).
+
+#### #118 Semantic Cache Warm Transfer — Ben-David bound come fondamento
+
+**Paper validati:** Ben-David et al. 2010 (ML journal, T1, ~5000 cit, domain adaptation bound), Pan & Yang 2010 (TKDE, T1, ~22000 cit), SUPER (Gerstgrasser 2023, selective sharing), LOL-GP (Wang 2024, local transfer), RECaST (Hickey 2024, Bayesian discount), C2C (Fu et al. ICLR 2026, cache-to-cache).
+
+**Insight chiave:** Discount principled = `affinity_discount(d_HH) × uncertainty_gate(σ²) × temporal_decay(age)`. Uncertainty gate: trasferire solo dove σ²_target > σ²_source. Cap al 1-10% del cache (SUPER). Nessun framework esistente ha semantic cache transfer — design originale.
+
+#### #119 MCTS Online — EMA insufficiente, 3 meccanismi aggiuntivi
+
+**Paper validati:** Garivier & Moulines 2011 (ALT, T1, Discounted UCB), Gelly & Silver 2011 (T1, RAVE/AMAF), Guez et al. 2012 (NeurIPS, T1, BAMCP), LiZero (arXiv:2502.00633, adaptive decay).
+
+**Correzione:** EMA decay (lambda=0.95) è sufficiente per drift graduale ma non per cambiamenti bruschi (~20 osservazioni per adattarsi). Aggiungere: (1) per-node adaptive lambda gated on Welford variance, (2) RAVE warm-start per nodi freddi, (3) BAMCP root sampling dal GP posterior (un Thompson sample per episodio).
+
+#### #120 Self-Refine — CRITICO: task-type gate obbligatorio
+
+**Paper validati:** Self-Refine (Madaan et al. NeurIPS 2023, ~1000 cit), Reflexion (Shinn et al. NeurIPS 2023, ~1520 cit), Cannot Self-Correct (Huang et al. ICLR 2024), Dark Side (Zhang 2024, -20.4% accuracy), MAgICoRe (Chen et al. EMNLP 2025, +4% a metà costo), DDI (Adnan & Kuhn, Sci. Reports 2025, 60-80% decay in 2-3 iter).
+
+**Correzione CRITICA:** Self-refine **degrada** reasoning senza feedback esterno (58.8% risposte corrette ribaltate). Design rivisto: style/format → self-refine OK (max 3 iter); code → self-refine con test esterni (max 2 iter); math/reasoning → NO self-refine, escalare a H2 o usare PRM (MAgICoRe pattern). Epsilon deve essere misurato esternamente (embedding distance, non self-reported). Aggiungere flip rate monitor.
+
+#### #121 Context Compaction — Non compattare mai le reasoning chains
+
+**Paper validati:** LLMLingua-2 (Pan et al. ACL 2024), TALE (He et al. ACL 2025), "Complexity Trap" (JetBrains, NeurIPS 2025 Workshop, -52% costi), AOI (arXiv:2512.13956, 3 layer, 72.4% compression), ACON (Kang 2025), EHPC (NeurIPS 2025 Spotlight, evaluator heads).
+
+**Correzione:** 4 segnali per tier assignment (non solo age+relevance): relevance + age + access frequency + information scent. **Mai compattare abstractivamente le reasoning chains** — solo observations e tool outputs. Simple observation masking ≥ LLM summarization (JetBrains: LLM summarization causa +13-15% allungamento traiettorie).
+
+#### #122 Golden Example Registry — ZPD: esempi leggermente più facili
+
+**Paper validati:** Cui & Sachan 2025 (ZPD per ICL, IRT-based), DemoShapley (2024, Shapley per example valuation), LLM-as-Judge (Zheng et al. NeurIPS 2023, ~7365 cit, bias noti), EPR (Rubin et al. 2022, trained retriever).
+
+**Correzione:** Esempi devono essere **leggermente più facili** del task, ordinati easy-to-hard (Zone of Proximal Development). Finestra: `D(example) ∈ [D(task) - 2δ, D(task)]`, non `D(task) ± δ`. Quality gate ibrida: LLM-as-judge + position-swap debiasing + task-completion success + human audit periodico. DemoShapley per garbage collection.
+
+#### #123 Distributed Checkpointing — Semplificato: event sourcing + GP snapshot
+
+**Paper validati:** Chandy & Lamport 1985 (T1, ~1900 cit), Carbone et al. 2015 (Flink ABS, ~500 cit), Cheng & Boots 2016 (NeurIPS, incremental sparse GP), LangGraph/CrewAI docs.
+
+**Correzione MAGGIORE:** Design over-engineered. PlanEventStore **già copre** il recovery del Plan state via event replay. Checkpoint ridotto a: `{lastEventSeqNum, gpHyperparameters, gpTrainingDataHash, cacheHotEntries}`. No MCTS tree (effimero, ricostruibile). No Chandy-Lamport (orchestratore centralizzato → quiesce-then-snapshot). GP re-training da dati ~200ms per n<1000. Una tabella `checkpoints` + un metodo.
+
+#### #124 Causal Shapley — Owen Values ≡ Shapley Flow
+
+**Paper validati:** Heskes et al. NeurIPS 2020 (T1, ~133 cit, Causal Shapley), Janzing et al. AISTATS 2020 (marginal è corretto), Shapley Flow (Wang et al. AISTATS 2021), Frye et al. (Asymmetric Shapley), PASV (Lee et al. 2026).
+
+**Insight chiave:** Shapley Flow prova che **Owen values con coalizioni tree-structured = edge-level Shapley su DAG causale**. Ergo #114 (Owen) e #124 (Causal) sono viste della stessa struttura. Implementare Owen first, poi aggiungere conditioning interventionale. Monotonicità **non** completamente risolta — usare separazione direct/indirect come diagnostica.
+
+#### #125 Adaptive Exploration — Randomized GP-UCB come alternativa semplice
+
+**Paper validati:** Srinivas et al. 2010 (ICML/IEEE TIT, T1, ~1737 cit, GP-UCB), Vakili et al. 2021 (AISTATS, T1, bounds più stretti), Russo & Van Roy 2014 (NeurIPS/OR, T1, IDS), Takeno et al. 2023 (ICML, T1, Randomized GP-UCB), Deng et al. 2022 (AISTATS, T1, WGP-UCB non-stationary).
+
+**Scelta strategica:** 4 path possibili: (A) TS solo → zero lavoro ma perde cold-domain boost; (B) **Randomized GP-UCB** → sample beta da Gamma, 80% beneficio con 20% complessità; (C) design corrente → valido, con fix a formula IG-lambda; (D) IDS → gold standard teorico, overkill. Raccomandazione: **Path B come default, Path C come upgrade**. Fix: invertire relazione IG-lambda (basso IG → exploit, non il contrario).
+
+#### #126 Multi-Agent Failure Taxonomy — Correzione venue + priorità detection
+
+**Paper validati:** Cemri et al. 2025 (**NeurIPS 2025 D&B spotlight**, non ICLR, arXiv:2503.13657), Zhu et al. 2025 (AgentDebug, +24% accuracy), Bholani 2026 (Self-Healing Router, -93% LLM calls), CONSENSAGENT (Pitre et al. ACL 2025, anti-sycophancy), Vennemeyer et al. 2025 (3 tipi sycophancy in latent space), AGDebugger (Epperson et al. CHI 2025).
+
+**Correzione:** Tassonomia MAST ha **3 categorie** (non 4): FC1 Specification & System Design (5 modi), FC2 Inter-Agent Misalignment (6 modi), FC3 Task Verification & Termination (3 modi). Priorità detection: (1°) FM-3.2 No/Incomplete Verification (silente, cascade multiplier), (2°) FM-2.6 Reasoning-Action Mismatch, (3°) FM-1.3 Step Repetition (facile da detectare). Self-Healing Router per System failures. 11.54% delle esperienze sufficienti per learning (ChatDev).
+
+#### Connessioni trasversali Fase 14
+
+| Connessione | Descrizione | Impatto |
+|-------------|-------------|---------|
+| Owen ≡ Shapley Flow | #114 Owen hierarchy = #124 Causal Shapley su DAG | Implementare Owen first |
+| ZPD + IRT | #122 difficulty matching = #108 IRT, stessa infrastruttura | Zero codice nuovo per difficulty |
+| Ben-David + GP σ² | #118 discount = affinity(GP means) ha interpretazione teorica | Non è euristica |
+| TS vs #125 | Thompson Sampling (#93) rende #125 parzialmente ridondante | Path B (RGP-UCB) come compromesso |
+| Self-Refine gate + GP σ² | #120 decide se refinare basandosi su σ² (alta → refine, bassa → skip) | DDI decay ∝ 1/σ² |
 
 Dipendenze Fase 12, audit qualita' Fase 9-12, arricchimenti: → [documentazione/07-fase-11-12-research.md](documentazione/07-fase-11-12-research.md)
 
