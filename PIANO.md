@@ -332,19 +332,20 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 **Nota**: #21 implementato S20. #41 coperto da #85 (PersistentHomologyService).
 #32, #34 gia' implementati (PolicyHasher, FederationMetricsExporter).
 
-## Parzialmente implementati (8 item — codice base, estensioni da fare)
+## Parzialmente implementati (5 item — gap operativi/UI, non codice Java)
 
 | # | Item | Cosa manca |
 |---|------|------------|
 | 7 | Context Cache (TASK_MANAGER) | TASK_MANAGER worker (bloccato da tracker-mcp) |
-| 8 | DAG + Mermaid | Miglioramenti UI |
-| 9 | Hierarchical Plans | Estensioni previste |
-| 33 | Token Economics | Tuning credit formula, dashboard Grafana |
-| 35 | Context Quality Scoring | Test unitari, tuning pesi |
+| 8 | DAG + Mermaid | Miglioramenti UI frontend |
+| 9 | Hierarchical Plans | Estensioni previste (item futuri) |
+| 33 | Token Economics | Dashboard Grafana |
 | 36 | Worker Pool Sizing | Dashboard Grafana, live monitoring |
-| 37 | Adaptive Token Budget (PID) | Tuning PID con dati reali |
-| 38 | State Machine Verification (LTL) | Integrazione CI/CD |
-| 40 | Shapley Value | Tuning K samples, dashboard Grafana |
+| 40 | Shapley Value | Dashboard Grafana |
+
+**Promossi a completati**: #35 (pesi configurabili via `ContextQualityProperties` + 4 test),
+#37 (PidBudgetController 170 righe + 10 test + integrazione OrchestrationService),
+#38 (LTL verifier integrato in `checkPlanCompletion` + event `LTL_VERIFICATION` + 2 test).
 
 **Nota**: #5 (SSE TrackerSync), #10 (L3 enforcement), #21 (topic splitting), #30 (hash chain),
 #31 (Ed25519), #39 (PolicyLattice), #42 promossi a "completati" (S16-S20).
@@ -469,7 +470,8 @@ SHA-256 commitment hash su HookPolicy. `PolicyCommitmentService`, `PolicyVerific
 
 ## #35 ✅ — Context Quality Scoring (Teoria dell'Informazione)
 
-`ContextQualityService`, file relevance + entropy proxy, 4° reward source (0.15). S15. Commit: `75c484b`.
+`ContextQualityService`, file relevance + entropy proxy + KL divergence, 4° reward source (0.15). S15. Commit: `75c484b`.
+Pesi configurabili via `ContextQualityProperties` (`gp.context-quality.weights.*`), default 0.45/0.30/0.25.
 
 ## #36 ✅ — Worker Pool Sizing (Queueing Theory)
 
@@ -481,7 +483,8 @@ SHA-256 commitment hash su HookPolicy. `PolicyCommitmentService`, `PolicyVerific
 
 ## #38 ✅ — State Machine Verification (LTL)
 
-`StateMachineVerifier` (BFS model checker, product state space), `@AllowedViolation`. 10 test. S15.
+`LTLPolicyVerifier` (4 formulae LTLf: S1/S2 safety, L1/L2 liveness), `StateMachineVerifier` (BFS model checker). 10+2 test. S15.
+Integrato in `checkPlanCompletion()`: event `LTL_VERIFICATION` appendato post-completion.
 
 ## #39 ✅ — Policy Lattice Composition (Teoria dei Reticoli)
 
@@ -691,6 +694,38 @@ Ricerca completata su 10 item (#117-#126). 50+ paper validati, 6 correzioni al d
 | Self-Refine gate + GP σ² | #120 decide se refinare basandosi su σ² (alta → refine, bassa → skip) | DDI decay ∝ 1/σ² |
 
 Dipendenze Fase 12, audit qualita' Fase 9-12, arricchimenti: → [documentazione/07-fase-11-12-research.md](documentazione/07-fase-11-12-research.md)
+
+### Ordine implementazione Fase 15
+
+```
+Fase 15a (verification & safety, ~8.0g):     #127 → #135 → #133
+Fase 15b (transparency, ~4.0g):              #128 → #129
+Fase 15c (optimization & learning, ~5.0g):   #132 → #131
+Fase 15d (exploration & monitoring, ~5.5g):  #134 → #136 → #130
+                                               ─────────────────────
+                                               Totale: ~22.5g (#127-#136)
+```
+
+### Riepilogo Fase 15 — Reflective Intelligence & Decision Transparency (#127-#136)
+
+> Tema: il sistema acquisisce la capacita' di ragionare sul proprio ragionamento, spiegare le decisioni,
+> trasferire conoscenza, rilevare patologie, e verificare gli output tramite giudici esterni.
+
+| # | Titolo | Componente target | Sforzo | Valore | Tier |
+|---|--------|-------------------|--------|--------|------|
+| 127 | Process Reward Model | `ProcessRewardModelService` | 2.5g | Alto | 0 |
+| 128 | Explainable Decision Trace | `DecisionTraceService` | 2.0g | Alto | 0 |
+| 129 | Sycophancy Detection in Council | `SycophancyDetectorService` | 2.0g | Alto | 0 |
+| 130 | Graph-Based Recovery Router | `RecoveryRouterService` | 2.5g | Alto | 0 |
+| 131 | Cross-Plan Meta-Learning | `PlanArchetypeRegistry` | 3.0g | Alto | 1 |
+| 132 | Token Cost Pareto Optimizer | `ParetoDispatchOptimizer` | 2.0g | Medio-Alto | 1 |
+| 133 | AUDIT_MANAGER Dual-Mode | `AuditManagerDualModeService` | 2.5g | Alto | 0 |
+| 134 | Information-Directed Sampling | `InformationDirectedSamplingService` | 2.0g | Medio-Alto | 1 |
+| 135 | Execution Sandbox | `SandboxExecutionService` | 3.0g | Alto | 0 |
+| 136 | Bayesian Surprise Monitor | `BayesianSurpriseMonitor` | 1.5g | Medio-Alto | 1 |
+|   |     | **Totale Fase 15** | | **22.5g** | |
+
+Documentazione completa: `docs/agent-framework/research-domains-ext.md` (§66-§75)
 
 ---
 

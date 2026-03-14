@@ -33,6 +33,8 @@ import com.agentframework.orchestrator.repository.PlanItemRepository;
 import com.agentframework.orchestrator.repository.FileModificationRepository;
 import com.agentframework.orchestrator.repository.PlanRepository;
 import com.agentframework.orchestrator.reward.RewardComputationService;
+import com.agentframework.orchestrator.analytics.LTLPolicyVerifier;
+import com.agentframework.orchestrator.analytics.LTLPolicyVerifier.LTLVerificationReport;
 import com.agentframework.orchestrator.cache.ContextCacheService;
 import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -114,7 +116,8 @@ class OrchestrationServiceTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
-                new com.agentframework.orchestrator.graph.DagHashService());
+                new com.agentframework.orchestrator.graph.DagHashService(),
+                Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);
@@ -1386,6 +1389,84 @@ class OrchestrationServiceTest {
         // Should not throw even though gpTaskOutcomeService is Optional.empty() in setUp()
         assertThatCode(() -> service.triggerDispatch(planId)).doesNotThrowAnyException();
         verify(taskProducer).dispatch(any());
+    }
+
+    // ── #38: LTL Verification at plan completion ─────────────────────────
+
+    @Test
+    void checkPlanCompletion_ltlVerifierPresent_appendsVerificationEvent() {
+        UUID planId = UUID.randomUUID();
+
+        // Build an LTL-enabled service
+        LTLPolicyVerifier ltlVerifier = mock(LTLPolicyVerifier.class);
+        var ltlReport = new LTLVerificationReport(
+                planId, 5, Map.of("S1_safety", true, "L1_liveness", true),
+                List.of(), Map.of(), 1.0);
+        when(ltlVerifier.verify(planId)).thenReturn(ltlReport);
+
+        OrchestrationService ltlService = new OrchestrationService(
+                planRepository, planItemRepository, attemptRepository,
+                plannerService, taskProducer, profileRegistry,
+                eventPublisher, objectMapper, hookManagerService,
+                tokenBudgetService, costEstimationService, eventStore, councilService,
+                councilProperties, rewardComputationService,
+                Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(),
+                artifactStore, workspaceManager,
+                new EnrichmentInjectorService(new EnrichmentProperties(false, false, false, false, false)),
+                new EnrichmentProperties(false, false, false, false, false),
+                contextCacheService, Optional.empty(), metrics,
+                Optional.empty(), fileModificationRepository,
+                Optional.empty(), Optional.empty(), Optional.empty(),
+                tokenLedgerService, Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(),
+                new com.agentframework.orchestrator.graph.DagHashService(),
+                Optional.of(ltlVerifier));
+        ReflectionTestUtils.setField(ltlService, "defaultMaxAttempts", 3);
+        ReflectionTestUtils.setField(ltlService, "defaultBackoffMs", 5000L);
+        ReflectionTestUtils.setField(ltlService, "defaultAttemptsBeforePause", 2);
+        ReflectionTestUtils.setField(ltlService, "maxContextRetries", 1);
+        ReflectionTestUtils.setField(ltlService, "defaultMaxDepth", 3);
+
+        // Single WAITING item → completes → plan completes
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        item.forceStatus(ItemStatus.WAITING);
+
+        // Stub the full onTaskCompleted path
+        when(planItemRepository.findByIdWithPlan(item.getId())).thenReturn(Optional.of(item));
+        when(attemptRepository.findOpenAttempt(item.getId())).thenReturn(Optional.empty());
+        lenient().when(attemptRepository.findMaxAttemptNumber(item.getId())).thenReturn(Optional.of(1));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of());
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of());
+        when(planRepository.findById(planId)).thenReturn(Optional.of(item.getPlan()));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(item));
+        when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AgentResult result = successResult(planId, item.getId(), "BE-001", "{\"ok\":true}");
+        ltlService.onTaskCompleted(result);
+
+        // Verify LTL verification was invoked and event appended
+        verify(ltlVerifier).verify(planId);
+        verify(eventStore).append(eq(planId), isNull(), eq("LTL_VERIFICATION"), any());
+    }
+
+    @Test
+    void checkPlanCompletion_ltlVerifierAbsent_noError() {
+        // Default service has Optional.empty() for LTL — should complete without error
+        UUID planId = UUID.randomUUID();
+
+        PlanItem item = createItemWithPlan(WorkerType.BE, "BE-001", planId, List.of());
+        item.forceStatus(ItemStatus.WAITING);
+
+        stubOnTaskCompletedCommon(item, planId);
+
+        AgentResult result = successResult(planId, item.getId(), "BE-001", "{\"ok\":true}");
+
+        // Should not throw
+        assertThatCode(() -> service.onTaskCompleted(result)).doesNotThrowAnyException();
+        // LTL_VERIFICATION event should NOT have been appended
+        verify(eventStore, never()).append(any(), any(), eq("LTL_VERIFICATION"), any());
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

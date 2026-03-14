@@ -96,7 +96,8 @@ class MissingContextPropagationTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
-                new com.agentframework.orchestrator.graph.DagHashService());
+                new com.agentframework.orchestrator.graph.DagHashService(),
+                Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);

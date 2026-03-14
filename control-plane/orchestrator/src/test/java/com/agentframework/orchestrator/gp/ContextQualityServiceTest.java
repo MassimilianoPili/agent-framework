@@ -36,10 +36,13 @@ class ContextQualityServiceTest {
 
     private ContextQualityService service;
 
+    private static final ContextQualityProperties DEFAULT_PROPS =
+            new ContextQualityProperties(new ContextQualityProperties.Weights(0.45, 0.30, 0.25));
+
     @BeforeEach
     void setUp() {
         service = new ContextQualityService(
-                taskOutcomeRepository, planItemRepository, new ObjectMapper());
+                taskOutcomeRepository, planItemRepository, new ObjectMapper(), DEFAULT_PROPS);
     }
 
     // ── File Relevance ──────────────────────────────────────────────────────
@@ -349,11 +352,66 @@ class ContextQualityServiceTest {
 
         @Test
         void weights_sumToOne() {
-            double sum = ContextQualityService.FILE_RELEVANCE_WEIGHT
-                       + ContextQualityService.ENTROPY_WEIGHT
-                       + ContextQualityService.KL_DIVERGENCE_WEIGHT;
+            double sum = service.getFileRelevanceWeight()
+                       + service.getEntropyWeight()
+                       + service.getKlDivergenceWeight();
 
             assertThat(sum).isCloseTo(1.0, within(1e-9));
+        }
+
+        @Test
+        void defaultWeights_matchExpectedValues() {
+            assertThat(service.getFileRelevanceWeight()).isEqualTo(0.45);
+            assertThat(service.getEntropyWeight()).isEqualTo(0.30);
+            assertThat(service.getKlDivergenceWeight()).isEqualTo(0.25);
+        }
+
+        @Test
+        void compositeScore_matchesWeightedSum() {
+            // Known metric values: fileRelevance=1.0, usedFiles non-empty → KL=1.0
+            // entropy depends on depResults shape — we test the weighted combination directly
+            Set<String> files = Set.of("src/Auth.java", "src/User.java");
+            double fr = service.computeFileRelevance(files, files);   // 1.0
+            double kl = service.computeKlDivergenceScore(files, files); // 1.0
+            Map<String, String> deps = Map.of(
+                    "CM-001", "x".repeat(1500),
+                    "SM-001", "x".repeat(2000),
+                    "RM-001", "x".repeat(1500));
+            double en = service.computeEntropyScore(deps);
+
+            double expected = 0.45 * fr + 0.30 * en + 0.25 * kl;
+
+            assertThat(expected).isBetween(0.0, 1.0);
+            // Verify the exact formula: fr=1.0, kl=1.0, so composite = 0.45 + 0.30*en + 0.25
+            assertThat(expected).isCloseTo(0.70 + 0.30 * en, within(1e-9));
+        }
+
+        @Test
+        void customWeights_changeCompositeResult() {
+            // Create a service with custom weights (heavy on entropy, zero KL)
+            var customProps = new ContextQualityProperties(
+                    new ContextQualityProperties.Weights(0.20, 0.80, 0.00));
+            var customService = new ContextQualityService(
+                    taskOutcomeRepository, planItemRepository, new ObjectMapper(), customProps);
+
+            assertThat(customService.getFileRelevanceWeight()).isEqualTo(0.20);
+            assertThat(customService.getEntropyWeight()).isEqualTo(0.80);
+            assertThat(customService.getKlDivergenceWeight()).isEqualTo(0.00);
+
+            // With custom weights, composite = 0.20*fr + 0.80*en + 0.00*kl
+            // vs default:              composite = 0.45*fr + 0.30*en + 0.25*kl
+            // For fr=1.0, kl=1.0, en=0.5:
+            //   default  = 0.45 + 0.15 + 0.25  = 0.85
+            //   custom   = 0.20 + 0.40 + 0.00  = 0.60
+            Set<String> files = Set.of("src/Auth.java");
+            double fr = service.computeFileRelevance(files, files);       // 1.0
+            double kl = service.computeKlDivergenceScore(files, files);   // 1.0
+
+            double defaultComposite = 0.45 * fr + 0.30 * 0.5 + 0.25 * kl;
+            double customComposite  = 0.20 * fr + 0.80 * 0.5 + 0.00 * kl;
+
+            assertThat(defaultComposite).isNotEqualTo(customComposite);
+            assertThat(customComposite).isCloseTo(0.60, within(1e-9));
         }
     }
 

@@ -37,6 +37,7 @@ import com.agentframework.orchestrator.reward.RewardComputationService;
 import com.agentframework.gp.model.GpPrediction;
 import com.agentframework.orchestrator.gp.BayesianSuccessPredictorService;
 import com.agentframework.orchestrator.gp.GpWorkerSelectionService;
+import com.agentframework.orchestrator.analytics.LTLPolicyVerifier;
 import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.SuccessPrediction;
@@ -140,6 +141,8 @@ public class OrchestrationService {
     private final com.agentframework.orchestrator.reward.ReputationStakingService reputationStakingService;
     // #45: Merkle DAG hash for structural integrity verification
     private final com.agentframework.orchestrator.graph.DagHashService dagHashService;
+    // #38: LTL policy verifier — finite-trace verification at plan completion
+    private final LTLPolicyVerifier ltlPolicyVerifier;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -178,7 +181,8 @@ public class OrchestrationService {
                                 Optional<TaskSplitterService> taskSplitterService,
                                 Optional<GlobalAssignmentSolver> globalAssignmentSolver,
                                 Optional<com.agentframework.orchestrator.reward.ReputationStakingService> reputationStakingService,
-                                com.agentframework.orchestrator.graph.DagHashService dagHashService) {
+                                com.agentframework.orchestrator.graph.DagHashService dagHashService,
+                                Optional<LTLPolicyVerifier> ltlPolicyVerifier) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -217,6 +221,7 @@ public class OrchestrationService {
         this.globalAssignmentSolver = globalAssignmentSolver.orElse(null);
         this.reputationStakingService = reputationStakingService.orElse(null);
         this.dagHashService = dagHashService;
+        this.ltlPolicyVerifier = ltlPolicyVerifier.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -1425,6 +1430,22 @@ public class OrchestrationService {
                 Map.of("status", plan.getStatus().name(),
                        "totalItems", allItems.size(),
                        "failedItems", failedCount));
+
+        // #38: LTL verification — post-mortem finite-trace analysis
+        if (ltlPolicyVerifier != null) {
+            try {
+                var ltlReport = ltlPolicyVerifier.verify(planId);
+                eventStore.append(planId, null, "LTL_VERIFICATION",
+                        Map.of("adherence", ltlReport.overallAdherence(),
+                               "violations", ltlReport.violations(),
+                               "formulaResults", ltlReport.formulaResults()));
+                if (!ltlReport.violations().isEmpty()) {
+                    log.warn("LTL violations in plan {}: {}", planId, ltlReport.violations());
+                }
+            } catch (Exception e) {
+                log.warn("LTL verification failed for plan {}: {}", planId, e.getMessage());
+            }
+        }
     }
 
     private boolean hasWorkerType(List<PlanItem> items, WorkerType type) {

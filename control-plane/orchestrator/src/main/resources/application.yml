@@ -370,6 +370,11 @@ gp:
     enabled: true
   budget:
     alpha: 1.0  # dynamic budget modulation: effectiveLimit = base × (1 + alpha × sigma²) × clip(mu, 0.3, 1.0)
+  context-quality:
+    weights:
+      file-relevance: 0.45
+      entropy: 0.30
+      kl-divergence: 0.25
 
 # PID Adaptive Token Budget (#37)
 # Adjusts HookPolicy.maxTokenBudget per (planId, workerType) based on error between

@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -40,13 +41,14 @@ import java.util.stream.Collectors;
  */
 @Service
 @ConditionalOnProperty(prefix = "gp", name = "enabled", havingValue = "true")
+@EnableConfigurationProperties(ContextQualityProperties.class)
 public class ContextQualityService {
 
     private static final Logger log = LoggerFactory.getLogger(ContextQualityService.class);
 
-    static final double FILE_RELEVANCE_WEIGHT = 0.45;
-    static final double ENTROPY_WEIGHT = 0.30;
-    static final double KL_DIVERGENCE_WEIGHT = 0.25;
+    private final double fileRelevanceWeight;
+    private final double entropyWeight;
+    private final double klDivergenceWeight;
 
     private final TaskOutcomeRepository taskOutcomeRepository;
     private final PlanItemRepository planItemRepository;
@@ -54,10 +56,14 @@ public class ContextQualityService {
 
     public ContextQualityService(TaskOutcomeRepository taskOutcomeRepository,
                                   PlanItemRepository planItemRepository,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  ContextQualityProperties properties) {
         this.taskOutcomeRepository = taskOutcomeRepository;
         this.planItemRepository = planItemRepository;
         this.objectMapper = objectMapper;
+        this.fileRelevanceWeight = properties.weights().fileRelevance();
+        this.entropyWeight = properties.weights().entropy();
+        this.klDivergenceWeight = properties.weights().klDivergence();
     }
 
     /**
@@ -94,9 +100,9 @@ public class ContextQualityService {
         double entropyScore = computeEntropyScore(depResults);
         double klScore = computeKlDivergenceScore(selectedFiles, usedFiles);
 
-        double composite = FILE_RELEVANCE_WEIGHT * fileRelevance
-                         + ENTROPY_WEIGHT * entropyScore
-                         + KL_DIVERGENCE_WEIGHT * klScore;
+        double composite = fileRelevanceWeight * fileRelevance
+                         + entropyWeight * entropyScore
+                         + klDivergenceWeight * klScore;
 
         // Clamp to [0, 1]
         composite = Math.max(0.0, Math.min(1.0, composite));
@@ -120,6 +126,15 @@ public class ContextQualityService {
 
         return composite;
     }
+
+    /** Returns the configured file relevance weight. */
+    double getFileRelevanceWeight() { return fileRelevanceWeight; }
+
+    /** Returns the configured entropy weight. */
+    double getEntropyWeight() { return entropyWeight; }
+
+    /** Returns the configured KL divergence weight. */
+    double getKlDivergenceWeight() { return klDivergenceWeight; }
 
     /**
      * Returns the average context quality score for a given worker type,
