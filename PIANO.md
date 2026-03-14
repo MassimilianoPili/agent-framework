@@ -187,32 +187,7 @@ Proposta: estrarre in modulo `agent-common` condiviso.
 
 ---
 
-### 13. Council Taste Profile ✅ → [PIANO_HISTORY.md]
-
-**Problema**: `CouncilService.conductPrePlanningSession()` (riga 97) e' stateless —
-non impara da piani passati. Non sa che piani "CRUD API" con 3 task funzionano meglio
-di piani con 5 task (overhead coordinamento). Ogni piano parte da zero.
-
-**Soluzione**: GP che predice il reward atteso di una decomposizione dato lo spec embedding
-e le caratteristiche strutturali del piano proposto.
-
-**Perche' GP e non regola statica**: le regole ("CRUD = 3 task") non generalizzano.
-Il GP interpola: spec "mezzo CRUD, mezzo real-time" riceve predizione pesata.
-`sigma^2` dice al Council quando la predizione e' affidabile vs quando serve cautela.
-
-**Perche' in `conductPrePlanningSession` e non nel planner**: il Council opera *prima*
-del planner. Il planner riceve il `CouncilReport` come input. Il taste profile arricchisce
-il report con raccomandazione sulla struttura — il planner decide se seguirla.
-Separazione: Council = advisory, Planner = execution.
-
-**Feature space**: `f(spec_embedding, n_tasks, has_context_task, has_review_task) → predicted_reward`.
-Il GP opera su uno spazio low-dimensional (embedding + 3-4 feature strutturali), non sull'intero piano.
-
-**File nuovi**: `shared/gp-engine/PlanDecompositionPredictor.java`.
-Modifica `CouncilService.java` (inietta `Optional<PlanDecompositionPredictor>`).
-Flyway per tabella `plan_outcomes` (spec embedding + reward finale piano).
-
-**Sforzo**: 2g. **Dipendenze**: #11 (GP engine). **Dati minimi**: ~20 piani completati.
+### 13. Council Taste Profile ✅ → [documentazione/01-fondazioni-core.md](documentazione/01-fondazioni-core.md)
 
 ---
 
@@ -378,46 +353,16 @@ Verifica effettiva del codice nel repository (non solo piano). Aggiornato: 2026-
 ---
 ---
 
-# Bug noti e fix pianificati
+# Bug noti e fix
 
-Bug emersi dall'esplorazione del codice e dall'uso reale del framework.
+17 bug fixati (B1-B7, B9-B11, B13-B19 ✅). Dettagli fix: [documentazione/01-fondazioni-core.md](documentazione/01-fondazioni-core.md) (S8-bugfix).
 
-## Catena cascante critica
+## Bug aperti
 
-3 bug collegati — causa root dei problemi riscontrati: task bloccato DISPATCHED, risultato ignorato, piano mai completo.
-
-| # | Bug | Severita' | File / Righe | Root cause | Fix proposto |
-|---|-----|-----------|-------------|------------|-------------|
-| B1 ✅ | **ACK prima di commit** — `AgentResultConsumer.handleMessage()` fa `ack.reject()` (XACK + DLQ) anche se la transazione di `onTaskCompleted` ha fatto rollback. Il messaggio e' perso, il task resta DISPATCHED. | CRITICAL | `AgentResultConsumer.java:58-71`, `RedisStreamAcknowledgment.java:44-58` | ACK avviene fuori dal boundary transazionale Spring | Spostare XACK dentro la transazione, oppure usare pattern "ACK after commit" con `TransactionSynchronization.afterCommit()`. Se rollback → non ACK → Redis ri-consegna il messaggio. |
-| B2 ✅ | **Idempotency guard incompleto** — `onTaskCompleted()` guarda solo DONE/FAILED. Se un'eccezione causa rollback (reward computation, GP update), l'item resta DISPATCHED ma il messaggio e' in DLQ → task bloccato per sempre. | CRITICAL | `OrchestrationService.java:199-203` | Guard non copre DISPATCHED; side-effect (reward, GP, serendipity) nel path critico senza isolamento | Separare side-effect non critici in `@TransactionalEventListener(AFTER_COMMIT)`. La transizione DISPATCHED→DONE deve avere successo anche se i side-effect falliscono. |
-| B3 ✅ | **Piano mai completo** — conseguenza di B1+B2: `findActiveByPlanId` trova item DISPATCHED (non terminale) → `checkPlanCompletion` esce subito → piano resta RUNNING per sempre | CRITICAL | `OrchestrationService.java:696-710`, `PlanItemRepository.java:22-23` | Cascata da B1+B2 | Risolvere B1+B2. Aggiungere "stale task detector" schedulato che marca come FAILED task DISPATCHED da piu' di X minuti senza risultato. |
-
-## Bug aggiuntivi
-
-| # | Bug | Severita' | File / Righe | Fix proposto |
-|---|-----|-----------|-------------|-------------|
-| B4 ✅ | **AutoRetryScheduler transazione unica** — `@Transactional` sull'intero loop. Se un retry fallisce, rollback di TUTTI. `nextRetryAt` resettato per tutti → retry immediato infinito. | HIGH | `AutoRetryScheduler.java:40-60` | Transaction separata per item (`REQUIRES_NEW`) o try-catch con restore `nextRetryAt` |
-| B5 ✅ | **Missing context error propagation** — se il CM task creato per fornire contesto fallisce, il task padre resta WAITING per sempre (nessuna propagazione fallimento) | HIGH | `OrchestrationService.java:804-835` | Se CM fallisce → propagare FAILED al task padre. Oppure count retry e fallire dopo N tentativi. |
-| B6 ✅ | **LazyInitializationException** — `item.getPlan()` con FetchType.LAZY in `onTaskCompleted()` e `retryFailedItem()` | HIGH | `OrchestrationService.java:281,356` | `JOIN FETCH plan` nella query repository |
-| B7 ✅ | **Race condition child plan completion** — no `@Version`, concurrent `onChildPlanCompleted` puo' sovrascrivere | HIGH | `OrchestrationService.java:975-1011` | Aggiungere `@Version` a PlanItem e Plan entities |
-| B8 | **Dependency results "1 vs 3"** — task FE-001 con 3 dipendenze (AI-001/AI-002/AI-003) logga "with 1 dependency results". `buildContextJson()` filtra `item.getDependsOn()` contro `completedResults`. | MEDIUM | `OrchestrationService.java:748-759`, `AgentContextBuilder.java:67-80` | Aggiungere log diagnostico: `log.info("Task {} dependsOn={}, completedKeys={}", ...)`. Verificare che il planner popoli correttamente `dependsOn`. |
-| B9 ✅ | **Consumer group pending messages (PEL)** — al riavvio dell'orchestratore, `XREADGROUP` con `>` legge solo nuovi messaggi. Messaggi pending (in-flight al crash) non vengono reclamati → risultati persi. | MEDIUM | `RedisStreamListenerContainer.java` | Aggiungere `XAUTOCLAIM` all'avvio per reclamare messaggi pending oltre un idle timeout. |
-| B10 ✅ | **Compensation task semantics** — riapertura plan COMPLETED/FAILED ambigua | MEDIUM | `OrchestrationService.java:365-430` | Fix: percorso COMPLETED separato (preserva `completedAt`), evento `PLAN_COMPENSATION_STARTED` nell'event store. |
-| B11 ✅ | **Token budget check ordering** — GP prediction calcolata prima del budget check (costo non contabilizzato) | LOW | `OrchestrationService.java:629-650` | Fix: pre-check budget conservativo (`gpPrediction=null`) prima dell'inferenza GP. Se FAIL → skip GP e fail immediato. |
-| B12 | **Optional service null checks** — `gpTaskOutcomeService` potrebbe essere null in path non protetti | LOW | `OrchestrationService.java:124-126, 549-554` | Usare Optional consistently |
-| B13 ✅ | **Tool names errati in tutti i 22 manifest** — i manifest `.agent.yml` elencano tool con nomi Claude Code (`Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`) che non esistono nel registro Spring AI MCP. I worker non trovano i tool e partono con 0/N tools. | HIGH | `agents/manifests/*.agent.yml` (tutti i 22 file) | Correggere i nomi con la mappatura MCP reale. `Edit` e `Grep` non hanno equivalente MCP → rimuovere. Aggiungere sempre `fs_list`. |
-| B14 ✅ | **Mustache template hardcoda write-tool-names errati** — `application.yml.mustache` (righe 30-32) genera `write-tool-names: [Write, Edit]` hardcoded, ignorando i nomi MCP reali. `PolicyProperties.java` ha il default corretto (`["Write", "Edit", "fs_write"]`), ma il template lo sovrascrive. Risultato: `PathOwnershipEnforcer` non controlla mai `fs_write` perche' non e' nella lista dei write-tool-names → un worker puo' scrivere ovunque con `fs_write` senza violazione path ownership. | HIGH | `agent-compiler-maven-plugin/.../templates/application.yml.mustache:30-32`, `PolicyProperties.java:37` | Aggiornare il template Mustache per generare `write-tool-names` dinamicamente dal manifest (includendo `fs_write`, `bash_execute`, etc.) oppure rimuovere la sezione hardcoded e lasciare i default di `PolicyProperties`. |
-| B15 ✅ | **ownsPaths statici — manca il project path dinamico** — i manifest dichiarano `ownsPaths` statici (`backend/`, `frontend/`, `docs/`, `eval/`). Ma il path del progetto in corso (es. `cps4/`) non viene propagato dall'orchestratore. Un `ai-task` con `ownsPaths: [eval/]` non puo' scrivere in `cps4/` anche se il task lo richiede. L'orchestratore deve almeno propagare il path del piano/progetto come owned path per ogni worker. | HIGH | `agents/manifests/*.agent.yml` (ownsPaths), `AgentTaskProducer.java`, `WorkerTaskConsumer.java`, `PathOwnershipEnforcer.java:49-99` | L'orchestratore aggiunge il project path (dal campo `Plan.projectPath` o dalla spec del piano) ai `ownsPaths` del task al momento del dispatch. Design: `AgentTask.dynamicOwnsPaths` (lista propagata via Redis) + merge con i `ownsPaths` statici dal manifest nel `PathOwnershipEnforcer`. |
-| B16 ✅ | **HOOK_MANAGER schema con nomi Claude Code** — `hook-manager.agent.yml:34` mostra esempio `["Read", "Write", "Edit", "Glob", "Grep", "Bash"]`. Il HOOK_MANAGER worker (LLM) genera HookPolicy con questi nomi. `PolicyEnforcingToolCallback` al livello 2 blocca i tool MCP reali (`fs_read`, `fs_write`) perche' non sono nell'allowlist della policy. Il fallback statico `HookPolicyResolver.DEFAULT_TOOL_ALLOWLISTS` ha i nomi corretti — ma viene usato solo se il HOOK_MANAGER non ha generato policy. | HIGH | `hook-manager.agent.yml:34`, `PolicyEnforcingToolCallback.java:113-125`, `HookPolicyResolver.java:35-46` | Aggiornare lo schema in `hook-manager.agent.yml` con nomi MCP reali. Centralizzare i nomi in un'unica source of truth (vedi #27). |
-| B18 ✅ | **No singleton per task — double processing** — risolto con `RedisTaskLockService` (SETNX + Lua release + heartbeat 60s). Integrato in `WorkerTaskConsumer`: lock acquisito prima del processing, rilasciato nel finally. Se lock fallisce → ACK senza processing. | HIGH | `RedisTaskLockService.java`, `WorkerTaskConsumer.java` | Risolto S12. |
-| B17 ✅ | **Context overflow da `fs_read` senza limiti** — un worker (es. AI-001 audit) che chiama `fs_read` su file grandi (HTML ~80KB, CSS ~80KB, JS ~30KB) accumula migliaia di token per ogni chiamata. Con un sito di 11 pagine (es. CPS), 48 tool call portano il prompt a 208K token, superando il limite di 200K del modello. Il LLM non ha visibilita' sul budget token residuo e continua a leggere file finche' non viene troncato. Nessun meccanismo di protezione: ne' `maxTokens` nel manifest, ne' auto-compacting nel worker SDK, ne' `limit` parametro nel tool `fs_read`. | CRITICAL | `WorkerChatClient.java` (nessun token counting pre-call), `fs_read` tool (nessun parametro `limit`), manifests `*.agent.yml` (nessun campo `maxTokens`) | Fix a 3 livelli: **(1)** campo `maxTokens` nel manifest → il worker SDK lo propaga come `maxOutputTokens` nella chat request (quick fix); **(2)** **auto-compacting nel worker SDK** — prima di ogni tool call, stimare token accumulati (system + messaggi + tool results). Se si supera una soglia (es. 75% del context window), compattare la storia: sostituire i risultati vecchi di tool call con un riassunto LLM compresso (un `fs_read` da 80KB → "file X: 1400 righe HTML, struttura header/nav/main/footer, Bootstrap 5" — da ~20K a ~200 token). Il worker continua a lavorare con contesto compresso, senza interrompere il task. Pattern analogo a Claude Code auto-compress; **(3)** parametro `limit` (righe/byte) nel tool `fs_read` — il worker sceglie quanto leggere per file (prevenzione upstream). Livello 2 e' il fix architetturale — il worker non crasha mai, si auto-compatta. |
-| B19 ✅ | **DispatchAttempt orfani — non-unique result** — risolto con fix immediato (`ORDER BY attemptNumber DESC LIMIT 1`) + fix strutturale (`closeOrphanedAttempts(itemId)` in `retryFailedItem`). | HIGH | `DispatchAttemptRepository.java`, `OrchestrationService.java` | Risolto S12. |
-
-## B17 Livello 2 — CompactingToolCallingManager ✅
-
-> Design spostato in PIANO_HISTORY.md. Implementazione: `CompactingToolCallingManager.java` (worker-sdk),
-> `BeanPostProcessor` wrap del `DefaultToolCallingManager`, soglia 75% context window.
-> Commit: `ee9f85d`. Test: `CompactingToolCallingManagerTest`.
+| # | Bug | Severita' | File |
+|---|-----|-----------|------|
+| B8 | **Dependency results "1 vs 3"** — task con 3 dipendenze logga "with 1 dependency results". `buildContextJson()` filtra male. | MEDIUM | `OrchestrationService.java:748-759`, `AgentContextBuilder.java:67-80` |
+| B12 | **Optional service null checks** — `gpTaskOutcomeService` potrebbe essere null in path non protetti | LOW | `OrchestrationService.java:124-126, 549-554` |
 
 ---
 
@@ -498,16 +443,9 @@ Opzione D (JVM-per-WorkerType). Phase 1: tutto in-process (`a09df71`). Phase 2: 
 
 ---
 
-# Roadmap items #30-#34 — Blockchain-Inspired Enhancements
-
-Cinque concetti ispirati alla blockchain — senza blockchain vera — per aggiungere garanzie
-crittografiche di integrita' al framework. Costo infrastrutturale zero: i primitivi crittografici
-(hash chain, firme Ed25519, commitment) danno le stesse garanzie senza consenso distribuito.
-
-
 # Roadmap items #30-#34 — Blockchain-Inspired Enhancements ✅
 
-Tutti implementati. Design dettagliati: PIANO_HISTORY.md.
+Tutti implementati. Dettagli: [documentazione/03-mathematical-foundations.md](documentazione/03-mathematical-foundations.md).
 
 ## #30 ✅ — Hash Chain Tamper-Proof su `plan_event`
 
@@ -560,43 +498,9 @@ SHA-256 commitment hash su HookPolicy. `PolicyCommitmentService`, `PolicyVerific
 
 ---
 
-## #41 — Topological Pattern Detection (Persistent Homology)
+## #41 ✅ — Topological Pattern Detection (Persistent Homology)
 
-**Problema**: le metriche scalari (reward, ELO, token) non catturano la *struttura* dei pattern
-di esecuzione. Certi problemi ricorrenti (cluster di fallimenti correlati, cicli di retry,
-regioni dello spazio parametri mai esplorate) hanno una forma topologica.
-
-**Soluzione**: Persistent Homology sugli embeddings 1024-dim dei `task_outcomes` per identificare
-feature topologiche stabili.
-
-**Design**:
-
-- **Betti Numbers**: beta_0 = cluster distinti (profili worker separati), beta_1 = cicli (pattern retry ricorrenti),
-  beta_2 = vuoti (regioni inesplorate dello spazio dei task)
-- **Persistence Diagram**: feature che persistono su molte scale = segnale; feature effimere = rumore
-- **Rips Complex**: costruito sugli embeddings `task_outcomes.embedding` (pgvector 1024-dim, gia' indicizzato HNSW)
-
-Implementazione:
-- Libreria Java: [javaplex](https://github.com/appliedtopology/javaplex) o implementazione custom
-  del Vietoris-Rips complex (per 1024-dim embeddings, sampling necessario: ~200 punti max)
-- `TopologicalAnalyzer.java` (NEW):
-  - `analyze(List<TaskOutcomeEmbedding>) → TopologyReport`
-  - `TopologyReport`: bettiNumbers, persistenceDiagram, significantFeatures
-- `PlanController.java`: `GET /api/v1/analytics/topology` → report con interpretazione
-  - beta_1 > 0: "Esistono pattern ciclici di retry — investigare causa root"
-  - beta_0 alto: "I worker operano in cluster separati — bassa trasferibilita' cross-profile"
-  - beta_2 > 0: "Regioni dello spazio dei task mai esplorate — considerare UCB exploration"
-
-**Frequenza**: analisi batch (non real-time). Eseguita dopo ogni 50+ task_outcomes completati.
-Risultati cachati in Redis (key: `agentfw:topology:{hash(filtro)}`).
-
-**File**: `TopologicalAnalyzer.java` (NEW), `TopologyReport.java` (NEW, in agent-common),
-`PlanController.java` (endpoint analytics)
-
-**Sforzo**: 2.5g. **Dipendenze**: `task_outcomes` con embeddings (#15), RAG pipeline attiva (#23).
-**Impatto**: medio — fornisce insight avanzati, non cambia il comportamento. Valore per debugging e tuning.
-
----
+Coperto da #85 `PersistentHomologyService` (Vietoris-Rips + Union-Find β₀ barcodes). Dettagli: [documentazione/06-fase-9-10-research.md](documentazione/06-fase-9-10-research.md).
 
 ---
 
@@ -638,202 +542,23 @@ Tutti implementati in S21-S22. Commit: `84253d3`.
 
 # Research Domains (#50-#61) ✅
 
-Fase 8 della roadmap: 12 items in 3 domini (Finanza #50-#54, Sistemi Complessi #55-#57, Matematica Avanzata #58-#61). Tutti implementati in S8-research + S10. Dettagli: `docs/agent-framework/research-domains-new.md`.
-
-| # | Item | Componente | Sessione |
-|---|------|-----------|----------|
-| 50 | Portfolio Theory (Markowitz) | `PortfolioAllocator` | S8-research |
-| 51 | Market Making (Bid-Ask) | `MarketMakingScheduler` | S8-research |
-| 52 | Black-Scholes Greeks | `WorkerGreeksService` | S8-research |
-| 53 | Bayesian Success Prediction | `BayesianSuccessPredictor` | S8-research |
-| 54 | Causal Inference (Do-Calculus) | `CausalInferenceService` | S8-research |
-| 55 | Evolutionary Game Theory | `ReplicatorDynamicsService` | S8-research |
-| 56 | Self-Organized Criticality | `SandpileService` | S8-research |
-| 57 | Swarm Intelligence (ACO) | `AntColonyOptimizer` | S8-research |
-| 58 | Spectral Graph Theory | `SpectralDecomposer` | S8-research |
-| 59 | Tropical Geometry (Min-Plus) | `TropicalScheduler` | S8-research |
-| 60 | Optimal Transport (Wasserstein) | `OptimalTransportService` | S8-research |
-| 61 | Submodular Optimization | `SubmodularSelector` | S8-research |
-
-Codice condiviso: `HashUtil`, `CriticalPathCalculator`, `TropicalSemiring`, `CovarianceMatrix`, `TaskOutcomeService`, `GpWorkerSelectionService`, `PlanGraphService`, `AnalyticsController`.
+12 items in 3 domini (Finanza, Sistemi Complessi, Matematica Avanzata), ~22.5g. Sessione S8-research.
+Dettagli: [documentazione/05-fase-8-research.md](documentazione/05-fase-8-research.md) | `docs/agent-framework/research-domains-new.md`
 
 ---
 
-## Research Domains Extended — Fase 9 (#62-#76)
+## Research Domains — Fasi 9-12 (#62-#106) ✅
 
-15 nuovi concetti avanzati. Documentazione completa: [`docs/agent-framework/research-domains-new.md`](../docs/agent-framework/research-domains-new.md)
+67 items completati, ~147.5g totali. Dettagli per fase:
 
-### Tabella items Fase 9
+| Fase | Items | Sforzo | File |
+|------|-------|--------|------|
+| 9 (#62-#76) | 15 | ~33.0g | [documentazione/06-fase-9-10-research.md](documentazione/06-fase-9-10-research.md) |
+| 10 (#77-#86) | 10 | ~24.0g | [documentazione/06-fase-9-10-research.md](documentazione/06-fase-9-10-research.md) |
+| 11 (#87-#96) | 10 | ~22.5g | [documentazione/07-fase-11-12-research.md](documentazione/07-fase-11-12-research.md) |
+| 12 (#97-#106) | 10 | ~21.5g | [documentazione/07-fase-11-12-research.md](documentazione/07-fase-11-12-research.md) |
 
-| Tier | # | Dominio | Titolo | Sforzo | Valore |
-|------|---|---------|--------|--------|--------|
-| 0 | **64** | Behavioral | Prospect Theory (Kahneman-Tversky) | 1.5g | Alto |
-| 0 | **65** | Online Learning | Hedge Algorithm (regret bounds) | 1.5g | Alto |
-| 0 | **69** | Finance | Kelly Criterion (budget sizing) | 1.5g | Medio-Alto |
-| 0 | **71** | Decision | Optimal Stopping (Secretary Problem) | 2.0g | Medio-Alto |
-| 0 | **75** | Rationality | Calibration Audit (Dutch Book) | 1.5g | Alto |
-| 1 | **62** | Game Theory | VCG Mechanism Design (task pricing) | 2.5g | Alto |
-| 1 | **63** | Control | Model Predictive Control (scheduling) | 3.0g | Alto |
-| 1 | **67** | Game Theory | Shapley Value (credit attribution) | 2.5g | Alto |
-| 1 | **68** | Information | Fisher Information Metric (uncertainty) | 3.0g | Medio-Alto |
-| 1 | **73** | Rationality | Value of Information (exploration) | 2.0g | Alto |
-| 1 | **74** | Rationality | Goodhart's Law Mitigation (metric safety) | 2.0g | Alto |
-| 1 | **76** | Rationality | Superrationality (multi-worker cooperation) | 2.5g | Medio-Alto |
-| 2 | **66** | Finance | Real Options Theory (task deferral) | 2.0g | Medio-Alto |
-| 2 | **70** | Contract | Contract Theory (SLA worker) | 2.5g | Medio |
-| 2 | **72** | Decision | TDT/FDT Reflective Dispatch | 3.0g | Alto |
-| | | | **Totale Fase 9** | **33.0g** | |
-
-### Ordine implementazione Fase 9
-
-```
-Fase 9a (fondazioni, ~8.0g):      #64 ✅ → #65 ✅ → #69 ✅ → #71 ✅ → #75 ✅
-Fase 9b (game theory, ~5.0g):     #62 ✅ → #67 ✅
-Fase 9c (controllo+info, ~10.5g): #63 ✅ → #68 ✅ → #73 ✅ → #74 ✅
-Fase 9d (avanzato, ~5.0g):        #66 ✅ → #70 ✅
-Fase 9e (agent found., ~5.5g):    #76 ✅ → #72 ✅
-                                   ─────────────────────
-                                   Totale: ~33.0g (#62-#76) ✅
-```
-
-### Dipendenze critiche Fase 9
-
-- **GP Engine (#15)** prerequisito per 9 items su 15
-- **#72 TDT e' la "meta-teoria"**: principio unificante per #63 (MPC), #73 (VoI), #76 (Superrationality)
-- **#74 Goodhart + #75 Calibration**: coppia difensiva per robustezza metriche
-- Nessuna Flyway migration — tutti in-memory o Redis DB 4
-
-### Riepilogo sforzo complessivo Research Domains
-
-```
-Fase 8  (#50-#61):  12 items, ~22.5g  [research-domains.md]
-Fase 9  (#62-#76):  15 items, ~33.0g  [research-domains-new.md]
-Fase 10 (#77-#86):  10 items, ~24.0g  [research-domains-new.md]
-Fase 11 (#87-#96):  10 items, ~22.5g  [research-domains-new.md]
-Fase 12 (#97-#106): 10 items, ~21.5g  [research-domains-new.md]
-Fase 13 (#107-#116):10 items, ~24.0g  [research-domains-ext.md]
-───────────────────────────────────────
-Totale:             67 items, ~147.5g
-
-Consolidamento: research-domains-consolidation.md
-  (matrice 57×21, Mermaid, coverage, priority ranking, theory clusters)
-```
-
----
-
-## Research Domains Extended — Fase 10 (#77-#86)
-
-10 nuovi concetti da neuroscienze computazionali, teoria dell'informazione, fisica statistica, controllo robusto, distributed computing, complexity science, topologia e teoria delle categorie. Documentazione completa: [`docs/agent-framework/research-domains-new.md`](../docs/agent-framework/research-domains-new.md)
-
-### Tabella items Fase 10
-
-| Tier | # | Dominio | Titolo | Sforzo | Valore |
-|------|---|---------|--------|--------|--------|
-| 0 | **79** | Info Theory | MDL / Kolmogorov Complexity (plan quality) | 2.0g | Alto |
-| 0 | **82** | Control | H-infinity Robust Control (worst-case dispatch) | 2.0g | Alto |
-| 0 | **84** | Complexity | Edge of Chaos (exploration-exploitation auto-tune) | 2.0g | Alto |
-| 1 | **77** | Neuroscience | Active Inference (Free Energy Principle) | 3.0g | Alto |
-| 1 | **78** | Info Theory | Information Bottleneck (embedding compression) | 2.5g | Medio-Alto |
-| 1 | **81** | Stat. Physics | Spin Glass & Simulated Annealing (dispatch ordering) | 2.0g | Medio-Alto |
-| 1 | **83** | Distributed | Byzantine Fault Tolerance (worker reliability) | 2.5g | Alto |
-| 2 | **80** | Stat. Physics | Renormalization Group (multi-scale decomposition) | 2.5g | Medio |
-| 2 | **85** | Topology | Persistent Homology (embedding landscape) | 3.0g | Medio-Alto |
-| 2 | **86** | Category Th. | Functorial Plan Semantics (compositionality) | 2.5g | Medio |
-| | | | **Totale Fase 10** | **24.0g** | |
-
-### Ordine implementazione Fase 10
-
-```
-Fase 10a (fondazioni, ~6.0g):       #79 ✅ → #82 ✅ → #84 ✅
-Fase 10b (core, ~10.0g):            #77 ✅ → #78 ✅ → #81 ✅ → #83 ✅
-Fase 10c (avanzato, ~8.0g):         #80 ✅ → #85 ✅ → #86 ✅
-                                     ─────────────────────
-                                     Totale: ~24.0g (#77-#86) ✅
-```
-
-### Dipendenze critiche Fase 10
-
-- **GP Engine (#15)** prerequisito per #77, #78, #82, #84 (tutti interagiscono col GP posterior o UCB)
-- **#77 Active Inference è il nucleo**: unifica #78 (IB come caso speciale di free energy), influenza #84 (criticality come regime ottimale di free energy)
-- **#79 MDL + #80 RG**: coppia complementare — MDL misura semplicità, RG opera trasformazioni multi-scala
-- **#83 BFT + #74 Goodhart**: difesa congiunta — BFT contro worker inaffidabili, Goodhart contro metriche corrotte
-- **#85 Persistent Homology**: richiede pgvector embeddings (TaskOutcomeService) + #78 IB (topologia dello spazio compresso)
-- **#86 Functorial Semantics**: richiede PlannerService DAG + #80 RG (composizione multi-scala)
-- Nessuna Flyway migration — tutti in-memory o Redis DB 4
-
----
-
-## Research Domains Extended — Fase 11 (#87-#96)
-
-10 nuovi concetti da formal methods, social choice theory, cybernetics, learning theory, compressed sensing, ergodic economics e queuing theory. Strategia: colmare le lacune di copertura sui componenti sotto-serviti (CouncilService, Redis Streams, RAG Pipeline). Documentazione completa: [`docs/agent-framework/research-domains-new.md`](../docs/agent-framework/research-domains-new.md)
-
-### Tabella items Fase 11
-
-| Tier | # | Dominio | Titolo | Sforzo | Valore |
-|------|---|---------|--------|--------|--------|
-| 0 | **87** | Formal Methods | Petri Nets (plan concurrency analysis) | 2.5g | Alto |
-| 0 | **89** | Learning Theory | PAC-Bayes (GP convergence bounds) | 2.0g | Alto |
-| 0 | **90** | Social Choice | Social Choice Theory (council aggregation) | 2.5g | Alto |
-| 0 | **95** | Economics | Ergodic Economics (time-average budgets) | 2.0g | Medio-Alto |
-| 0 | **96** | Queuing Theory | M/G/1 (stream capacity planning) | 2.0g | Alto |
-| 1 | **88** | Formal Methods | CSP (worker communication protocol) | 2.5g | Alto |
-| 1 | **91** | Social Systems | Diversity Prediction (council composition) | 2.0g | Alto |
-| 1 | **93** | Learning Theory | Thompson Sampling (Bayesian exploration) | 2.0g | Alto |
-| 1 | **94** | Compressed S. | Compressed Sensing (sparse RAG retrieval) | 2.5g | Alto |
-| 2 | **92** | Cybernetics | VSM (viable system model, agent hierarchy) | 2.5g | Medio-Alto |
-| | | | **Totale Fase 11** | **22.5g** | |
-
-### Ordine implementazione Fase 11
-
-```
-Fase 11a (formal+voting, ~9.5g):   #87 ✅ → #90 ✅ → #89 ✅ → #88 ✅
-Fase 11b (council+econ, ~6.5g):    #91 ✅ → #95 ✅ → #96 ✅
-Fase 11c (avanzato, ~6.5g):        #93 ✅ → #94 ✅ → #92 ✅
-                                     ─────────────────────
-                                     Totale: ~22.5g (#87-#96) ✅
-```
-
-### Dipendenze critiche Fase 11
-
-- **CouncilService** target di 3 items: #90 (voting protocol), #91 (diversity), #92 (VSM S4) — colma la lacuna principale
-- **Redis Streams** target di 2 items: #88 (CSP protocol verification), #96 (queuing capacity) — formalizza il messaging
-- **RAG HybridSearchService** target di #94 (compressed sensing) — primo item teorico per il retrieval pipeline
-- **#87 Petri Nets + #88 CSP complementari**: stato (places/tokens) vs processo (events/channels) — insieme coprono concorrenza statica e dinamica
-- **#93 Thompson + #89 PAC-Bayes**: Thompson esplora campionando dalla GP posterior, PAC-Bayes bounds quando smettere di esplorare
-- **#95 Ergodic + #69 Kelly**: Kelly e' caso speciale ergoico — Ergodic Economics fornisce la giustificazione profonda
-- **#92 VSM meta-architettura**: mappa l'intero framework sui 5 sottosistemi di Beer (S1=Worker, S2=Redis, S3=Orchestration, S4=Council, S5=Human)
-- Nessuna Flyway migration — tutti in-memory, Redis, o metriche runtime
-
----
-
-## Research Domains Extended — Fase 12 (#97-#106)
-
-10 nuovi concetti che colmano le ultime lacune di copertura sui componenti non mappati (SerendipityService, PlanEventStore, RewardComputationService, AbstractWorker, PlanSnapshotService, RalphLoopService, WorkerCapabilitySpec, RAG Services, HookManagerService, PlanGraphService). Documentazione completa: [`docs/agent-framework/research-domains-new.md`](../docs/agent-framework/research-domains-new.md). Consolidamento: [`docs/agent-framework/research-domains-consolidation.md`](../docs/agent-framework/research-domains-consolidation.md).
-
-### Tabella items Fase 12
-
-| Tier | # | Dominio | Titolo | Sforzo | Valore |
-|------|---|---------|--------|--------|--------|
-| 0 | **97** | Bayesian | Bayesian Surprise (serendipity detection) | 2.0g | Alto |
-| 0 | **99** | RL Theory | Potential-Based Reward Shaping | 2.0g | Alto |
-| 0 | **100** | Concurrency | Actor Model (worker isolation) | 2.5g | Alto |
-| 0 | **101** | Distributed | Chandy-Lamport Snapshots (plan checkpointing) | 2.0g | Alto |
-| 0 | **102** | Analysis | Fixed-Point Theory (iterative convergence) | 2.0g | Alto |
-| 0 | **105** | Logic | LTL (hook policies, temporal verification) | 2.0g | Alto |
-| 1 | **98** | Process | Process Mining (workflow discovery) | 2.5g | Alto |
-| 1 | **103** | KR | Description Logic ALC (capability matching) | 2.0g | Medio-Alto |
-| 1 | **104** | HCI/IR | Information Foraging (RAG optimization) | 2.5g | Alto |
-| 1 | **106** | Swarm | Stigmergy (coordinamento indiretto) | 2.0g | Medio-Alto |
-| | | | **Totale Fase 12** | **21.5g** | |
-
-### Ordine implementazione Fase 12
-
-```
-Fase 12a (core, ~12.0g):          #97 ✅ → #99 ✅ → #100 ✅ → #101 ✅ → #102 ✅ → #105 ✅
-Fase 12b (avanzato, ~9.5g):       #98 ✅ → #103 ✅ → #104 ✅ → #106 ✅
-                                    ─────────────────────
-                                    Totale: ~21.5g (#97-#106) ✅
-```
+Consolidamento: `research-domains-consolidation.md` (matrice 57×21, Mermaid, coverage, theory clusters)
 
 ### Ordine implementazione Fase 13
 
@@ -895,63 +620,7 @@ Fase 14d (resilience, ~5.5g):        #118 → #126
 
 Documentazione completa: `docs/agent-framework/research-domains-ext.md` (§56-§65)
 
-### Dipendenze critiche Fase 12
-
-- **#98 Process Mining → #87 Petri Nets**: il workflow net scoperto dal process mining E' un Petri net
-- **#100 Actor Model → #88 CSP**: complementari — Actor per isolamento, CSP per sincronizzazione
-- **#104 Info Foraging → #94 Compressed Sensing**: entrambi ottimizzano retrieval RAG
-- **#106 Stigmergy → #92 VSM**: meccanismo di coordinamento S2 nel VSM
-- **GP Engine (#15)** prerequisito per #97, #99, #102 (prior/posterior, reward, convergenza)
-- **OrchestrationService** target di #100, #101, #105, #106 (supervision, snapshot, policy, coordinamento)
-- Nessuna Flyway migration — tutti in-memory, Redis, o metriche runtime
-
-### Audit qualità Fase 9-12 (2026-03-10)
-
-Audit sistematico di tutte le 45 implementazioni (#62-#106). Classificazione:
-- **GENUINE**: implementa l'algoritmo reale dal paper
-- **ACCEPTABLE**: semplificato ma cattura l'insight core
-- **STUB**: query+mean+DTO con naming cosmetico
-
-| Fase | GENUINE | ACCEPTABLE | STUB |
-|------|---------|------------|------|
-| 9 (#62-#76) | 15/15 | 0 | 0 |
-| 10 (#77-#86) | 9/10 | 1 (#86) | 0 |
-| 11 (#87-#96) | 10/10 | 0 | 0 |
-| 12 (#97-#106) | 9/10 | 0 | 1 (#100) |
-| **Totale** | **43** | **1** | **1** |
-
-**Fix applicati (stesso giorno)**:
-
-1. **#100 ActorModelSupervisor — REWRITE** (STUB → GENUINE)
-   - Prima: calcolo crash-rate + soglie, nessuno stato
-   - Dopo: supervision tree con ChildActor (state machine RUNNING→CRASHED→RESTARTING→STOPPED),
-     restart policy (maxRestarts in time window), escalation on limit exceeded,
-     REST_FOR_ONE strategy con ordine di registrazione, restart event history
-   - 11 test (erano 7)
-
-2. **#86 FunctorialSemanticsService — BUG FIX** (ACCEPTABLE → GENUINE)
-   - Bug: `error = |compositeAC - (edgeAB + edgeBC)|` era una tautologia algebrica (sempre 0)
-     perché `(fc-fa) - ((fb-fa)+(fc-fb)) = 0` per telescoping sum
-   - Fix: confronta functor (GP prediction) con ground truth (actual_reward) su path compositi:
-     `error = |(gp_mu(C)-gp_mu(A)) - (actual(C)-actual(A))|`
-   - 7 test (erano 5), inclusi test di non-zero error e non-compositional detection
-
-3. **#101 ChandyLamportSnapshotter — IMPROVEMENT** (ACCEPTABLE → GENUINE)
-   - Prima: solo task_outcomes + PlanEvent, nessun local state reale
-   - Dopo: PlanItemRepository per stato locale reale (WAITING/DISPATCHED/RUNNING/DONE/FAILED),
-     marker sequence (ultimo PlanEvent.sequenceNumber), state-event coherence check
-     (DISPATCHED senza evento = violazione), ProcessState record per item
-   - 8 test (erano 6), inclusi coherence violation e mixed states
-
-**Test suite**: 1082 test, 0 failure (era 1074, +8 test netti)
-
-### Arricchimenti inclusi (Fasi 9-12)
-
-Oltre ai 57 items, `research-domains-new.md` contiene:
-- **10 pseudocodice** (items algoritmici: #62, #63, #67, #77, #81, #87, #89, #93, #94, #96)
-- **10 esempi numerici** (con dati concreti dal framework: #62, #67, #69, #77, #81, #87, #93, #94, #95, #96)
-- **15 implementation sketches** (Java signatures + data flow: #62, #64, #65, #73, #75, #77, #81, #87, #93, #96, #97, #99, #100, #102, #105)
-- **27 cross-reference "Vedi anche"** (bidirezionali tra items correlati)
+Dipendenze Fase 12, audit qualita' Fase 9-12, arricchimenti: → [documentazione/07-fase-11-12-research.md](documentazione/07-fase-11-12-research.md)
 
 ---
 
