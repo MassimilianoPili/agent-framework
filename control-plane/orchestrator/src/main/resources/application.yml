@@ -729,6 +729,50 @@ semantic-cache:
   max-entries-per-type: 200         # max cached entries per worker type
   ttl-minutes: 60                   # cache entry time-to-live
 
+# Context Engineering (#107) — knapsack token budget allocation for LLM context window
+context-engineering:
+  enabled: false
+  compaction-threshold: 0.85          # utilization ratio above this triggers compaction
+
+# Curriculum Prompting (#108, Bengio 2009) — difficulty-ordered few-shot example selection
+curriculum-prompting:
+  enabled: false
+  max-examples-per-type: 50           # max golden examples per worker type
+  selection-k: 3                      # default number of exemplars to select
+
+# Factorised Belief Models (#115, Ruiz-Serra AAMAS 2025) — per-agent Gaussian beliefs + EFE
+factorised-beliefs:
+  enabled: false
+  prior-mu: 0.5                       # prior mean competence estimate
+  prior-sigma2: 1.0                   # prior variance (uncertainty)
+  exploration-lambda: 1.0             # EFE exploration weight (lambda)
+
+# MCTS Dispatch (#112, Kocsis-Szepesvári 2006) — Monte Carlo Tree Search for plan-level dispatch
+mcts-dispatch:
+  enabled: false
+  exploration-c: 1.41                 # PUCT exploration constant (sqrt(2))
+  max-simulations-factor: 50          # simulations = tasks × factor
+  min-steps-for-mcts: 4              # plans with fewer steps use greedy fallback
+
+# Iterated Amplification (#109, Christiano 2018) — multi-level feedback cascade
+iterated-amplification:
+  enabled: false
+  auto-threshold: 0.3                 # complexity below this → AUTO
+  model-threshold: 0.7                # complexity below this → MODEL, above → HUMAN
+  spot-check-ratio: 0.1              # fraction of AUTO decisions spot-checked by human
+
+# Worker-to-Worker Handoff (#113, AutoGen Swarm) — confidence-based direct delegation
+handoff-routing:
+  enabled: false
+  confidence-threshold: 0.7           # confidence above this → direct handoff
+  max-chain-length: 5                 # max delegation chain depth (anti-loop)
+
+# Markov Shapley Value (#114, Wang NeurIPS 2022) — sequential credit assignment
+markov-shapley:
+  enabled: false
+  default-permutations: 1000          # Monte Carlo permutation samples
+  convergence-se-threshold: 0.01      # max standard error for convergence
+
 # Observability SLIs (Google SRE) — service level indicators + error budgets
 observability-sli:
   enabled: false
