@@ -229,6 +229,51 @@ class WorkerProfileRegistryTest {
         assertThat(registry.getProfileEntry("be-cobol")).isNull();
     }
 
+    // ── Topic-per-type splitting (#21) ──
+
+    @Test
+    void resolveTopic_topicPerTypeEnabled_appendsWorkerType() {
+        WorkerProfileRegistry registry = validRegistry();
+        registry.setTopicPerType(true);
+
+        assertThat(registry.resolveTopic(WorkerType.BE, "be-java")).isEqualTo("agent-tasks:BE");
+        assertThat(registry.resolveTopic(WorkerType.FE, "fe-react")).isEqualTo("agent-tasks:FE");
+    }
+
+    @Test
+    void resolveTopic_topicPerTypeEnabled_nullProfile_appendsWorkerType() {
+        WorkerProfileRegistry registry = validRegistry();
+        registry.setTopicPerType(true);
+
+        assertThat(registry.resolveTopic(WorkerType.BE, null)).isEqualTo("agent-tasks:BE");
+    }
+
+    @Test
+    void resolveTopic_topicPerTypeEnabled_typeWithoutProfile_appendsWorkerType() {
+        WorkerProfileRegistry registry = validRegistry();
+        registry.setTopicPerType(true);
+
+        assertThat(registry.resolveTopic(WorkerType.AI_TASK, null)).isEqualTo("agent-tasks:AI_TASK");
+    }
+
+    @Test
+    void resolveTopic_topicPerTypeEnabled_dedicatedTopic_notSplit() {
+        WorkerProfileRegistry registry = validRegistry();
+        registry.setTopicPerType(true);
+
+        // REVIEW has its own topic "agent-reviews" — should NOT be split
+        assertThat(registry.resolveTopic(WorkerType.REVIEW, null)).isEqualTo("agent-reviews");
+    }
+
+    @Test
+    void resolveTopic_topicPerTypeDisabled_noSplit() {
+        WorkerProfileRegistry registry = validRegistry();
+        registry.setTopicPerType(false);
+
+        assertThat(registry.resolveTopic(WorkerType.BE, "be-java")).isEqualTo("agent-tasks");
+        assertThat(registry.resolveTopic(WorkerType.FE, "fe-react")).isEqualTo("agent-tasks");
+    }
+
     // ── Helpers ──
 
     private WorkerProfileRegistry validRegistry() {

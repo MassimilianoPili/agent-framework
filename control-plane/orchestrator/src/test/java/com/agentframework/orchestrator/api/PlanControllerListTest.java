@@ -60,6 +60,7 @@ class PlanControllerListTest {
     @Mock private QueueAnalyzer queueAnalyzer;
     @Mock private com.agentframework.orchestrator.graph.DagHashService dagHashService;
     @Mock private com.agentframework.orchestrator.council.CouncilCommitmentRepository councilCommitmentRepository;
+    @Mock private com.agentframework.orchestrator.hooks.HookManagerService hookManagerService;
 
     private PlanController controller;
 
@@ -77,7 +78,8 @@ class PlanControllerListTest {
                 queueAnalyzer,
                 Optional.empty(),
                 dagHashService,
-                councilCommitmentRepository);
+                councilCommitmentRepository,
+                hookManagerService);
     }
 
     @Test

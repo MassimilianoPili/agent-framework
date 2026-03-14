@@ -32,6 +32,13 @@ public class WorkerProfileRegistry {
     private Map<String, ProfileEntry> profiles = new LinkedHashMap<>();
     private Map<String, String> defaults = new LinkedHashMap<>();
 
+    /**
+     * When true, dispatch topics are split per WorkerType: {@code agent-tasks:BE},
+     * {@code agent-tasks:FE}, etc. Eliminates client-side filtering overhead.
+     * Default: false (single stream, backward compatible).
+     */
+    private boolean topicPerType = false;
+
     public Map<String, ProfileEntry> getProfiles() {
         return profiles;
     }
@@ -46,6 +53,14 @@ public class WorkerProfileRegistry {
 
     public void setDefaults(Map<String, String> defaults) {
         this.defaults = defaults;
+    }
+
+    public boolean isTopicPerType() {
+        return topicPerType;
+    }
+
+    public void setTopicPerType(boolean topicPerType) {
+        this.topicPerType = topicPerType;
     }
 
     /**
@@ -111,18 +126,26 @@ public class WorkerProfileRegistry {
     public String resolveTopic(WorkerType workerType, String workerProfile) {
         String effectiveProfile = resolveEffectiveProfile(workerType, workerProfile);
 
+        String baseTopic;
         if (effectiveProfile == null) {
             // Type has no profiles — use direct topic from WorkerType
-            return workerType.topicName();
+            baseTopic = workerType.topicName();
+        } else {
+            ProfileEntry entry = profiles.get(effectiveProfile);
+            if (entry == null) {
+                throw new UnknownWorkerProfileException(
+                        "Unknown worker profile '" + effectiveProfile + "' for type " + workerType);
+            }
+            baseTopic = entry.getTopic();
         }
 
-        ProfileEntry entry = profiles.get(effectiveProfile);
-        if (entry == null) {
-            throw new UnknownWorkerProfileException(
-                    "Unknown worker profile '" + effectiveProfile + "' for type " + workerType);
+        // #21: topic-per-type splits the single stream into per-workerType streams
+        // e.g., "agent-tasks" → "agent-tasks:BE", "agent-tasks:FE", etc.
+        // Types with dedicated topics (REVIEW → "agent-reviews") are not split further.
+        if (topicPerType && "agent-tasks".equals(baseTopic)) {
+            return baseTopic + ":" + workerType.name();
         }
-
-        return entry.getTopic();
+        return baseTopic;
     }
 
     /**

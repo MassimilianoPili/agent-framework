@@ -38,6 +38,8 @@ import com.agentframework.orchestrator.graph.PlanGraphService;
 import com.agentframework.orchestrator.graph.SpectralAnalyzer;
 import com.agentframework.orchestrator.graph.SpectralMetrics;
 import com.agentframework.common.policy.CompensationMode;
+import com.agentframework.common.policy.HookPolicy;
+import com.agentframework.orchestrator.hooks.HookManagerService;
 import com.agentframework.orchestrator.orchestration.OrchestrationService;
 import com.agentframework.orchestrator.repository.QualityGateReportRepository;
 import com.agentframework.orchestrator.service.PlanSnapshotService;
@@ -81,6 +83,7 @@ public class PlanController {
     private final GlobalAssignmentSolver globalAssignmentSolver;
     private final DagHashService dagHashService;
     private final CouncilCommitmentRepository councilCommitmentRepository;
+    private final HookManagerService hookManagerService;
 
     public PlanController(OrchestrationService orchestrationService,
                           PlanSnapshotService snapshotService,
@@ -101,7 +104,8 @@ public class PlanController {
                           QueueAnalyzer queueAnalyzer,
                           Optional<GlobalAssignmentSolver> globalAssignmentSolver,
                           DagHashService dagHashService,
-                          CouncilCommitmentRepository councilCommitmentRepository) {
+                          CouncilCommitmentRepository councilCommitmentRepository,
+                          HookManagerService hookManagerService) {
         this.orchestrationService = orchestrationService;
         this.snapshotService = snapshotService;
         this.reportRepository = reportRepository;
@@ -122,6 +126,7 @@ public class PlanController {
         this.globalAssignmentSolver = globalAssignmentSolver.orElse(null);
         this.dagHashService = dagHashService;
         this.councilCommitmentRepository = councilCommitmentRepository;
+        this.hookManagerService = hookManagerService;
     }
 
     /**
@@ -394,6 +399,48 @@ public class PlanController {
                 return ResponseEntity.ok(Map.of("status", "rejected", "itemId", itemId.toString()));
             })
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * PUT /api/v1/plans/{id}/policies/{taskKey}
+     * Runtime policy update for a specific task (#10 L3).
+     *
+     * <p>Allows operators to tighten or modify HookPolicy constraints while a plan
+     * is executing. The new policy replaces the existing one and its commitment hash
+     * is recomputed. Affects subsequent dispatches of this task (e.g., after retry).</p>
+     */
+    @PutMapping("/{id}/policies/{taskKey}")
+    public ResponseEntity<?> updatePolicy(@PathVariable UUID id,
+                                           @PathVariable String taskKey,
+                                           @RequestBody HookPolicy policy) {
+        return planRepository.findById(id)
+            .map(plan -> {
+                if (plan.getStatus() == PlanStatus.COMPLETED || plan.getStatus() == PlanStatus.CANCELLED) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of("error", "Cannot update policy for terminal plan"));
+                }
+                HookManagerService.HashedPolicy hashed = hookManagerService.updatePolicy(id, taskKey, policy);
+                return ResponseEntity.ok(Map.of(
+                        "taskKey", taskKey,
+                        "policyHash", hashed.hash(),
+                        "status", "updated"));
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * GET /api/v1/plans/{id}/policies/{taskKey}
+     * Returns the current stored policy for a specific task, if any.
+     */
+    @GetMapping("/{id}/policies/{taskKey}")
+    public ResponseEntity<?> getPolicy(@PathVariable UUID id,
+                                        @PathVariable String taskKey) {
+        return hookManagerService.getStoredPolicy(id, taskKey)
+                .map(hp -> ResponseEntity.ok(Map.of(
+                        "taskKey", taskKey,
+                        "policy", hp.policy(),
+                        "policyHash", hp.hash())))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**

@@ -224,6 +224,48 @@ public class HookManagerService {
     }
 
     /**
+     * Dynamically updates the HookPolicy for a specific task at runtime (#10 L3).
+     *
+     * <p>Allows operators or automated systems to tighten or modify policy constraints
+     * while a plan is executing. The new policy replaces the existing one (from HM, TM,
+     * or static fallback) and its commitment hash is recomputed.</p>
+     *
+     * <p>Use cases:</p>
+     * <ul>
+     *   <li>Tightening permissions after a violation is detected</li>
+     *   <li>Relaxing constraints after manual review of a blocked task</li>
+     *   <li>Adding network host restrictions discovered during execution</li>
+     * </ul>
+     *
+     * @param planId  the plan
+     * @param taskKey the task key to update
+     * @param policy  the new HookPolicy
+     * @return the hashed policy that was stored
+     */
+    public HashedPolicy updatePolicy(UUID planId, String taskKey, HookPolicy policy) {
+        String hash = PolicyHasher.hash(policy);
+        HashedPolicy hashed = new HashedPolicy(policy, hash);
+        policiesByPlan.computeIfAbsent(planId, k -> new ConcurrentHashMap<>())
+                      .put(taskKey, hashed);
+        log.info("Runtime policy update for task {} (plan {}): hash={}", taskKey, planId, hash);
+        return hashed;
+    }
+
+    /**
+     * Returns the current policy for a task, if one is stored (HM, TM, or runtime update).
+     * Does not fall back to static — use {@link #resolvePolicy} for full resolution.
+     *
+     * @param planId  the plan
+     * @param taskKey the task key
+     * @return the stored policy, or empty if none
+     */
+    public Optional<HashedPolicy> getStoredPolicy(UUID planId, String taskKey) {
+        Map<String, HashedPolicy> planPolicies = policiesByPlan.get(planId);
+        if (planPolicies == null) return Optional.empty();
+        return Optional.ofNullable(planPolicies.get(taskKey));
+    }
+
+    /**
      * Removes all stored policies for a completed plan (memory cleanup).
      *
      * @param planId the plan whose policies can be discarded

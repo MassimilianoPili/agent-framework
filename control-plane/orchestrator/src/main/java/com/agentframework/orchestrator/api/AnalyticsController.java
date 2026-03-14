@@ -67,6 +67,10 @@ public class AnalyticsController {
     private final Optional<ContractTheoryService> contractTheoryService;
     private final Optional<PersistentHomologyService> persistentHomologyService;
     private final Optional<FederationMetricsExporter> federationMetricsExporter;
+    private final Optional<ConvergenceMonitor> convergenceMonitor;
+    private final Optional<SemanticCacheService> semanticCacheService;
+    private final Optional<SliDefinitionService> sliDefinitionService;
+    private final Optional<ErrorBudgetCalculator> errorBudgetCalculator;
     private final ShapleyDagService shapleyDagService;
     private final OrchestrationService orchestrationService;
     private final CriticalityMonitor criticalityMonitor;
@@ -88,6 +92,10 @@ public class AnalyticsController {
                                 Optional<ContractTheoryService> contractTheoryService,
                                 Optional<PersistentHomologyService> persistentHomologyService,
                                 Optional<FederationMetricsExporter> federationMetricsExporter,
+                                Optional<ConvergenceMonitor> convergenceMonitor,
+                                Optional<SemanticCacheService> semanticCacheService,
+                                Optional<SliDefinitionService> sliDefinitionService,
+                                Optional<ErrorBudgetCalculator> errorBudgetCalculator,
                                 ShapleyDagService shapleyDagService,
                                 OrchestrationService orchestrationService,
                                 CriticalityMonitor criticalityMonitor) {
@@ -108,6 +116,10 @@ public class AnalyticsController {
         this.contractTheoryService = contractTheoryService;
         this.persistentHomologyService = persistentHomologyService;
         this.federationMetricsExporter = federationMetricsExporter;
+        this.convergenceMonitor = convergenceMonitor;
+        this.semanticCacheService = semanticCacheService;
+        this.sliDefinitionService = sliDefinitionService;
+        this.errorBudgetCalculator = errorBudgetCalculator;
         this.shapleyDagService = shapleyDagService;
         this.orchestrationService = orchestrationService;
         this.criticalityMonitor = criticalityMonitor;
@@ -461,5 +473,64 @@ public class AnalyticsController {
                 "usedToday", exporter.getQueriesUsedToday(),
                 "dailyLimit", exporter.getRemainingBudget() + exporter.getQueriesUsedToday()
         ));
+    }
+
+    /**
+     * GET /api/v1/analytics/convergence?workerType=BE
+     *
+     * <p>Checks GP posterior convergence for a worker type using sliding-window
+     * variance (#116 Logical Induction). Returns per-profile convergence status.</p>
+     */
+    @GetMapping("/convergence")
+    public ResponseEntity<ConvergenceMonitor.ConvergenceReport> getConvergence(
+            @RequestParam String workerType) {
+        if (convergenceMonitor.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(convergenceMonitor.get().checkConvergence(workerType));
+    }
+
+    /**
+     * GET /api/v1/analytics/semantic-cache-stats
+     *
+     * <p>Returns semantic cache statistics (#110): total entries, per-workerType
+     * counts, similarity threshold, TTL configuration.</p>
+     */
+    @GetMapping("/semantic-cache-stats")
+    public ResponseEntity<SemanticCacheService.CacheStats> getSemanticCacheStats() {
+        if (semanticCacheService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(semanticCacheService.get().getStats());
+    }
+
+    /**
+     * GET /api/v1/analytics/sli-report?workerType=BE
+     *
+     * <p>Computes Service Level Indicators for a worker type (#111): availability,
+     * latency percentiles, throughput, quality.</p>
+     */
+    @GetMapping("/sli-report")
+    public ResponseEntity<SliDefinitionService.SliReport> getSliReport(
+            @RequestParam String workerType) {
+        if (sliDefinitionService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(sliDefinitionService.get().computeSlis(workerType));
+    }
+
+    /**
+     * GET /api/v1/analytics/error-budget?workerType=BE
+     *
+     * <p>Computes error budget and burn rate alerts for a worker type (#111).
+     * Returns per-SLO budget status with WARNING/CRITICAL severity levels.</p>
+     */
+    @GetMapping("/error-budget")
+    public ResponseEntity<ErrorBudgetCalculator.ErrorBudgetReport> getErrorBudget(
+            @RequestParam String workerType) {
+        if (errorBudgetCalculator.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(errorBudgetCalculator.get().computeBudget(workerType));
     }
 }
