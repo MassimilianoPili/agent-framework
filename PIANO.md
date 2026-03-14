@@ -864,77 +864,7 @@ Fase 13d (attribution, ~5.0g):     #113 ✅ → #114 ✅
 
 Documentazione completa: `docs/agent-framework/research-domains-ext.md` (§46-§55)
 
-### Risultati ricerca Fase 13 — Sintesi accademica (S23)
-
-Ricerca completata su 7 item rimanenti (#107, #108, #109, #112, #113, #114, #115). 35+ paper validati, 7 connessioni trasversali identificate.
-
-#### #107 Context Engineering — Knapsack + Information Scent + Compaction
-
-**Paper validati:** TALE (He et al., ACL 2025, -67% costi), RankRAG (Yu et al., NeurIPS 2024, +10% QA), LongLLMLingua (Jiang et al., ACL 2024, +21.4% con 4× meno token), Pirolli & Card 1999 (T1, information foraging), Blackboard Architecture (Salemi et al., arXiv:2510.01285, +13-57%).
-
-**Insight:** Nessun paper formula context selection come knapsack 0-1 → formulazione **genuinamente nuova** (il campo usa top-k = knapsack degenere con pesi uguali).
-
-**Design:** Value function con sigmoid decay × task alignment. Stopping: marginal value theorem di Pirolli. Compaction tiered: verbatim → LongLLMLingua 2-4× → LLMLingua-2 10-20× → drop. Context sharing: blackboard su AGE `task_graph`.
-
-#### #108 Curriculum Prompting — Difficulty Estimation + Self-Paced + Golden Examples
-
-**Paper validati:** Bengio et al. 2009 (ICML, T1, ~6200 cit), DAAO (arXiv:2509.11079, quasi identico al nostro design), TaskEval (arXiv:2407.21227, IRT per difficoltà), TACLer (arXiv:2601.21711, -42% token), Liu et al. 2022 (DeeLIO, T1, +41.9%).
-
-**Insight:** IRT ≡ Bradley-Terry → riuso infrastruttura Preference Sort per stima difficoltà. `P(correct | ability, difficulty) = sigmoid(ability - difficulty)`.
-
-**Design:** `D(task) = alpha * prior(type) + (1-alpha) * dynamic(history)`, alpha → 0 con dati. Curriculum lambda adattivo (+0.05 successo, -0.025 fallimento). CoT budget proporzionale: easy → minimal, hard → extended + self-verify.
-
-#### #109 Iterated Amplification — Cascade H₀→H₃ + Anti-Collusion
-
-**Paper validati:** Christiano et al. 2018 (arXiv:1810.08575, ~500 cit, IDA), Burns et al. 2023 (OpenAI, weak-to-strong), Trust or Escalate (ICLR 2025, confidence-gated), Self-Refine (Madaan et al. NeurIPS 2023, +20%), NeurIPS 2024 collusion paper (prompt-based anti-collusion non funziona).
-
-**Insight:** Council di 8 membri rischia sycophantic consensus. Servono: ruoli strutturalmente diversi (2 adversarial su 8), valutazione indipendente prima della deliberazione (Delphi method), calibration probes periodiche.
-
-**Design:** Escalation confidence-gated (H1→H2 solo se confidence bassa). Self-Refine intra-worker 2-3 round prima di escalare. Council: independent-then-deliberate, probes inject. H3 calibrato su outcome reali.
-
-#### #112 MCTS Dispatch — PUCT + GP Prior + Welford Backprop
-
-**Paper validati:** Kocsis & Szepesvári 2006 (ECML, T1, ~4700 cit, UCT), Silver et al. 2017 (Nature, T1, ~14000 cit, PUCT/AlphaZero), BOMCP (Mern et al., AAAI 2021, GP-guided MCTS), SWE-Search (Antoniades et al., arXiv:2410.20285, +23%), Tesauro et al. 2012 (UAI, Bayesian backprop).
-
-**Insight:** PUCT > UCT per il nostro caso. GP posterior serve direttamente come prior P(s,a) via softmax. GP mean come leaf value elimina rollout random. 150 GP query × 1ms = 150ms, dentro budget 1s.
-
-**Design:** `a* = argmax[Q(s,a) + c_puct * P(s,a) * sqrt(N(s)) / (1 + N(s,a))]`. Prior: `softmax(mu_i / tau)`. Backprop Welford online. Budget: depth=3, topK=5, 50 iter, <500ms.
-
-#### #113 Worker-to-Worker Handoff — Confidence Routing + Anti-Loop
-
-**Paper validati:** AutoGen Swarm (Wu et al., arXiv:2308.08155), Cemri et al. 2025 (ICLR, 14 failure modes MAS), Zhang et al. 2025 (arXiv:2502.11021, semantic entropy router), ACON (Kang et al., arXiv:2510.00615, -26-54% memoria), Anthropic engineering blog (filesystem come medium).
-
-**Insight:** Pattern Anthropic (artifact refs su storage condiviso, mai inline) superiore al message passing. Max 3-4 handoff prima che il context degradi. Loop prevention: visited-set + exponential penalty.
-
-**Design:** Trigger: GP σ² > threshold(depth) crescente (0.5→0.7→0.9). Max depth 3-4 hard limit. Context transfer: summary strutturato + artifact refs. HandoffRequest record con chainDepth e traceId.
-
-#### #114 Markov Shapley Value — TMC-Shapley + Owen Values
-
-**Paper validati:** SHAQ (Wang et al., NeurIPS 2022, T1, SBOE), Data Shapley (Ghorbani & Zou, ICML 2019, T1), Causal Shapley (Heskes et al., NeurIPS 2020, T1), SHARP (arXiv:2602.08335, +23.66%), Blame Attribution (NeurIPS 2021, non-monotonicità).
-
-**Insight:** N=10 worker types → exact Shapley (1024 coalizioni × 1ms GP = ~1s) **trattabile**. Owen values con 4 gruppi {Backend, Frontend, Intelligence, Quality} → ~50 coalizioni. Attenzione: non-monotonicità in setting sequenziali.
-
-**Design:** TMC-Shapley 50 permutations, stop su marginal < 10% noise_std. Owen hierarchy real-time. V(S) = GP prediction con coalition mask. Tripartite reward (da SHARP): `R_total_i = α·R_global + β·R_shapley_i + γ·R_process_i`.
-
-#### #115 Factorised Belief Models — EFE come GP-UCB Principled
-
-**Paper validati:** Ruiz-Serra et al. (AAMAS 2025, T1, factorised beliefs), Li et al. 2026 (arXiv:2602.06029, **GP-UCB ⊂ EFE**), Koudahl et al. 2021 (Entropy, T1), Parr/Pezzulo/Friston 2022 (MIT Press, textbook AIF), Fiedler et al. 2024 (LOD, AIF scheduling).
-
-**Insight:** Implementazione = **5 righe di codice** sopra il GP esistente. `EFE(a) = -mu(a) - λ·0.5·ln(1 + σ²/noise²)`. λ = sqrt(2·ln(T)) per garanzia no-regret. Non serve full AIF apparatus.
-
-**Design:** Pragmatic = mu(a), epistemic = 0.5·ln(1+σ²/noise²), score = pragmatic + λ·epistemic. λ adattivo su T. Mean-field factorisation (il GP la fa già). Opzionale: multi-output GP con coregionalisation per correlazioni cross-worker.
-
-#### Connessioni trasversali
-
-| Connessione | Descrizione | Impatto |
-|-------------|-------------|---------|
-| IRT ≡ Bradley-Terry | Stima difficoltà (#108) = modello logistico Preference Sort | Riuso infrastruttura |
-| GP-UCB ⊂ EFE | Active Inference (#115) sussume GP-UCB con garanzie più forti | 5 righe di upgrade |
-| Blackboard ≡ task_graph | Context sharing (#107) = pattern in AGE task_graph | Zero nuovo data layer |
-| PUCT prior = GP posterior | MCTS (#112) usa GP come prior senza conversioni | Design pulito |
-| Trust or Escalate → H₀→H₃ | ICLR 2025 (#109) = escalation gated | Risparmio compute |
-| Anthropic filesystem | Handoff (#113) tramite artifact refs, non inline | Best practice validata |
-| Owen hierarchy | N=10, 4 gruppi (#114) → 50 coalizioni vs 1024 | Real-time attribution |
+Risultati ricerca Fase 13 (35+ paper, 7 connessioni trasversali): → [PIANO_HISTORY.md] (S23)
 
 ### Ordine implementazione Fase 14
 
@@ -1128,10 +1058,10 @@ Le sezioni completate (✅) sono state spostate in **PIANO_HISTORY.md** per mant
 questo documento focalizzato sul piano di evoluzione futuro.
 
 **PIANO_HISTORY.md** contiene:
-- Feature implementate: #1-#4, #6, #11-#18, #19-#49, #50-#106 (motivazioni architetturali complete)
+- Feature implementate: #1-#4, #6, #11-#18, #19-#49, #50-#116 (motivazioni architetturali complete)
 - RAG Pipeline: piano dettagliato 3 sessioni, struttura modulo, config YAML, fonti
 - Bug fix: B1-B7, B9-B11, B13-B19 (sessioni S8, S12, S14)
-- Session log: S1-S22
+- Session log: S1-S23
 - Design reference: B17 L2 CompactingToolCallingManager, tool mapping B13, Observability G1-G6
 - Riepilogo file per sessione (tabella riassuntiva)
 
