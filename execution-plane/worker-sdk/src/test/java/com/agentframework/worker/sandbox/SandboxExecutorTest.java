@@ -13,11 +13,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Unit tests for {@link SandboxExecutor}.
  *
  * <p>Tests the Docker command construction logic (pure functions, no Docker daemon needed).
- * Integration tests with actual Docker would require @Tag("integration").</p>
+ * Integration tests with actual Docker require @Tag("integration").</p>
  */
 class SandboxExecutorTest {
 
-    private final SandboxExecutor executor = new SandboxExecutor();
+    private final SandboxExecutor executor = new SandboxExecutor(2);
 
     @Test
     @DisplayName("buildDockerCommand includes all security flags")
@@ -110,8 +110,8 @@ class SandboxExecutorTest {
     }
 
     @Test
-    @DisplayName("buildDockerCommand includes tmpfs for /tmp")
-    void buildDockerCommand_includesTmpfs() {
+    @DisplayName("buildDockerCommand includes tmpfs for /tmp without noexec")
+    void buildDockerCommand_includesTmpfsWithoutNoexec() {
         SandboxRequest request = new SandboxRequest(
             "agent-sandbox-java:21",
             List.of("mvn", "compile"),
@@ -121,7 +121,26 @@ class SandboxExecutorTest {
 
         List<String> cmd = executor.buildDockerCommand(request);
 
-        assertThat(cmd).contains("--tmpfs", "/tmp:rw,noexec,nosuid,size=64m");
+        // /tmp must be writable and executable (no noexec — Go/Rust/Maven need it)
+        assertThat(cmd).contains("--tmpfs", "/tmp:rw,nosuid,size=256m");
+        // Must NOT have noexec
+        assertThat(cmd.stream().anyMatch(s -> s.contains("/tmp") && s.contains("noexec"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("buildDockerCommand includes build tool cache tmpfs mounts")
+    void buildDockerCommand_includesCacheTmpfs() {
+        SandboxRequest request = new SandboxRequest(
+            "agent-sandbox-java:21",
+            List.of("mvn", "compile"),
+            "/workspace/test",
+            "/workspace/test/out"
+        );
+
+        List<String> cmd = executor.buildDockerCommand(request);
+
+        assertThat(cmd).contains("--tmpfs", "/home/sandbox/.m2:rw,size=256m");
+        assertThat(cmd).contains("--tmpfs", "/home/sandbox/.cache:rw,size=128m");
     }
 
     @Test

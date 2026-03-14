@@ -1,0 +1,15 @@
+# Sandbox image for Rust compilation
+# Security: runs as non-root (UID 1000), no network, read-only root filesystem
+FROM rust:1-alpine
+
+RUN apk add --no-cache musl-dev git && \
+    adduser -D -u 1000 sandbox && \
+    mkdir -p /code /out && \
+    chown 1000:1000 /code /out
+
+# Cargo home in /tmp (tmpfs writable at runtime)
+ENV CARGO_HOME=/tmp/cargo
+ENV RUSTUP_HOME=/tmp/rustup
+
+USER 1000:1000
+WORKDIR /code

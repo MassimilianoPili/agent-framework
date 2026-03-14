@@ -1,0 +1,15 @@
+# Sandbox image for .NET 8 compilation
+# Security: runs as non-root (UID 1000), no network, read-only root filesystem
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine
+
+RUN adduser -D -u 1000 sandbox && \
+    mkdir -p /code /out && \
+    chown 1000:1000 /code /out
+
+# .NET CLI and NuGet in /tmp (tmpfs writable at runtime)
+ENV DOTNET_CLI_HOME=/tmp/dotnet
+ENV NUGET_PACKAGES=/tmp/nuget
+ENV DOTNET_NOLOGO=true
+
+USER 1000:1000
+WORKDIR /code

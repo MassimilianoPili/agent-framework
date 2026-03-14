@@ -4,8 +4,6 @@ import com.agentframework.common.sandbox.SandboxRequest;
 import com.agentframework.common.sandbox.SandboxResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -25,30 +24,65 @@ import java.util.concurrent.TimeUnit;
  *   <li>{@code --read-only} — read-only root filesystem</li>
  *   <li>{@code --user 1000:1000} — non-root execution</li>
  *   <li>{@code --memory / --cpus} — resource limits</li>
- *   <li>{@code --tmpfs /tmp} — writable temp with noexec</li>
+ *   <li>{@code --tmpfs /tmp} — writable temp (exec allowed for build tools)</li>
+ *   <li>{@code --tmpfs /home/sandbox/.m2} — Maven local repo cache</li>
+ *   <li>{@code --tmpfs /home/sandbox/.cache} — generic build cache</li>
  * </ul>
  *
- * <p>Only activated when {@code agent.worker.sandbox.enabled=true}.</p>
+ * <p>Concurrency is limited by a {@link Semaphore} to prevent OOM on the host
+ * (16 GB RAM, 512 MB per sandbox). Default: max 2 concurrent sandbox containers.</p>
+ *
+ * <p>Created as a bean by {@link SandboxAutoConfiguration} when
+ * {@code agent.worker.sandbox.enabled=true}.</p>
  */
-@Component
-@ConditionalOnProperty(name = "agent.worker.sandbox.enabled", havingValue = "true")
 public class SandboxExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(SandboxExecutor.class);
+    private static final long SEMAPHORE_ACQUIRE_TIMEOUT_SECONDS = 30;
+
+    private final Semaphore semaphore;
+
+    public SandboxExecutor(int maxConcurrent) {
+        this.semaphore = new Semaphore(maxConcurrent, true);
+        log.info("SandboxExecutor initialized with maxConcurrent={}", maxConcurrent);
+    }
 
     /**
      * Executes the given sandbox request and returns the result.
+     * Blocks if the concurrency limit is reached, failing after timeout.
      *
      * @param request sandbox execution parameters
      * @return result containing exit code, stdout, stderr, duration, and timeout status
      */
     public SandboxResult execute(SandboxRequest request) {
+        long startMs = Instant.now().toEpochMilli();
+
+        try {
+            if (!semaphore.tryAcquire(SEMAPHORE_ACQUIRE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                log.warn("Sandbox queue full (no permit within {}s) for image={}",
+                         SEMAPHORE_ACQUIRE_TIMEOUT_SECONDS, request.sandboxImage());
+                long durationMs = Instant.now().toEpochMilli() - startMs;
+                return new SandboxResult(-1, "", "Sandbox queue full — max concurrent limit reached", durationMs, false);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            long durationMs = Instant.now().toEpochMilli() - startMs;
+            return new SandboxResult(-1, "", "Sandbox interrupted while waiting for permit", durationMs, false);
+        }
+
+        try {
+            return doExecute(request, startMs);
+        } finally {
+            semaphore.release();
+        }
+    }
+
+    private SandboxResult doExecute(SandboxRequest request, long startMs) {
         List<String> cmd = buildDockerCommand(request);
         log.info("Sandbox execute: image={}, workspace={}, timeout={}s",
                  request.sandboxImage(), request.workspacePath(), request.timeoutSeconds());
         log.debug("Sandbox command: {}", cmd);
 
-        long startMs = Instant.now().toEpochMilli();
         try {
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(false);
@@ -94,6 +128,10 @@ public class SandboxExecutor {
 
     /**
      * Builds the {@code docker run} command with security flags.
+     *
+     * <p>{@code /tmp} tmpfs allows exec — build tools (Maven, Go, Rust) write
+     * executables there. Additional tmpfs mounts provide writable caches for
+     * build tool dependencies ({@code .m2}, {@code .cache}).</p>
      */
     List<String> buildDockerCommand(SandboxRequest request) {
         List<String> cmd = new ArrayList<>();
@@ -116,9 +154,15 @@ public class SandboxExecutor {
         cmd.add("--cpus");
         cmd.add(String.valueOf(request.cpuLimit()));
 
-        // Writable /tmp with noexec
+        // Writable /tmp — exec allowed (Go, Rust, Maven write executables here)
         cmd.add("--tmpfs");
-        cmd.add("/tmp:rw,noexec,nosuid,size=64m");
+        cmd.add("/tmp:rw,nosuid,size=256m");
+
+        // Build tool caches (Maven .m2, npm cache, Go modules, Cargo, etc.)
+        cmd.add("--tmpfs");
+        cmd.add("/home/sandbox/.m2:rw,size=256m");
+        cmd.add("--tmpfs");
+        cmd.add("/home/sandbox/.cache:rw,size=128m");
 
         // Volume mounts: workspace as read-only, output as read-write
         cmd.add("-v");

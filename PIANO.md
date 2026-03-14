@@ -727,6 +727,118 @@ Fase 15d (exploration & monitoring, ~5.5g):  #134 → #136 → #130
 
 Documentazione completa: `docs/agent-framework/research-domains-ext.md` (§66-§75)
 
+### Sintesi ricerca accademica Fase 15 (S25)
+
+10 item ricercati, ~40 paper validati, 5 correzioni al design, 4 connessioni trasversali.
+
+#### #127 Process Reward Model — GP-posterior-as-proxy validato
+
+**Paper validati:** Lightman et al. "Let's Verify Step by Step" (ICLR 2024, T1, ~2646 cit, ORM vs PRM — PRM superiore), MAgICoRe (Chen et al. EMNLP 2025, T1, +4% vs Self-Refine a <50% compute), DDI (Adnan & Kuhn, Scientific Reports 2025, T1, 60-80% decay confermato — ma specifico per code debugging), Huang et al. (ICLR 2024, T1, riconfermato).
+
+**Insight chiave:** Il campo converge verso **PRM training-free** (implicit PRM, confidence-as-reward, generative verification) — valida fortemente il GP-posterior-as-proxy. CodePRM (ACL 2025) emerge come primo PRM specifico per codice. Task-type gate (style OK, reasoning NO) confermato empiricamente.
+
+#### #128 Explainable Decision Trace — Contrastive > feature importance
+
+**Paper validati:** SHAP (Lundberg & Lee NeurIPS 2017, T1, ~31707 cit), LIME (Ribeiro et al. KDD 2016, T1, ~20717 cit).
+
+**Correzione:** Aggregare SHAP da 4 componenti indipendenti (GP, MCTS, EFE, Shapley) **non è sound** nel caso generale (Faith-Shap, Tsai et al. JMLR 2023 — interazioni tra componenti ignorati). Raccomandazione: (1) SHAP component-level OK come decomposizione, (2) aggiungere interaction audit quando componenti disagreano, (3) **contrastive explanations** ("why A not B") più utili di feature importance per dispatch (Miller 2019, AI journal, ~4985 cit; Lerouge et al. 2026, workforce scheduling). ACAR (Kumaresan 2026) — proxy attribution correla debolmente con leave-one-out ground truth. XRL taxonomy (Milani et al. ACM Computing Surveys 2023, ~192 cit) mappa perfettamente sui 3 livelli del DecisionTrace.
+
+#### #129 Sycophancy Detection — 3 segnali insufficienti, soglia troppo alta
+
+**Paper validati:** CONSENSAGENT (Pitre et al. ACL **Findings** 2025 — non main track), Vennemeyer et al. (arXiv:2509.21305, 3 tipi sycophancy separabili in latent space, confermato), Sharma et al. (ICLR 2024, T1, ~597 cit, foundational).
+
+**Correzioni al design:** (1) Cosine similarity threshold **0.85-0.90** (non 0.95 — troppo stretta, perde sycophancy e flagga genuine agreement). (2) Aggiungere 3 segnali mancanti: **reasoning diversity collapse** (similarità delle justification, non solo dei voti), **first-mover anchoring** (conformity al primo a rispondere — Zhu et al. ACL 2025 main track), **calibration probe confidence shift**. (3) Devil's advocate deve essere **collaborativo** non adversarial (ColMAD, Chen et al. 2025 — competitive debate causa "debate hacking"). (4) **Model diversity mandate**: almeno 2-3 famiglie diverse tra gli 8 membri Council (MAEBE, Erisken et al. 2025 — ensemble omogenei convergono su errori correlati).
+
+#### #130 Recovery Router — Bholani REALE, Dijkstra confermato
+
+**Paper validati:** Bholani "Self-Healing Router" (arXiv:2603.01548, **2 marzo 2026** — paper reale, non hallucination. John Deere/MIT. -93% LLM control-plane calls confermato). MAST (Cemri et al. NeurIPS 2025 D&B, riconfermato, ~238 cit).
+
+**Insight chiave:** Bholani conferma **esattamente** il design RecoveryRouterService — Dijkstra deterministico su tool graph, edge reweighted a infinito su failure, LLM riservato solo per "no feasible path". Dijkstra è la scelta giusta per edge weights deterministici (success rate storici). SHIELDA (2025, structured exception handling), CHIEF (2026, hierarchical causal graph for failure attribution), Who&When (2025, best accuracy 53.5% agent-level). **Nessun framework in produzione fa graph-based rerouting** — il nostro sarebbe il primo in Java/Spring.
+
+#### #131 Cross-Plan Meta-Learning — MAML irrilevante, CBP lineage
+
+**Paper validati:** MAML (Finn et al. ICML 2017, T1, ~13957 cit — confermato ma **irrilevante**), SUPER (Bogin et al. **EMNLP 2024** — non Wang et al., ed è un benchmark non un approccio).
+
+**Correzione MAGGIORE:** MAML è gradient-based parameter initialization. PlanArchetypeRegistry è **retrieval-based few-shot priming** — lineage corretto: Case-Based Planning (Gerevini et al. JAIR 2023, plan library maintenance) → Skill Libraries (Voyager, NeurIPS 2023 spotlight) → Plan Reuse (AgentReuse, Li et al. 2024, **93% reuse rate** via intent classification). Graph edit distance NP-hard → usare **two-stage retrieval**: pgvector embedding (coarse) + WL kernel (fine). Store anche archetypes falliti per contrastive signal (ETO, Song et al. ACL 2024). Quality score multi-dimensionale: success rate + adaptation cost + IRT difficulty weighted + coverage + freshness.
+
+#### #132 Token Cost Pareto Optimizer — Sener & Koltun validato
+
+**Paper validati:** Sener & Koltun (NeurIPS 2018, T1, confermato — multi-task learning as multi-objective optimization), Ehrgott (2005, textbook Springer, confermato).
+
+**Insight chiave:** FrugalGPT (Chen et al. 2023) e RouteLLM (Ong et al. 2024) dimostrano che cascade semplici (cheap model first, escalate se incerto) catturano ~80% del risparmio con complessità minima. Pareto frontier esplicito è più flessibile ma può essere overkill. Raccomandazione: partire con cascade GP-guided (se mu alto e sigma basso → cheap worker, altrimenti escalate), poi evolvere a Pareto se servono >2 obiettivi.
+
+#### #133 AUDIT_MANAGER Dual-Mode — AutoCodeRover = ISSTA 2024
+
+**Paper validati:** AutoCodeRover (Zhang et al. **ISSTA 2024** — non ICSE 2025, ~185 cit, spectrum-based fault localization + AST search), SWE-Agent (Yang et al. **NeurIPS 2024**, ~792 cit, agent-computer interface design).
+
+**Insight chiave:** Agentless (Xia et al. 2024, ~289 cit) valida il concetto di pre-planning: localizzazione strutturata prima dell'azione → 32% SWE-bench a $0.70. CodexGraph (NAACL 2025, graph DB per code context), LocAgent (ACL 2025, lightweight directed graph), CGM (NeurIPS 2025, code graph nel LLM attention — 43% SWE-bench con open-weight). Gerarchia consolidata: **graph > hierarchical summary > AST > flat file list**. METR Report (marzo 2026): ~50% dei patch SWE-bench Verified verrebbero rifiutati da maintainer reali — benchmark sovrastima utilità ~2x.
+
+#### #134 Information-Directed Sampling — Russo & Van Roy confermato
+
+**Paper validati:** Russo & Van Roy (NeurIPS 2014 + Operations Research 2018, T1, confermato — IDS minimizza ratio regret²/information gain).
+
+**Nota:** Ricerca S24 (#125) ha già coperto IDS in dettaglio. IDS è computazionalmente più costoso di TS (~10x per GP posteriors). Randomized GP-UCB (raccomandato in S24) cattura 80% del beneficio con 20% della complessità. IDS rimane la scelta ottimale teorica ma il fallback a TS è pragmaticamente superiore.
+
+#### #135 Execution Sandbox — SWE-bench ICLR 2024 confermato
+
+**Paper validati:** Jimenez et al. SWE-bench (ICLR 2024, T1, confermato — execution-based evaluation).
+
+**Insight chiave:** SWE-bench è il benchmark standard per execution-based evaluation. gVisor/Firecracker offrono isolamento superiore a Docker ma con overhead di setup. Per il nostro caso (compilazione Java + test JUnit), Docker con seccomp profile + network none + read-only root è sufficiente (difesa in profondità già nel design #44). Container pre-warm pool riduce startup latency da ~2-5s a ~200ms.
+
+#### #136 Bayesian Surprise Monitor — Itti & Baldi = NeurIPS 2005
+
+**Paper validati:** Itti & Baldi (**NeurIPS 2005** — non 2009; il 2009 è la versione Vision Research journal, ~1709 cit), Schmidhuber (IEEE TAMD 2010, T1, ~849 cit — learning progress ≠ raw surprise).
+
+**Correzione:** (1) `KL(posterior || prior)` è la direzione canonica — confermata da Feldman & Friston (2010, ~1258 cit, free-energy framework). (2) La distinzione novelty/anomaly è supportata: novelty = surprise + model improvement (Schmidhuber), anomaly = surprise persistente senza apprendimento (Achiam & Sastry 2017, ~250 cit). (3) Per threshold adattivi: percentile-based come baseline, ma integrare con BOCPD per il caso anomaly — Altamirano et al. (ICML 2023) mostra che generalised Bayesian posteriors danno robustezza a model misspecification. (4) Integrazione BOCPD↔Surprise è profonda: BOCPD può operare sulla serie temporale di surprise stessa.
+
+### Connessioni trasversali Fase 15
+
+| Connessione | Item | Insight |
+|-------------|------|---------|
+| PRM ↔ Sandbox | #127 ↔ #135 | Sandbox fornisce pass/fail binario come segnale PRM per codice |
+| Sycophancy ↔ Surprise | #129 ↔ #136 | Entropy collapse nel Council = surprise anomala → Bayesian surprise come meta-segnale per sycophancy detection |
+| Recovery ↔ Taxonomy | #130 ↔ #126 | MAST classifica, Recovery Router instrada — ruoli complementari |
+| Meta-Learning ↔ IRT | #131 ↔ #108 | IRT difficulty scores pesano la qualità degli archetypes |
+| BOCPD ↔ Surprise | #117 ↔ #136 | BOCPD opera sulla serie temporale di surprise — changepoint in surprise level |
+
+### Correzioni al design identificate (6 totali)
+
+1. **#128**: SHAP aggregato da 4 componenti non è sound → aggiungere interaction audit + contrastive explanations
+2. **#129**: Soglia cosine 0.95 → 0.85-0.90; aggiungere 3 segnali mancanti; devil's advocate collaborativo
+3. **#131**: MAML irrilevante → CBP/skill library lineage; SUPER = Bogin (non Wang); GED → two-stage retrieval
+4. **#133**: AutoCodeRover = ISSTA 2024 (non ICSE 2025)
+5. **#136**: Itti & Baldi = NeurIPS 2005 (non 2009)
+6. **#132**: Cascade GP-guided più pragmatico di Pareto frontier esplicito come punto di partenza
+
+---
+
+### Ordine implementazione Fase 16
+
+```
+Fase 16a (security & foundations, 7.5g):     #137 → #138 → #142
+Fase 16b (verification & testing, 4.5g):     #139 → #146
+Fase 16c (prediction & learning, 7.5g):      #141 → #143 → #140
+Fase 16d (scaling, 5.5g):                    #144 → #145
+```
+
+### Riepilogo Fase 16 — Operational Maturity & Production Resilience (#137-#146)
+
+| # | Titolo | Service | Sforzo | Valore | Tier |
+|---|--------|---------|--------|--------|------|
+| 137 | Prompt Injection Detector | `PromptInjectionDetectorService` | 2.5g | Alto | 0 |
+| 138 | Tenant Context Isolation | `TenantIsolationService` | 3.0g | Alto | 0 |
+| 139 | Integration Test Framework | `PlanIntegrityTestFramework` | 2.5g | Alto | 0 |
+| 140 | Human Correction Learning | `HumanCorrectionLearnerService` | 2.5g | Alto | 1 |
+| 141 | Predictive Cost & Failure Forecaster | `PredictiveForecasterService` | 2.5g | Alto | 1 |
+| 142 | Distributed Tracing Correlator | `DistributedTracingService` | 2.0g | Alto | 0 |
+| 143 | Failure Pattern Predictor | `FailurePatternPredictorService` | 2.5g | Alto | 1 |
+| 144 | Multi-Instance Plan Router | `PlanRoutingService` | 3.0g | Medio-Alto | 0 |
+| 145 | Hierarchical Sub-Plan | `SubPlanOrchestrationService` | 2.5g | Alto | 0 |
+| 146 | Plan Integrity Verifier | `PlanIntegrityVerifierService` | 2.0g | Alto | 0 |
+|   |     | **Totale Fase 16** | | **25.0g** | |
+
+Documentazione completa: `docs/agent-framework/research-domains-ext.md` (§76-§85)
+
 ---
 
 # Execution Sandbox (#44)
