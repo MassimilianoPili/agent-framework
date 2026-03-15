@@ -10,6 +10,8 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Service;
 
 import com.agentframework.gp.model.GpPrediction;
+import com.agentframework.orchestrator.analytics.RenormalizationGroupService;
+import com.agentframework.orchestrator.analytics.SuperrationalityService;
 import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import jakarta.annotation.PreDestroy;
 import org.springframework.lang.Nullable;
@@ -64,6 +66,9 @@ public class CouncilService {
     private final CouncilCommitmentRepository commitmentRepository;
     private final QuadraticVotingService quadraticVotingService;
     private final @Nullable com.agentframework.orchestrator.analytics.sycophancy.SycophancyDetectorService sycophancyDetectorService;
+    // A2 Fase 4: Council analytics
+    private final @Nullable RenormalizationGroupService renormalizationGroupService;
+    private final @Nullable SuperrationalityService superrationalityService;
 
     public CouncilService(ChatClient chatClient,
                           CouncilPromptLoader promptLoader,
@@ -73,7 +78,9 @@ public class CouncilService {
                           Optional<PlanDecompositionPredictor> decompositionPredictor,
                           CouncilCommitmentRepository commitmentRepository,
                           QuadraticVotingService quadraticVotingService,
-                          @Nullable com.agentframework.orchestrator.analytics.sycophancy.SycophancyDetectorService sycophancyDetectorService) {
+                          @Nullable com.agentframework.orchestrator.analytics.sycophancy.SycophancyDetectorService sycophancyDetectorService,
+                          @Nullable RenormalizationGroupService renormalizationGroupService,
+                          @Nullable SuperrationalityService superrationalityService) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.properties = properties;
@@ -83,6 +90,8 @@ public class CouncilService {
         this.commitmentRepository = commitmentRepository;
         this.quadraticVotingService = quadraticVotingService;
         this.sycophancyDetectorService = sycophancyDetectorService;
+        this.renormalizationGroupService = renormalizationGroupService;
+        this.superrationalityService = superrationalityService;
     }
 
     @PreDestroy
@@ -115,6 +124,21 @@ public class CouncilService {
 
         // RAG enrichment: augment spec with relevant codebase context before consulting members
         String enrichedSpec = ragEnricher.map(e -> e.enrichSpec(spec)).orElse(spec);
+
+        // A2: Superrationality — log cooperative worker pairs to inform member selection awareness
+        if (superrationalityService != null) {
+            try {
+                var srReport = superrationalityService.compute();
+                if (srReport != null && !srReport.cooperativePairs().isEmpty()) {
+                    log.info("Superrationality: {} cooperative worker pairs detected (globalGain={}): {}",
+                             srReport.cooperativePairs().size(),
+                             String.format("%.4f", srReport.globalGain()),
+                             srReport.cooperativePairs());
+                }
+            } catch (Exception e) {
+                log.debug("Superrationality check failed (non-blocking): {}", e.getMessage());
+            }
+        }
 
         List<String> selected = selectMembers(enrichedSpec, properties.maxMembers());
         log.info("Council selected {} members: {}", selected.size(), selected);
@@ -163,6 +187,20 @@ public class CouncilService {
                                              String taskDescription,
                                              Map<String, String> dependencyResults) {
         log.info("Starting task-level council session for: {}", taskTitle);
+
+        // A2: Renormalization Group — structural coupling analysis (plan has items at task-level)
+        if (renormalizationGroupService != null) {
+            try {
+                var rgReport = renormalizationGroupService.analyse(planId);
+                if (rgReport != null) {
+                    log.info("RG structural analysis for plan {}: {} items, coupling={}, beta={}",
+                             planId, rgReport.numItems(), rgReport.couplingByScale(),
+                             java.util.Arrays.toString(rgReport.betaFunction()));
+                }
+            } catch (Exception e) {
+                log.debug("RG structural analysis failed (non-blocking): {}", e.getMessage());
+            }
+        }
 
         // Build context: task description + prior dependency results
         String context = buildTaskContext(taskTitle, taskDescription, dependencyResults);

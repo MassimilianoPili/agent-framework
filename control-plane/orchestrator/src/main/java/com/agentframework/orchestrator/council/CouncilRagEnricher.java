@@ -1,5 +1,7 @@
 package com.agentframework.orchestrator.council;
 
+import com.agentframework.orchestrator.analytics.InformationForagingService;
+import com.agentframework.orchestrator.analytics.InformationForagingService.ForagingPatch;
 import com.agentframework.rag.graph.GraphRagService;
 import com.agentframework.rag.model.ScoredChunk;
 import com.agentframework.rag.model.SearchResult;
@@ -7,9 +9,12 @@ import com.agentframework.rag.search.RagSearchService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -32,11 +37,15 @@ public class CouncilRagEnricher {
 
     private final RagSearchService ragSearchService;
     private final GraphRagService graphRagService;
+    // A2 Fase 4: RAG analytics
+    private final @Nullable InformationForagingService informationForagingService;
 
     public CouncilRagEnricher(RagSearchService ragSearchService,
-                              GraphRagService graphRagService) {
+                              GraphRagService graphRagService,
+                              @Nullable InformationForagingService informationForagingService) {
         this.ragSearchService = ragSearchService;
         this.graphRagService = graphRagService;
+        this.informationForagingService = informationForagingService;
     }
 
     /**
@@ -64,9 +73,12 @@ public class CouncilRagEnricher {
                 return spec;
             }
 
-            String ragSection = buildRagSection(searchResult.chunks(), graphInsights);
-            log.info("[CouncilRagEnricher] Enriched spec with {} chunks and {} graph insights",
-                    searchResult.chunks().size(), graphInsights.size());
+            // A2: Information Foraging — budget chunks per source using Marginal Value Theorem
+            List<ScoredChunk> budgetedChunks = applyForagingBudget(searchResult.chunks());
+
+            String ragSection = buildRagSection(budgetedChunks, graphInsights);
+            log.info("[CouncilRagEnricher] Enriched spec with {} chunks (from {} raw) and {} graph insights",
+                    budgetedChunks.size(), searchResult.chunks().size(), graphInsights.size());
 
             return spec + "\n\n" + ragSection;
         } catch (Exception e) {
@@ -108,6 +120,58 @@ public class CouncilRagEnricher {
     String extractKeywords(String spec) {
         String firstLine = spec.lines().findFirst().orElse(spec);
         return firstLine.length() <= 100 ? firstLine : firstLine.substring(0, 100);
+    }
+
+    /**
+     * Applies Information Foraging Theory to budget chunks by source.
+     * Groups chunks by file path (patch), computes optimal chunk count per patch,
+     * and returns only the budgeted chunks in scent-trail order.
+     */
+    private List<ScoredChunk> applyForagingBudget(List<ScoredChunk> chunks) {
+        if (informationForagingService == null || chunks.size() <= 1) {
+            return chunks;
+        }
+        try {
+            // Group chunks by file path (each file = one foraging patch)
+            Map<String, List<ScoredChunk>> byPath = new java.util.LinkedHashMap<>();
+            for (ScoredChunk sc : chunks) {
+                String path = sc.chunk().metadata() != null
+                        ? sc.chunk().metadata().filePath() : "unknown";
+                byPath.computeIfAbsent(path, k -> new ArrayList<>()).add(sc);
+            }
+
+            // Build foraging patches
+            List<ForagingPatch> patches = new ArrayList<>();
+            for (var entry : byPath.entrySet()) {
+                double maxScore = entry.getValue().stream()
+                        .mapToDouble(ScoredChunk::score).max().orElse(0.0);
+                patches.add(new ForagingPatch(
+                        entry.getKey(), maxScore, 1.0, entry.getValue().size()));
+            }
+
+            var report = informationForagingService.forage(patches);
+            log.debug("[CouncilRagEnricher] Foraging budget: globalIR={}, {} patches ranked",
+                    String.format("%.4f", report.globalInformationRate()),
+                    report.patchRankings().size());
+
+            // Collect budgeted chunks in scent-trail order
+            List<ScoredChunk> result = new ArrayList<>();
+            for (String patchId : report.patchRankings()) {
+                int budget = report.optimalChunks().getOrDefault(patchId, 0);
+                if (budget > 0 && byPath.containsKey(patchId)) {
+                    List<ScoredChunk> patchChunks = byPath.get(patchId);
+                    // Take top-scoring chunks up to budget
+                    patchChunks.stream()
+                            .sorted((a, b) -> Double.compare(b.score(), a.score()))
+                            .limit(budget)
+                            .forEach(result::add);
+                }
+            }
+            return result.isEmpty() ? chunks : result;
+        } catch (Exception e) {
+            log.debug("[CouncilRagEnricher] Information foraging failed (non-blocking): {}", e.getMessage());
+            return chunks;
+        }
     }
 
     private static String truncate(String text, int maxLen) {

@@ -27,7 +27,7 @@ class CouncilRagEnricherTest {
     void setUp() {
         mockSearch = mock(RagSearchService.class);
         mockGraph = mock(GraphRagService.class);
-        enricher = new CouncilRagEnricher(mockSearch, mockGraph);
+        enricher = new CouncilRagEnricher(mockSearch, mockGraph, null);
     }
 
     @Test

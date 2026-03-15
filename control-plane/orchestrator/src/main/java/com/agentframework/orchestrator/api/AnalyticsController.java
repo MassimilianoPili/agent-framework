@@ -94,6 +94,11 @@ public class AnalyticsController {
     private final Optional<BocpdService> bocpdService;
     private final Optional<ProcessRewardModelService> processRewardModelService;
     private final Optional<SandboxExecutionService> sandboxExecutionService;
+    // A2 Fase 4: Council/RAG analytics
+    private final Optional<ViableSystemAuditor> viableSystemAuditor;
+    private final Optional<SuperrationalityService> superrationalityService;
+    private final Optional<CompressedSensingRetriever> compressedSensingRetriever;
+    private final Optional<InformationForagingService> informationForagingService;
     private final ShapleyDagService shapleyDagService;
     private final OrchestrationService orchestrationService;
     private final CriticalityMonitor criticalityMonitor;
@@ -136,6 +141,10 @@ public class AnalyticsController {
                                 Optional<BocpdService> bocpdService,
                                 Optional<ProcessRewardModelService> processRewardModelService,
                                 Optional<SandboxExecutionService> sandboxExecutionService,
+                                Optional<ViableSystemAuditor> viableSystemAuditor,
+                                Optional<SuperrationalityService> superrationalityService,
+                                Optional<CompressedSensingRetriever> compressedSensingRetriever,
+                                Optional<InformationForagingService> informationForagingService,
                                 ShapleyDagService shapleyDagService,
                                 OrchestrationService orchestrationService,
                                 CriticalityMonitor criticalityMonitor) {
@@ -177,6 +186,10 @@ public class AnalyticsController {
         this.bocpdService = bocpdService;
         this.processRewardModelService = processRewardModelService;
         this.sandboxExecutionService = sandboxExecutionService;
+        this.viableSystemAuditor = viableSystemAuditor;
+        this.superrationalityService = superrationalityService;
+        this.compressedSensingRetriever = compressedSensingRetriever;
+        this.informationForagingService = informationForagingService;
         this.shapleyDagService = shapleyDagService;
         this.orchestrationService = orchestrationService;
         this.criticalityMonitor = criticalityMonitor;
@@ -862,5 +875,44 @@ public class AnalyticsController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         }
         return ResponseEntity.ok(Map.of("available", true, "service", "SandboxExecutionService"));
+    }
+
+    // ── A2 Fase 4: Council/RAG analytics ────────────────────────────────────────
+
+    /**
+     * GET /api/v1/analytics/vsm-audit
+     *
+     * <p>Runs a Viable System Model audit (Beer, 1972) across all 5 subsystems:
+     * S1 (Operations), S2 (Coordination), S3 (Control), S4 (Intelligence), S5 (Policy).
+     * Returns health status, Shannon entropy, and actionable recommendations.</p>
+     */
+    @GetMapping("/vsm-audit")
+    public ResponseEntity<ViableSystemAuditor.VSMAuditReport> getVsmAudit() {
+        if (viableSystemAuditor.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        var report = viableSystemAuditor.get().audit();
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/superrationality
+     *
+     * <p>Computes cooperation gains between worker-type pairs (Hofstadter, 1985).
+     * Identifies which worker pairs perform better when co-present in the same plan.</p>
+     */
+    @GetMapping("/superrationality")
+    public ResponseEntity<SuperrationalityService.SuperrationalityReport> getSuperrationality() {
+        if (superrationalityService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        var report = superrationalityService.get().compute();
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
     }
 }

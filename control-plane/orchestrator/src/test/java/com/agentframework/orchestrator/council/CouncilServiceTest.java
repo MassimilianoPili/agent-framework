@@ -51,7 +51,7 @@ class CouncilServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CouncilService(chatClient, promptLoader, DEFAULT_PROPS, objectMapper, Optional.empty(), Optional.empty(), commitmentRepository, new QuadraticVotingService(), null);
+        service = new CouncilService(chatClient, promptLoader, DEFAULT_PROPS, objectMapper, Optional.empty(), Optional.empty(), commitmentRepository, new QuadraticVotingService(), null, null, null);
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callResponse = mock(ChatClient.CallResponseSpec.class);
         // Stub commitmentRepository.saveAll to return its input (pass-through)
@@ -286,7 +286,7 @@ class CouncilServiceTest {
     @Test
     void selectMembers_respectsMaxMembers_passesMaxToPrompt() {
         CouncilProperties smallProps = new CouncilProperties(true, 2, true, true, false, false, 100);
-        CouncilService smallService = new CouncilService(chatClient, promptLoader, smallProps, objectMapper, Optional.empty(), Optional.empty(), commitmentRepository, new QuadraticVotingService(), null);
+        CouncilService smallService = new CouncilService(chatClient, promptLoader, smallProps, objectMapper, Optional.empty(), Optional.empty(), commitmentRepository, new QuadraticVotingService(), null, null, null);
 
         stubPromptLoader();
         stubChatClientChain();
