@@ -1662,7 +1662,15 @@ public class OrchestrationService {
 
         // Spawn child plan — shares the parent's budget (no independent budget for now)
         Plan childPlan = new Plan(UUID.randomUUID(), subSpec, parentPlan.getId(), parentPlan.getDepth());
-        childPlan = plannerService.decompose(childPlan);
+        try {
+            childPlan = plannerService.decompose(childPlan);
+        } catch (Exception e) {
+            item.transitionTo(ItemStatus.FAILED);
+            item.setFailureReason("SUB_PLAN decompose failed: " + e.getMessage());
+            item.setCompletedAt(Instant.now());
+            log.error("SUB_PLAN item {} decompose failed: {}", item.getTaskKey(), e.getMessage(), e);
+            return;
+        }
         childPlan.transitionTo(PlanStatus.RUNNING);
         childPlan = planRepository.save(childPlan);
 

@@ -552,6 +552,204 @@ class OrchestrationServiceTest {
         assertThat(subPlanItem.getFailureReason()).contains("depth limit exceeded");
     }
 
+    @Test
+    void dispatch_subPlanItem_blankSpec_fails() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+
+        PlanItem subPlanItem = new PlanItem(
+                UUID.randomUUID(), 0, "SP-001", "Sub-plan", "desc",
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
+        subPlanItem.setSubPlanSpec("   ");  // blank
+        plan.addItem(subPlanItem);
+
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(subPlanItem));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(subPlanItem));
+        when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(subPlanItem));
+
+        service.triggerDispatch(planId);
+
+        assertThat(subPlanItem.getStatus()).isEqualTo(ItemStatus.FAILED);
+        assertThat(subPlanItem.getFailureReason()).contains("has no subPlanSpec");
+        verify(plannerService, never()).decompose(any());
+    }
+
+    @Test
+    void dispatch_subPlanItem_nullSpec_fails() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+
+        PlanItem subPlanItem = new PlanItem(
+                UUID.randomUUID(), 0, "SP-001", "Sub-plan", "desc",
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
+        // subPlanSpec is null by default
+        plan.addItem(subPlanItem);
+
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(subPlanItem));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(subPlanItem));
+        when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(subPlanItem));
+
+        service.triggerDispatch(planId);
+
+        assertThat(subPlanItem.getStatus()).isEqualTo(ItemStatus.FAILED);
+        assertThat(subPlanItem.getFailureReason()).contains("has no subPlanSpec");
+        verify(plannerService, never()).decompose(any());
+    }
+
+    @Test
+    void dispatch_subPlanItem_fireAndForget_immediatelyDone() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+
+        PlanItem subPlanItem = new PlanItem(
+                UUID.randomUUID(), 0, "SP-001", "Sub-plan fire-and-forget", "desc",
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
+        subPlanItem.setSubPlanSpec("Build auth module");
+        subPlanItem.setAwaitCompletion(false);
+        plan.addItem(subPlanItem);
+
+        when(planItemRepository.findDispatchableItems(any(UUID.class))).thenAnswer(inv -> {
+            UUID id = inv.getArgument(0);
+            if (planId.equals(id) && subPlanItem.getStatus() == ItemStatus.WAITING) {
+                return List.of(subPlanItem);
+            }
+            return List.of();
+        });
+        when(planItemRepository.findByPlanId(any(UUID.class))).thenReturn(List.of(subPlanItem));
+        when(planRepository.findById(any(UUID.class))).thenAnswer(inv -> {
+            UUID id = inv.getArgument(0);
+            if (planId.equals(id)) return Optional.of(plan);
+            return Optional.empty();
+        });
+        when(planRepository.save(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(plannerService.decompose(any(Plan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findActiveByPlanId(any(UUID.class))).thenReturn(List.of(subPlanItem));
+
+        service.triggerDispatch(planId);
+
+        // Fire-and-forget: item should be DONE immediately, not DISPATCHED
+        assertThat(subPlanItem.getStatus()).isEqualTo(ItemStatus.DONE);
+        assertThat(subPlanItem.getChildPlanId()).isNotNull();
+        assertThat(subPlanItem.getCompletedAt()).isNotNull();
+        verify(taskProducer, never()).dispatch(any());
+    }
+
+    @Test
+    void dispatch_subPlanItem_decomposeFailure_fails() {
+        UUID planId = UUID.randomUUID();
+        Plan plan = new Plan(planId, "spec");
+        plan.transitionTo(PlanStatus.RUNNING);
+
+        PlanItem subPlanItem = new PlanItem(
+                UUID.randomUUID(), 0, "SP-001", "Sub-plan", "desc",
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
+        subPlanItem.setSubPlanSpec("Build auth module");
+        plan.addItem(subPlanItem);
+
+        when(planItemRepository.findDispatchableItems(planId)).thenReturn(List.of(subPlanItem));
+        when(planItemRepository.findByPlanId(planId)).thenReturn(List.of(subPlanItem));
+        when(planRepository.findById(planId)).thenReturn(Optional.of(plan));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(plannerService.decompose(any(Plan.class)))
+                .thenThrow(new RuntimeException("LLM timeout"));
+        when(planItemRepository.findActiveByPlanId(planId)).thenReturn(List.of(subPlanItem));
+
+        service.triggerDispatch(planId);
+
+        assertThat(subPlanItem.getStatus()).isEqualTo(ItemStatus.FAILED);
+        assertThat(subPlanItem.getFailureReason()).contains("decompose failed");
+        assertThat(subPlanItem.getFailureReason()).contains("LLM timeout");
+        // No child plan should have been saved
+        verify(planRepository, never()).save(any(Plan.class));
+    }
+
+    @Test
+    void onChildPlanCompleted_parentItemNotDispatched_ignored() {
+        UUID parentPlanId = UUID.randomUUID();
+        UUID childPlanId = UUID.randomUUID();
+
+        Plan parentPlan = new Plan(parentPlanId, "parent spec");
+        parentPlan.transitionTo(PlanStatus.RUNNING);
+        PlanItem parentItem = new PlanItem(
+                UUID.randomUUID(), 0, "SP-001", "Sub-plan", "desc",
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
+        parentPlan.addItem(parentItem);
+        // Fire-and-forget: item already DONE (went WAITING→DISPATCHED→DONE)
+        parentItem.transitionTo(ItemStatus.DISPATCHED);
+        parentItem.transitionTo(ItemStatus.DONE);
+        parentItem.setChildPlanId(childPlanId);
+
+        Plan childPlan = new Plan(childPlanId, "child spec", parentPlanId, 0);
+        childPlan.transitionTo(PlanStatus.RUNNING);
+        childPlan.transitionTo(PlanStatus.COMPLETED);
+
+        PlanCompletedEvent event = new PlanCompletedEvent(childPlanId, PlanStatus.COMPLETED, 2, 0);
+
+        when(planRepository.findById(childPlanId)).thenReturn(Optional.of(childPlan));
+        when(planItemRepository.findByPlanId(parentPlanId)).thenReturn(List.of(parentItem));
+
+        service.onChildPlanCompleted(event);
+
+        // Parent item should stay DONE — not overwritten
+        assertThat(parentItem.getStatus()).isEqualTo(ItemStatus.DONE);
+        verify(planItemRepository, never()).save(any());
+    }
+
+    @Test
+    void onChildPlanCompleted_dispatchesNextWave() {
+        UUID parentPlanId = UUID.randomUUID();
+        UUID childPlanId = UUID.randomUUID();
+
+        Plan parentPlan = new Plan(parentPlanId, "parent spec");
+        parentPlan.transitionTo(PlanStatus.RUNNING);
+
+        // SP-001: the SUB_PLAN item awaiting child completion
+        PlanItem spItem = new PlanItem(
+                UUID.randomUUID(), 0, "SP-001", "Sub-plan", "desc",
+                WorkerType.SUB_PLAN, null, List.of(), List.of());
+        parentPlan.addItem(spItem);
+        spItem.transitionTo(ItemStatus.DISPATCHED);
+        spItem.setChildPlanId(childPlanId);
+
+        // BE-001: depends on SP-001, should become dispatchable after SP-001 completes
+        PlanItem beItem = new PlanItem(
+                UUID.randomUUID(), 1, "BE-001", "Backend task", "desc",
+                WorkerType.BE, null, List.of("SP-001"), List.of());
+        parentPlan.addItem(beItem);
+
+        Plan childPlan = new Plan(childPlanId, "child spec", parentPlanId, 0);
+        childPlan.transitionTo(PlanStatus.RUNNING);
+        childPlan.transitionTo(PlanStatus.COMPLETED);
+
+        PlanCompletedEvent event = new PlanCompletedEvent(childPlanId, PlanStatus.COMPLETED, 2, 0);
+
+        when(planRepository.findById(childPlanId)).thenReturn(Optional.of(childPlan));
+        when(planItemRepository.findByPlanId(parentPlanId)).thenReturn(List.of(spItem, beItem));
+        when(planItemRepository.save(any(PlanItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        // After SP-001 completes, BE-001 becomes dispatchable
+        when(planItemRepository.findDispatchableItems(parentPlanId)).thenReturn(List.of(beItem));
+        when(planRepository.findById(parentPlanId)).thenReturn(Optional.of(parentPlan));
+        when(hookManagerService.resolvePolicyWithHash(any(), any(), any())).thenReturn(Optional.empty());
+        when(attemptRepository.findMaxAttemptNumber(any())).thenReturn(Optional.of(0));
+        when(attemptRepository.save(any(DispatchAttempt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(planItemRepository.findActiveByPlanId(parentPlanId)).thenReturn(List.of(beItem));
+
+        service.onChildPlanCompleted(event);
+
+        // SP-001 should be DONE
+        assertThat(spItem.getStatus()).isEqualTo(ItemStatus.DONE);
+        // BE-001 should have been dispatched via message broker
+        verify(taskProducer).dispatch(any());
+    }
+
     // ── dispatch — COUNCIL_MANAGER ──────────────────────────────────────────
 
     @Test
