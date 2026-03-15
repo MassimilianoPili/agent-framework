@@ -2,7 +2,7 @@
 
 **Tema**: Il framework non può verificare ciò che produce — nessuna compilazione, test, o git safety. Ogni piano parte da zero senza transfer learning. Fase 20 ground il framework nella realtà (bash → git safety → compile-test-fix) e lo rende adattivo (cross-plan learning, self-improvement, project lifecycle). Sblocca finalmente #25 (mcp-bash-tool), P16 e P18.
 
-→ Indice master: [PIANO.md](PIANO.md)
+→ Indice master: [PIANO.md](PIANO.md) | Documentazione implementativa: [13-fase-20-execution-grounding.md](documentazione/13-fase-20-execution-grounding.md)
 
 ---
 
