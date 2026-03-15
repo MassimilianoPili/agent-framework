@@ -1078,6 +1078,120 @@ Documentazione completa: `docs/agent-framework/research-domains-ext.md` (§96-§
 Claude Code patterns coperti (cumulativo Fasi 17-18): P2, P3, P5, P7, P8, P10, P14, P15, P18, P21, P22, P24, P26, P28 (14/17 gap chiusi)
 
 
+### Sintesi ricerca accademica Fase 18 (S27, 2026-03-15)
+
+10 report Template F completati. ~40 riferimenti validati, 0 fabbricati, ~80 paper aggiuntivi identificati.
+
+#### Per-item summaries
+
+**#157** — Blackboard: **Corkill venue ERRATA** (AI Expert, non AI Magazine). **Hayes-Roth cit ~144 (non ~1100, 8x)**. **Cosine < 0.3 per contradiction: FONDAMENTALMENTE SBAGLIATO** — embedding non distinguono contraddizioni da affermazioni fedeli. Usare NLI cross-encoder. Paper chiave: "The Semantic Illusion" (arXiv:2512.15068), LLM-Blackboard (arXiv:2510.01285).
+
+**#158** — Negotiation: **Jennings: anno 2004→1998, venue AAMAS conf→journal**. **Smith cit ~4300 (non ~5800)**. CNP over-engineered per questo caso — letteratura converge su pre-assegnazione (MetaGPT SOP) + negoziazione solo per conflitti residui. GP tiebreaker: novel, nessun precedente.
+
+**#159** — Production Feedback: 4 riferimenti reali. Kim/Bass sono **libri T7**, non letteratura accademica. Shapley per file attribution: **giustificato ma overkill** — approccio gerarchico: git blame pesato (default) + Shapley (escalation per 3+ contributor). Temporal decay 30g: parametrizzazione arbitraria. Paper chiave: **RUDDER (NeurIPS 2019)**, Data Shapley (ICML 2019), **SHARP (arXiv 2026)**.
+
+**#160** — Cost Accounting: **FrugalGPT cit ~160 (non ~350, 2x)**. **Maelstrom cit ~13 (non ~150, 11x)** + rilevanza dubbia. **RouteLLM: ICLR 2025 (non solo arXiv)**. Paper chiave: **BATS (Google, arXiv:2511.17006)** — budget-aware agent scaling, modello diretto per budget controller.
+
+**#161** — Pipeline Config: 4 riferimenti T1 tutti validi. **Auto-sklearn cit ~1728 (non ~4500)** — conflazione NeurIPS+book. **GP-UCB subottimale per 20 dim** — BOHB o SMAC superiori per mixed-type parameters. Soglia 10 piani: fragile senza warm-starting. Paper chiave: **ARTEMIS (arXiv:2512.09108)**, DSPy MIPROv2.
+
+**#162** — Self-Assessment: 5 riferimenti tutti validi. **Kadavath: T2 arXiv (non peer-reviewed)**. **Platt scaling: non SOTA per LLM** — confidenze LLM clusterizzano vicino a 1.0. Sostituire con **temperature scaling adattivo** (Thermometer ICML 2024). **ECE ha patologie note** (binning sensitivity) — usare ACE o Brier Score come target. Sycophancy-calibration link **validato** (arXiv:2509.21305). Paper chiave: **Thermometer (ICML 2024)**, UQ Survey (ACM CS 2024).
+
+**#163** — Conflict Arbiter: **ChatDev autore: Qian, non Tian**. **Tessier cit ~23 (non ~200, 10x)**, data 2000 non 2001. **ChatDev cit ~464 (non ~700)**. **Cosine < 0.3: stessa critica di #157** — usare NLI. BDI: valido come ispirazione architetturale, non implementazione diretta. Priority hierarchy ben fondata (Brewka & Eiter). Paper chiave: **ABBEL (arXiv:2512.20111)**, "Learning to Negotiate" (arXiv:2603.10476).
+
+**#164** — Canary Execution: **Johari venue ERRATA** — non NeurIPS 2017, ma arXiv 2015 / **Operations Research 2022**. **Schermann venue ERRATA** — non JSS ma **IEEE Software 2018**. SPRT: ottimalità campionaria valida ma "5 piani consecutivi" statisticamente fragile — usare **mSPRT** o binomial test su finestra mobile. Hash routing: documentare partitioned ramps.
+
+**#165** — Code Understanding: **CodexGraph autore: Liu, non Zhang**. Garcia cit ~54 (non ~600). Campo in rapida evoluzione 2024-2026. AGE appropriato per unified stack (Cypher compatibile con CodexGraph). Scout pattern validato (Willison 2025, blackboard classico). Paper chiave: **LocAgent (ACL 2025)**, **CGM (NeurIPS 2025)**, LogicLens (arXiv 2026).
+
+**#166** — Degradation Manager: 4 riferimenti tutti validi. Circuit breaker per LLM: pratica standard ma non sufficiente — serve layered approach (retry→fallback→circuit breaker). Threshold "5 in 30s" nell'ordine corretto ma **rate-based > count-based** (Resilience4j). Paper chiave: **Sun et al. (SC'25, LLM non intrinsecamente resilienti)**, Portkey AI Gateway.
+
+#### Correzione critica cross-item
+
+| Problema | Item | Azione |
+|----------|------|--------|
+| Cosine distance per contradiction detection | #157, #163 | **Sostituire con NLI cross-encoder** (DeBERTa-v3-large-mnli) o approccio ibrido (cosine per topic + NLI per relazione logica) |
+
+#### Correzioni algoritmiche
+
+| # | Claim | Correzione |
+|---|-------|------------|
+| 157 | Cosine < 0.3 per contraddizioni | NLI cross-encoder. Embedding non catturano relazioni logiche |
+| 158 | CNP puro per negoziazione | Ibrido: pre-assegnazione + negoziazione residui. FCFS declassare a fallback |
+| 159 | Shapley per ogni file | Gerarchico: git blame (default) + Shapley (3+ contributor, alta severità) |
+| 159 | Exponential decay 30g | Configurabile; considerare hyperbolic discounting |
+| 160 | FrugalGPT cascade per codice | Serve quality gate basato su test execution, non confidence |
+| 161 | GP-UCB per 20 parametri | BOHB/SMAC superiori per mixed-type high-dim |
+| 162 | Platt scaling per calibrazione | Temperature scaling (Guo 2017) o Adaptive TS (EMNLP 2024) |
+| 162 | ECE come metrica primaria | ACE o Brier Score come target; ECE come dashboard |
+| 163 | BDI come implementazione | Solo ispirazione architetturale; usare "context reconciliation" |
+| 164 | 5 piani consecutivi per rollback | mSPRT o binomial test su finestra mobile |
+| 164 | SPRT per piccoli campioni | Considerare Bayesian con Beta prior per campioni < 100 |
+| 166 | 5 failures in 30s (count-based) | Rate-based (50% su sliding window 10 chiamate) |
+
+#### Tabella correzioni citazioni (S2 vs claim, solo delta significativi)
+
+| Paper | Claim | Verificato | Delta | Item |
+|-------|-------|------------|-------|------|
+| Hayes-Roth | ~1100 | ~144 | **-87%** | 157 |
+| Corkill | ~450 | ~767 | **+70%** | 157 |
+| Smith | ~5800 | ~4300 | -26% | 158 |
+| Jennings | ~3500 | ~2341 | -33% | 158 |
+| FrugalGPT | ~350 | ~160 | **-54%** | 160 |
+| Maelstrom | ~150 | ~13 | **-91%** | 160 |
+| Auto-sklearn | ~4500 | ~1728 | **-62%** | 161 |
+| Tessier | ~200 | ~23 | **-89%** | 163 |
+| ChatDev | ~700 | ~464 | -34% | 163 |
+| Garcia | ~600 | ~54 | **-91%** | 165 |
+
+9/10 sovrastimati (media -52%). 1 sottostimato (Corkill, +70%).
+
+#### Correzioni venue/autore
+
+| Paper | Errore | Correzione | Item |
+|-------|--------|------------|------|
+| Corkill | AI Magazine | **AI Expert** | 157 |
+| Jennings | AAMAS 2004 | **AAMAS journal 1998** | 158 |
+| ChatDev | Tian et al. | **Qian** et al. | 163 |
+| CodexGraph | Zhang et al. | **Liu** et al. | 165 |
+| Johari | NeurIPS 2017 | **arXiv 2015 / Operations Research 2022** | 164 |
+| Schermann | JSS 2018 | **IEEE Software 2018** | 164 |
+| Tessier | 2001 | **2000** | 163 |
+| RouteLLM | arXiv 2024 | **ICLR 2025** | 160 |
+
+#### Paper chiave scoperti (T1 top-10)
+
+| Paper | Venue | Item | Perché |
+|-------|-------|------|--------|
+| "The Semantic Illusion" | arXiv:2512.15068 | 157,163 | Distrugge approccio cosine per contradiction |
+| BATS (Google) | arXiv:2511.17006 | 160 | Budget-aware agent scaling, modello diretto |
+| ARTEMIS | arXiv:2512.09108 | 161 | Auto-config agent pipeline, 36.9% token reduction |
+| Thermometer (Shen) | ICML 2024 | 162 | Task-adaptive temp scaling, supera Platt |
+| RUDDER | NeurIPS 2019 | 159 | Return decomposition per delayed rewards |
+| LocAgent | ACL 2025 | 165 | 92.7% file-level localization, graph-guided |
+| CGM | NeurIPS 2025 | 165 | Graph structure in LLM attention, 43% SWE-bench |
+| SHARP | arXiv:2602.08335 | 159 | Shapley credit gerarchico per multi-agent |
+| Sun et al. | SC'25 | 166 | LLM non intrinsecamente resilienti ai fault |
+| "Sycophancy Is Not One Thing" | arXiv:2509.21305 | 162 | Sycophancy separabile in latent space |
+
+#### Cross-connessioni dalla ricerca
+
+| Connessione | Implicazione |
+|-------------|-------------|
+| Cosine→NLI (#157,#163) | Entrambi necessitano NLI cross-encoder — componente condiviso |
+| MetaGPT SOP → #158 | Pre-assegnazione strutturale > negoziazione runtime |
+| RUDDER → #159 | Redistribuzione reward > discounting temporale |
+| Thermometer → #162 | Temperature scaling adattivo sostituisce Platt |
+| BATS → #160 | Budget tracker unificato: token + tool consumption |
+| ARTEMIS → #161 | Evolutionary search valida per agent config |
+| mSPRT → #164 | Johari è già tra i riferimenti — usare mSPRT, non SPRT |
+| Layered resilience → #166 | retry→fallback→circuit breaker (Portkey pattern) |
+| NLI + Blackboard (#157) ↔ Conflict Arbiter (#163) | Stesso componente NLI per contradiction detection |
+| Bradley-Terry ↔ calibrazione (#162) | Stessa struttura logistic regression (Platt ≡ BT) |
+
+Report: `docs/research/{blackboard-157,negotiation-158,production-feedback-159,cost-accounting-160,pipeline-config-161,conflict-arbiter-163,canary-execution-164,code-understanding-165,degradation-166}.md` + `docs/design-validation/item-162-worker-self-assessment.md`
+
+---
+
+
 # Execution Sandbox (#44)
 
 ---

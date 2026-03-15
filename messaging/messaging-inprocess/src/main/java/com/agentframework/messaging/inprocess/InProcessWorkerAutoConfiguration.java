@@ -10,6 +10,7 @@ import com.agentframework.worker.messaging.WorkerResultProducer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -36,6 +37,7 @@ import org.springframework.context.annotation.Import;
  * auto-configuration is active.
  */
 @AutoConfiguration
+@ConditionalOnClass(name = "com.agentframework.worker.context.SkillLoader")
 @ConditionalOnBean(InProcessMessageBroker.class)
 @Import({SkillLoader.class, AgentContextBuilder.class, WorkerChatClientFactory.class,
          InProcessWorkerScanConfig.class})

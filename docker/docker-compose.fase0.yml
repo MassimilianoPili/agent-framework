@@ -1,0 +1,54 @@
+# Fase 0: Orchestrator-only deployment on SOL
+#
+# Uses existing shared infrastructure (NO additional containers):
+#   - postgres (shared network) → database 'agentframework', user 'agentframework'
+#   - redis (shared network)    → DB 3 messaging, DB 4 cache
+#   - ollama (shared network)   → mxbai-embed-large embeddings
+#   - proxy-ai (shared network) → Anthropic API proxy
+#
+# Start:  docker compose -f docker/docker-compose.fase0.yml --env-file docker/sol.env up -d
+# Logs:   docker compose -f docker/docker-compose.fase0.yml logs -f orchestrator
+# Health: curl http://localhost:8085/actuator/health
+# Test:   curl -X POST http://localhost:8085/api/v1/plans -H "Content-Type: application/json" \
+#           -d '{"spec":"Build a hello world REST API in Java"}'
+
+networks:
+  shared:
+    external: true
+
+services:
+  orchestrator:
+    build:
+      context: ../control-plane/orchestrator
+      dockerfile: Dockerfile
+    image: sol/agentfw-orchestrator:latest
+    container_name: agentfw-orchestrator
+    networks: [shared]
+    environment:
+      SPRING_PROFILES_ACTIVE: redis
+      DB_HOST: postgres
+      DB_USER: agentframework
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SPRING_AI_ANTHROPIC_BASE_URL: http://proxy-ai:8097
+      OLLAMA_BASE_URL: http://ollama:11434
+      JAVA_OPTS: -Xmx512m -Xms256m -XX:+UseZGC
+    volumes:
+      - /data/massimiliano/agent-framework/data/workspaces:/workspace:rw
+    ports:
+      - "127.0.0.1:8085:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
