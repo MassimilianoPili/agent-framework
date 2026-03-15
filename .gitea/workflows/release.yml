@@ -1,0 +1,58 @@
+name: Release — Build & Push Docker Images
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Build all modules (skip tests — already validated by CI)
+        run: mvn clean package -B -T 1C -ntp -DskipTests
+
+      - name: Login to Gitea Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build & Push Orchestrator image
+        run: |
+          cd control-plane/orchestrator
+          docker build \
+            -t ${{ secrets.REGISTRY_URL }}/agent-framework/orchestrator:${{ steps.version.outputs.VERSION }} \
+            -t ${{ secrets.REGISTRY_URL }}/agent-framework/orchestrator:latest \
+            .
+          docker push ${{ secrets.REGISTRY_URL }}/agent-framework/orchestrator:${{ steps.version.outputs.VERSION }}
+          docker push ${{ secrets.REGISTRY_URL }}/agent-framework/orchestrator:latest
+
+      - name: Build & Push Worker Runtime image
+        run: |
+          if [ -f execution-plane/worker-runtime/Dockerfile ]; then
+            cd execution-plane/worker-runtime
+            docker build \
+              -t ${{ secrets.REGISTRY_URL }}/agent-framework/worker-runtime:${{ steps.version.outputs.VERSION }} \
+              -t ${{ secrets.REGISTRY_URL }}/agent-framework/worker-runtime:latest \
+              .
+            docker push ${{ secrets.REGISTRY_URL }}/agent-framework/worker-runtime:${{ steps.version.outputs.VERSION }}
+            docker push ${{ secrets.REGISTRY_URL }}/agent-framework/worker-runtime:latest
+          else
+            echo "No worker-runtime Dockerfile found, skipping"
+          fi
