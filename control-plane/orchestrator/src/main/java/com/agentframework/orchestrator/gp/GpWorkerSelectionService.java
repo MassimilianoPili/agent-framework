@@ -2,8 +2,14 @@ package com.agentframework.orchestrator.gp;
 
 import com.agentframework.gp.engine.GaussianProcessEngine;
 import com.agentframework.gp.model.GpPrediction;
+import com.agentframework.orchestrator.analytics.DescriptionLogicMatcher;
+import com.agentframework.orchestrator.analytics.EdgeOfChaosService;
+import com.agentframework.orchestrator.analytics.HInfinityRobustService;
 import com.agentframework.orchestrator.analytics.HedgeAlgorithmService;
+import com.agentframework.orchestrator.analytics.InformationBottleneckService;
+import com.agentframework.orchestrator.analytics.PACBayesService;
 import com.agentframework.orchestrator.analytics.ProspectTheoryService;
+import com.agentframework.orchestrator.analytics.ReflectiveDispatchService;
 import com.agentframework.orchestrator.analytics.WorkerDriftMonitor;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.orchestration.WorkerProfileRegistry;
@@ -12,10 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * GP-based worker profile selection.
@@ -39,19 +42,38 @@ public class GpWorkerSelectionService {
     private final Optional<WorkerDriftMonitor> driftMonitor;
     private final Optional<ProspectTheoryService> prospectTheoryService;
     private final Optional<HedgeAlgorithmService> hedgeAlgorithmService;
+    // A2 Fase 2: GP pipeline analytics
+    private final Optional<DescriptionLogicMatcher> descriptionLogicMatcher;
+    private final Optional<InformationBottleneckService> informationBottleneckService;
+    private final Optional<PACBayesService> pacBayesService;
+    private final Optional<HInfinityRobustService> hInfinityRobustService;
+    private final Optional<EdgeOfChaosService> edgeOfChaosService;
+    private final Optional<ReflectiveDispatchService> reflectiveDispatchService;
 
     public GpWorkerSelectionService(TaskOutcomeService outcomeService,
                                      WorkerProfileRegistry profileRegistry,
                                      Optional<WorkerGreeksService> greeksService,
                                      Optional<WorkerDriftMonitor> driftMonitor,
                                      Optional<ProspectTheoryService> prospectTheoryService,
-                                     Optional<HedgeAlgorithmService> hedgeAlgorithmService) {
+                                     Optional<HedgeAlgorithmService> hedgeAlgorithmService,
+                                     Optional<DescriptionLogicMatcher> descriptionLogicMatcher,
+                                     Optional<InformationBottleneckService> informationBottleneckService,
+                                     Optional<PACBayesService> pacBayesService,
+                                     Optional<HInfinityRobustService> hInfinityRobustService,
+                                     Optional<EdgeOfChaosService> edgeOfChaosService,
+                                     Optional<ReflectiveDispatchService> reflectiveDispatchService) {
         this.outcomeService = outcomeService;
         this.profileRegistry = profileRegistry;
         this.greeksService = greeksService;
         this.driftMonitor = driftMonitor;
         this.prospectTheoryService = prospectTheoryService;
         this.hedgeAlgorithmService = hedgeAlgorithmService;
+        this.descriptionLogicMatcher = descriptionLogicMatcher;
+        this.informationBottleneckService = informationBottleneckService;
+        this.pacBayesService = pacBayesService;
+        this.hInfinityRobustService = hInfinityRobustService;
+        this.edgeOfChaosService = edgeOfChaosService;
+        this.reflectiveDispatchService = reflectiveDispatchService;
     }
 
     /**
@@ -81,14 +103,88 @@ public class GpWorkerSelectionService {
             return new ProfileSelection(profile, null, Map.of());
         }
 
+        // A2: Description Logic pre-filter — remove candidates that don't satisfy capability requirements
+        if (descriptionLogicMatcher.isPresent()) {
+            try {
+                // Build capability map: profile → set of capability keywords from profile name
+                Map<String, Set<String>> workerCapabilities = new LinkedHashMap<>();
+                for (String profile : candidates) {
+                    // Profile names like "be-java", "fe-react" encode capability; split on '-'
+                    workerCapabilities.put(profile, new LinkedHashSet<>(List.of(profile.split("-"))));
+                }
+                // Required capability derived from workerType (e.g. "BE" → "backend")
+                String required = workerType.name().toLowerCase();
+                var dlReport = descriptionLogicMatcher.get().match(required, workerCapabilities);
+                if (dlReport.satisfiable() && !dlReport.matchedWorkers().isEmpty()) {
+                    List<String> filtered = dlReport.matchedWorkers().stream()
+                            .filter(candidates::contains)
+                            .toList();
+                    if (!filtered.isEmpty() && filtered.size() < candidates.size()) {
+                        log.debug("DL pre-filter: {} → {} candidates for {} ({})",
+                                  candidates.size(), filtered.size(), workerType, dlReport.explanation());
+                        candidates = new ArrayList<>(filtered);
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Description Logic matching failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
         // Embed task text
         float[] embedding = outcomeService.embedTask(title, description);
+
+        // A2: Information Bottleneck diagnostic — measure embedding compression quality
+        if (informationBottleneckService.isPresent()) {
+            try {
+                var ibReport = informationBottleneckService.get().compress(workerType.name());
+                if (ibReport != null) {
+                    log.debug("IB compression for {}: {}→{} dim, I(Z;Y)={}, I(Z;X)={}",
+                              workerType, ibReport.originalDim(), ibReport.compressedDim(),
+                              String.format("%.4f", ibReport.mutualInfoZY()),
+                              String.format("%.4f", ibReport.mutualInfoZX()));
+                }
+            } catch (Exception e) {
+                log.debug("Information Bottleneck failed (non-blocking): {}", e.getMessage());
+            }
+        }
 
         // Predict for each candidate
         Map<String, GpPrediction> predictions = new LinkedHashMap<>();
         for (String profile : candidates) {
             GpPrediction pred = outcomeService.predict(embedding, workerType.name(), profile);
             predictions.put(profile, pred);
+        }
+
+        // A2: PAC-Bayes convergence gate — check if GP has enough data to be trusted
+        boolean gpConverged = true;
+        if (pacBayesService.isPresent()) {
+            try {
+                var pacReport = pacBayesService.get().compute(workerType.name());
+                gpConverged = pacReport.convergenceReached();
+                if (!gpConverged) {
+                    log.info("PAC-Bayes: GP not converged for {} (samples={}, required={}, KL={})",
+                             workerType, pacReport.currentSamples(), pacReport.requiredSamples(),
+                             String.format("%.4f", pacReport.klDivergence()));
+                }
+            } catch (Exception e) {
+                log.debug("PAC-Bayes check failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
+        // A2: H∞ robust fallback — when GP is uncertain, use worst-case optimal profile
+        if (!gpConverged && hInfinityRobustService.isPresent()) {
+            try {
+                var robustReport = hInfinityRobustService.get().computeRobustChoice(workerType.name());
+                if (robustReport.robustChoice() != null && predictions.containsKey(robustReport.robustChoice())) {
+                    log.info("H∞ robust fallback for {} (GP not converged): selecting '{}' (worst-case reward={})",
+                             workerType, robustReport.robustChoice(),
+                             String.format("%.4f", robustReport.worstCaseReward()));
+                    GpPrediction robustPred = predictions.get(robustReport.robustChoice());
+                    return new ProfileSelection(robustReport.robustChoice(), robustPred, predictions);
+                }
+            } catch (Exception e) {
+                log.debug("H∞ robust fallback failed (non-blocking): {}", e.getMessage());
+            }
         }
 
         // Select best: max mu, tie-break = default profile
@@ -194,6 +290,48 @@ public class GpWorkerSelectionService {
                 }
             } catch (Exception e) {
                 log.debug("Hedge bonus failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
+        // A2: FDT Reflective Dispatch — secondary ranking when GP uncertainty is high
+        if (reflectiveDispatchService.isPresent()) {
+            GpPrediction currentBestPred = predictions.get(bestProfile);
+            if (currentBestPred != null && currentBestPred.sigma() > 0.5) {
+                try {
+                    var fdtReport = reflectiveDispatchService.get()
+                            .computeReflectivePolicy(title, workerType.name());
+                    if (fdtReport != null && fdtReport.recommendedProfile() != null
+                            && predictions.containsKey(fdtReport.recommendedProfile())
+                            && !fdtReport.recommendedProfile().equals(bestProfile)) {
+                        log.info("FDT reflective dispatch for {}: switching '{}' → '{}' (policyReward={}, {} similar tasks)",
+                                 workerType, bestProfile, fdtReport.recommendedProfile(),
+                                 String.format("%.4f", fdtReport.policyReward()), fdtReport.similarCount());
+                        bestProfile = fdtReport.recommendedProfile();
+                        bestMu = predictions.get(bestProfile).mu();
+                    }
+                } catch (Exception e) {
+                    log.debug("FDT reflective dispatch failed (non-blocking): {}", e.getMessage());
+                }
+            }
+        }
+
+        // A2: Edge of Chaos — adaptive exploration/exploitation tuning
+        if (edgeOfChaosService.isPresent()) {
+            try {
+                // Current exploration estimate from GP sigma of selected profile
+                GpPrediction currentPred = predictions.get(bestProfile);
+                double currentExploration = currentPred != null ? currentPred.sigma() : 0.5;
+                var eocReport = edgeOfChaosService.get().tune(workerType.name(), currentExploration);
+                if (Math.abs(eocReport.adaptationSignal()) > 0.01) {
+                    log.debug("EdgeOfChaos for {}: Lyapunov={}, exploration {} → {} (signal={})",
+                              workerType,
+                              String.format("%.4f", eocReport.lyapunovExponent()),
+                              String.format("%.3f", eocReport.currentExploration()),
+                              String.format("%.3f", eocReport.newExploration()),
+                              String.format("%.4f", eocReport.adaptationSignal()));
+                }
+            } catch (Exception e) {
+                log.debug("Edge of Chaos tuning failed (non-blocking): {}", e.getMessage());
             }
         }
 

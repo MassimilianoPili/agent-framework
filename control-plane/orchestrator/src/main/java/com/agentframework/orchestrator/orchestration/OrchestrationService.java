@@ -152,6 +152,8 @@ public class OrchestrationService {
     private final CSPChannelVerifier cspChannelVerifier;
     // A2: Spin Glass simulated annealing for dispatch ordering optimization
     private final SpinGlassDispatchService spinGlassDispatchService;
+    // Facade: aggregated dispatch-enhancement analytics (8 services)
+    private final DispatchAdvisorFacade dispatchAdvisor;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -194,7 +196,8 @@ public class OrchestrationService {
                                 Optional<LTLPolicyVerifier> ltlPolicyVerifier,
                                 Optional<ChandyLamportSnapshotter> chandyLamportSnapshotter,
                                 Optional<CSPChannelVerifier> cspChannelVerifier,
-                                Optional<SpinGlassDispatchService> spinGlassDispatchService) {
+                                Optional<SpinGlassDispatchService> spinGlassDispatchService,
+                                DispatchAdvisorFacade dispatchAdvisor) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -237,6 +240,7 @@ public class OrchestrationService {
         this.chandyLamportSnapshotter = chandyLamportSnapshotter.orElse(null);
         this.cspChannelVerifier = cspChannelVerifier.orElse(null);
         this.spinGlassDispatchService = spinGlassDispatchService.orElse(null);
+        this.dispatchAdvisor = dispatchAdvisor;
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -528,10 +532,13 @@ public class OrchestrationService {
                        "success", result.success(),
                        "durationMs", result.durationMs()));
 
-        // Publish side-effect event for successful tasks — consumed AFTER_COMMIT by
-        // TaskCompletedEventHandler (reward computation, GP update, serendipity, etc.)
+        // Publish side-effect events — consumed AFTER_COMMIT by dedicated handlers
         if (result.success()) {
+            // TaskCompletedEventHandler: reward computation, GP update, serendipity, etc.
             eventPublisher.publishEvent(new TaskCompletedSideEffectEvent(item.getId(), result));
+        } else {
+            // TaskFailedEventHandler: MAST classification, recovery routing, self-refine gate
+            eventPublisher.publishEvent(new TaskFailedSideEffectEvent(item.getId(), result));
         }
 
         dispatchReadyItems(result.planId());
@@ -1078,6 +1085,16 @@ public class OrchestrationService {
             }
         }
 
+        // Dispatch advisory: fire-and-forget analytics (active inference, Thompson sampling, etc.)
+        try {
+            var advice = dispatchAdvisor.advise(dispatchable, plan);
+            if (advice.count() > 0) {
+                log.debug("Dispatch advisory for plan {}: {} advisories", planId, advice.count());
+            }
+        } catch (Exception e) {
+            log.debug("Dispatch advisory failed (non-blocking): {}", e.getMessage());
+        }
+
         // Global assignment: optimal batch dispatch via Hungarian Algorithm (#42)
         // Pre-assigns profiles to all dispatchable items at once for globally optimal matching.
         Map<String, GpPrediction> globalPredictions = Map.of();
@@ -1509,6 +1526,13 @@ public class OrchestrationService {
             } catch (Exception e) {
                 log.warn("LTL verification failed for plan {}: {}", planId, e.getMessage());
             }
+        }
+
+        // Register plan archetype for future similarity matching (metalearning)
+        if (anyFailed) {
+            dispatchAdvisor.registerFailedArchetype(plan);
+        } else {
+            dispatchAdvisor.registerArchetype(plan);
         }
     }
 

@@ -1,6 +1,9 @@
 package com.agentframework.orchestrator.api;
 
 import com.agentframework.orchestrator.analytics.*;
+import com.agentframework.orchestrator.analytics.bocpd.BocpdService;
+import com.agentframework.orchestrator.analytics.prm.ProcessRewardModelService;
+import com.agentframework.orchestrator.analytics.sandbox.SandboxExecutionService;
 import com.agentframework.orchestrator.api.dto.ShapleyDagResponse;
 import com.agentframework.orchestrator.federation.FederationMetricsExporter;
 import com.agentframework.orchestrator.orchestration.CriticalityMonitor;
@@ -44,7 +47,10 @@ import java.util.UUID;
  * calibration audit, VCG mechanism pricing, Shapley value attribution,
  * MPC scheduling, Fisher uncertainty analysis, Value of Information exploration,
  * Goodhart metric health, Real Options deferral valuation,
- * and Contract Theory incentive evaluation endpoints for the worker profile ecosystem.</p>
+ * Contract Theory incentive evaluation, ergodic budget analysis, edge-of-chaos tuning,
+ * H∞ robust dispatch, renormalization group, information bottleneck, MDL, PAC-Bayes bounds,
+ * BOCPD changepoint detection, PRM trajectory evaluation,
+ * and sandbox execution status endpoints for the worker profile ecosystem.</p>
  */
 @RestController
 @RequestMapping("/api/v1/analytics")
@@ -78,6 +84,16 @@ public class AnalyticsController {
     private final Optional<IteratedAmplificationService> iteratedAmplificationService;
     private final Optional<HandoffRouterService> handoffRouterService;
     private final Optional<MarkovShapleyService> markovShapleyService;
+    private final Optional<ErgodicBudgetAnalyzer> ergodicBudgetAnalyzer;
+    private final Optional<EdgeOfChaosService> edgeOfChaosService;
+    private final Optional<HInfinityRobustService> hInfinityRobustService;
+    private final Optional<RenormalizationGroupService> renormalizationGroupService;
+    private final Optional<InformationBottleneckService> informationBottleneckService;
+    private final Optional<MDLService> mdlService;
+    private final Optional<PACBayesService> pacBayesService;
+    private final Optional<BocpdService> bocpdService;
+    private final Optional<ProcessRewardModelService> processRewardModelService;
+    private final Optional<SandboxExecutionService> sandboxExecutionService;
     private final ShapleyDagService shapleyDagService;
     private final OrchestrationService orchestrationService;
     private final CriticalityMonitor criticalityMonitor;
@@ -110,6 +126,16 @@ public class AnalyticsController {
                                 Optional<IteratedAmplificationService> iteratedAmplificationService,
                                 Optional<HandoffRouterService> handoffRouterService,
                                 Optional<MarkovShapleyService> markovShapleyService,
+                                Optional<ErgodicBudgetAnalyzer> ergodicBudgetAnalyzer,
+                                Optional<EdgeOfChaosService> edgeOfChaosService,
+                                Optional<HInfinityRobustService> hInfinityRobustService,
+                                Optional<RenormalizationGroupService> renormalizationGroupService,
+                                Optional<InformationBottleneckService> informationBottleneckService,
+                                Optional<MDLService> mdlService,
+                                Optional<PACBayesService> pacBayesService,
+                                Optional<BocpdService> bocpdService,
+                                Optional<ProcessRewardModelService> processRewardModelService,
+                                Optional<SandboxExecutionService> sandboxExecutionService,
                                 ShapleyDagService shapleyDagService,
                                 OrchestrationService orchestrationService,
                                 CriticalityMonitor criticalityMonitor) {
@@ -141,6 +167,16 @@ public class AnalyticsController {
         this.iteratedAmplificationService = iteratedAmplificationService;
         this.handoffRouterService = handoffRouterService;
         this.markovShapleyService = markovShapleyService;
+        this.ergodicBudgetAnalyzer = ergodicBudgetAnalyzer;
+        this.edgeOfChaosService = edgeOfChaosService;
+        this.hInfinityRobustService = hInfinityRobustService;
+        this.renormalizationGroupService = renormalizationGroupService;
+        this.informationBottleneckService = informationBottleneckService;
+        this.mdlService = mdlService;
+        this.pacBayesService = pacBayesService;
+        this.bocpdService = bocpdService;
+        this.processRewardModelService = processRewardModelService;
+        this.sandboxExecutionService = sandboxExecutionService;
         this.shapleyDagService = shapleyDagService;
         this.orchestrationService = orchestrationService;
         this.criticalityMonitor = criticalityMonitor;
@@ -656,5 +692,175 @@ public class AnalyticsController {
             }
         }
         return ResponseEntity.ok(markovShapleyService.get().computeAttributions(workers, rewards, 0));
+    }
+
+    /**
+     * GET /api/v1/analytics/ergodic-budget?workerType=BE
+     *
+     * <p>Analyzes ergodicity of reward distributions for a worker type.
+     * Non-ergodic processes require Kelly-criterion-aware budget allocation
+     * (ensemble average ≠ time average).</p>
+     */
+    @GetMapping("/ergodic-budget")
+    public ResponseEntity<ErgodicBudgetAnalyzer.ErgodicReport> getErgodicBudget(
+            @RequestParam String workerType) {
+        if (ergodicBudgetAnalyzer.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(ergodicBudgetAnalyzer.get().analyze(workerType));
+    }
+
+    /**
+     * GET /api/v1/analytics/edge-of-chaos?workerType=BE&amp;currentExploration=0.5
+     *
+     * <p>Tunes exploration rate toward the edge of chaos (Lyapunov exponent ≈ 0).
+     * Returns the adjusted exploration rate and Lyapunov exponent.</p>
+     */
+    @GetMapping("/edge-of-chaos")
+    public ResponseEntity<EdgeOfChaosService.EOCTuningReport> getEdgeOfChaos(
+            @RequestParam String workerType,
+            @RequestParam(defaultValue = "0.5") double currentExploration) {
+        if (edgeOfChaosService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(edgeOfChaosService.get().tune(workerType, currentExploration));
+    }
+
+    /**
+     * GET /api/v1/analytics/h-infinity?workerType=BE
+     *
+     * <p>Computes H∞-robust worker selection — minimizes worst-case regret
+     * across all profiles for the specified worker type.</p>
+     */
+    @GetMapping("/h-infinity")
+    public ResponseEntity<HInfinityRobustService.RobustDispatchReport> getHInfinity(
+            @RequestParam String workerType) {
+        if (hInfinityRobustService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(hInfinityRobustService.get().computeRobustChoice(workerType));
+    }
+
+    /**
+     * GET /api/v1/analytics/renormalization?planId=&lt;uuid&gt;
+     *
+     * <p>Applies renormalization group analysis to the plan DAG.
+     * Identifies scale-invariant coupling constants and fixed points.</p>
+     */
+    @GetMapping("/renormalization")
+    public ResponseEntity<RenormalizationGroupService.RGAnalysisReport> getRenormalization(
+            @RequestParam UUID planId) {
+        if (renormalizationGroupService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        var report = renormalizationGroupService.get().analyse(planId);
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/information-bottleneck?workerType=BE
+     *
+     * <p>Computes Information Bottleneck compression for a worker type.
+     * Finds the optimal trade-off between compression and predictive power.</p>
+     */
+    @GetMapping("/information-bottleneck")
+    public ResponseEntity<InformationBottleneckService.IBCompressionReport> getInformationBottleneck(
+            @RequestParam String workerType) {
+        if (informationBottleneckService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(informationBottleneckService.get().compress(workerType));
+    }
+
+    /**
+     * GET /api/v1/analytics/mdl?planId=&lt;uuid&gt;
+     *
+     * <p>Computes Minimum Description Length for a plan's structure and outcomes.
+     * Lower MDL indicates a more compressible (simpler) plan.</p>
+     */
+    @GetMapping("/mdl")
+    public ResponseEntity<MDLService.MDLReport> getMdl(@RequestParam UUID planId) {
+        if (mdlService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        var report = mdlService.get().compute(planId);
+        if (report == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    /**
+     * GET /api/v1/analytics/pac-bayes?workerType=BE
+     * GET /api/v1/analytics/pac-bayes?workerType=BE&amp;epsilon=0.05&amp;delta=0.05
+     *
+     * <p>Computes PAC-Bayes generalization bound for a worker type.
+     * Returns required sample count for convergence guarantee.</p>
+     */
+    @GetMapping("/pac-bayes")
+    public ResponseEntity<PACBayesService.PACBayesReport> getPacBayes(
+            @RequestParam String workerType,
+            @RequestParam(required = false) Double epsilon,
+            @RequestParam(required = false) Double delta) {
+        if (pacBayesService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        if (epsilon != null && delta != null) {
+            return ResponseEntity.ok(pacBayesService.get().compute(workerType, epsilon, delta));
+        }
+        return ResponseEntity.ok(pacBayesService.get().compute(workerType));
+    }
+
+    /**
+     * GET /api/v1/analytics/changepoints
+     *
+     * <p>Returns recently detected changepoints from Bayesian Online Changepoint
+     * Detection (BOCPD) across all monitored SLI streams.</p>
+     */
+    @GetMapping("/changepoints")
+    public ResponseEntity<Map<String, Object>> getChangepoints() {
+        if (bocpdService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(Map.of(
+                "changepoints", bocpdService.get().getRecentChangepoints(),
+                "activeStreams", bocpdService.get().activeStreamCount()));
+    }
+
+    /**
+     * GET /api/v1/analytics/prm-trajectory?planId=&lt;uuid&gt;
+     *
+     * <p>Evaluates the full plan trajectory using the Process Reward Model.
+     * Returns per-step rewards and an overall trajectory score.</p>
+     */
+    @GetMapping("/prm-trajectory")
+    public ResponseEntity<ProcessRewardModelService.PrmReport> getPrmTrajectory(
+            @RequestParam UUID planId) {
+        if (processRewardModelService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return orchestrationService.getPlan(planId)
+                .map(plan -> {
+                    var report = processRewardModelService.get().evaluateTrajectory(plan);
+                    return ResponseEntity.ok(report);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * GET /api/v1/analytics/sandbox-status
+     *
+     * <p>Returns sandbox execution service availability status.
+     * The sandbox provides isolated compile-and-test for generated code.</p>
+     */
+    @GetMapping("/sandbox-status")
+    public ResponseEntity<Map<String, Object>> getSandboxStatus() {
+        if (sandboxExecutionService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(Map.of("available", true, "service", "SandboxExecutionService"));
     }
 }

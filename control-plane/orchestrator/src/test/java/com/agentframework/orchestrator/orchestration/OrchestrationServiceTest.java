@@ -118,7 +118,8 @@ class OrchestrationServiceTest {
                 Optional.empty(),
                 new com.agentframework.orchestrator.graph.DagHashService(),
                 Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(),
+                new com.agentframework.orchestrator.orchestration.DispatchAdvisorFacade(null, null, null, null, null, null, null));
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);
@@ -1621,7 +1622,8 @@ class OrchestrationServiceTest {
                 Optional.empty(), Optional.empty(),
                 new com.agentframework.orchestrator.graph.DagHashService(),
                 Optional.of(ltlVerifier),
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(),
+                new com.agentframework.orchestrator.orchestration.DispatchAdvisorFacade(null, null, null, null, null, null, null));
         ReflectionTestUtils.setField(ltlService, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(ltlService, "defaultBackoffMs", 5000L);
         ReflectionTestUtils.setField(ltlService, "defaultAttemptsBeforePause", 2);

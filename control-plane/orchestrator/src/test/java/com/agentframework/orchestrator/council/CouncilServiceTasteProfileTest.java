@@ -48,7 +48,8 @@ class CouncilServiceTasteProfileTest {
                 Optional.empty(),
                 Optional.of(decompositionPredictor),
                 commitmentRepository,
-                new QuadraticVotingService());
+                new QuadraticVotingService(),
+                null);
 
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callResponse = mock(ChatClient.CallResponseSpec.class);

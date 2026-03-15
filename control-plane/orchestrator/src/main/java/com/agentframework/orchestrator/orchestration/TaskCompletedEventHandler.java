@@ -1,7 +1,11 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.analytics.BayesianSurpriseService;
 import com.agentframework.orchestrator.analytics.ByzantineFaultToleranceService;
+import com.agentframework.orchestrator.analytics.ProcessMiningService;
 import com.agentframework.orchestrator.analytics.ShapleyDagService;
+import com.agentframework.orchestrator.analytics.prm.ProcessRewardModelService;
+import com.agentframework.orchestrator.analytics.shapley.CausalShapleyService;
 import com.agentframework.orchestrator.domain.ItemStatus;
 import com.agentframework.orchestrator.domain.Plan;
 import com.agentframework.orchestrator.domain.PlanItem;
@@ -63,6 +67,10 @@ public class TaskCompletedEventHandler {
     private final TokenLedgerService tokenLedgerService;
     private final ShapleyDagService shapleyDagService;
     private final @Nullable ByzantineFaultToleranceService bftService;
+    private final @Nullable BayesianSurpriseService bayesianSurpriseService;
+    private final @Nullable ProcessRewardModelService processRewardModelService;
+    private final @Nullable CausalShapleyService causalShapleyService;
+    private final @Nullable ProcessMiningService processMiningService;
 
     public TaskCompletedEventHandler(PlanItemRepository planItemRepository,
                                       RewardComputationService rewardComputationService,
@@ -72,7 +80,11 @@ public class TaskCompletedEventHandler {
                                       HookManagerService hookManagerService,
                                       TokenLedgerService tokenLedgerService,
                                       ShapleyDagService shapleyDagService,
-                                      @Nullable ByzantineFaultToleranceService bftService) {
+                                      @Nullable ByzantineFaultToleranceService bftService,
+                                      @Nullable BayesianSurpriseService bayesianSurpriseService,
+                                      @Nullable ProcessRewardModelService processRewardModelService,
+                                      @Nullable CausalShapleyService causalShapleyService,
+                                      @Nullable ProcessMiningService processMiningService) {
         this.planItemRepository = planItemRepository;
         this.rewardComputationService = rewardComputationService;
         this.gpTaskOutcomeService = gpTaskOutcomeService;
@@ -82,6 +94,10 @@ public class TaskCompletedEventHandler {
         this.tokenLedgerService = tokenLedgerService;
         this.shapleyDagService = shapleyDagService;
         this.bftService = bftService;
+        this.bayesianSurpriseService = bayesianSurpriseService;
+        this.processRewardModelService = processRewardModelService;
+        this.causalShapleyService = causalShapleyService;
+        this.processMiningService = processMiningService;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -180,6 +196,65 @@ public class TaskCompletedEventHandler {
                     log.warn("BFT detected {} Byzantine attempts for task {} (consensus: {}, reached: {})",
                              bftReport.byzantineWorkers().size(), result.taskKey(),
                              bftReport.consensusOutcome(), bftReport.consensusReached());
+                }
+            });
+        }
+
+        // 11. Bayesian surprise: detect anomalous worker outcomes
+        if (bayesianSurpriseService != null) {
+            runSafely("bayesianSurprise", result.taskKey(), () -> {
+                var surprise = bayesianSurpriseService.analyse(item.getWorkerType().name());
+                if (surprise != null) {
+                    log.debug("Bayesian surprise for task {} ({}): KL={}, category={}, zScore={}",
+                              result.taskKey(), item.getWorkerType(), surprise.klDivergence(),
+                              surprise.surpriseCategory(), surprise.zScore());
+                }
+            });
+        }
+
+        // 12. Process Reward Model: step-level evaluation via GP posterior
+        if (processRewardModelService != null) {
+            runSafely("prmEvaluateStep", result.taskKey(), () -> {
+                var stepReward = processRewardModelService.evaluateStep(item);
+                if (stepReward != null) {
+                    log.debug("PRM step reward for task {}: combined={}, gp={}, objective={}, evidence={}",
+                              result.taskKey(), stepReward.combined(), stepReward.gpScore(),
+                              stepReward.objectiveScore(), stepReward.evidence());
+                }
+            });
+        }
+
+        // 13. Causal Shapley: compute causal attribution when all plan items are DONE
+        if (causalShapleyService != null) {
+            runSafely("causalShapley", result.taskKey(), () -> {
+                PlanItem freshItem = planItemRepository.findByIdWithPlan(event.itemId()).orElse(null);
+                if (freshItem == null) return;
+                Plan plan = freshItem.getPlan();
+                boolean allDone = plan.getItems().stream()
+                        .allMatch(i -> i.getStatus() == ItemStatus.DONE);
+                if (allDone) {
+                    var attributions = causalShapleyService.computeForPlan(plan);
+                    log.info("Causal Shapley for plan {}: {} task attributions computed",
+                             plan.getId(), attributions.size());
+                }
+            });
+        }
+
+        // 14. Process Mining: discover process model when all plan items are DONE
+        if (processMiningService != null) {
+            runSafely("processMining", result.taskKey(), () -> {
+                PlanItem freshItem = planItemRepository.findByIdWithPlan(event.itemId()).orElse(null);
+                if (freshItem == null) return;
+                Plan plan = freshItem.getPlan();
+                boolean allDone = plan.getItems().stream()
+                        .allMatch(i -> i.getStatus() == ItemStatus.DONE);
+                if (allDone) {
+                    var model = processMiningService.discover();
+                    if (model != null) {
+                        log.info("Process mining for plan {}: {} causal relations, fitness={}, loops={}",
+                                 plan.getId(), model.causalRelations().size(),
+                                 model.fitness(), model.loopDetected());
+                    }
                 }
             });
         }

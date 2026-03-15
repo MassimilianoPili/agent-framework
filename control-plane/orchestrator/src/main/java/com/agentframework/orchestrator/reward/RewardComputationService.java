@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.reward;
 
+import com.agentframework.orchestrator.analytics.PotentialRewardShapingService;
 import com.agentframework.orchestrator.domain.ItemStatus;
 import com.agentframework.orchestrator.domain.PlanItem;
 import com.agentframework.orchestrator.domain.WorkerType;
@@ -10,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,11 +38,14 @@ public class RewardComputationService {
 
     private final PlanItemRepository planItemRepository;
     private final ObjectMapper objectMapper;
+    private final @Nullable PotentialRewardShapingService potentialRewardShapingService;
 
     public RewardComputationService(PlanItemRepository planItemRepository,
-                                    ObjectMapper objectMapper) {
+                                    ObjectMapper objectMapper,
+                                    @Nullable PotentialRewardShapingService potentialRewardShapingService) {
         this.planItemRepository = planItemRepository;
         this.objectMapper = objectMapper;
+        this.potentialRewardShapingService = potentialRewardShapingService;
     }
 
     // ── Public API ───────────────────────────────────────────────────────────
@@ -55,6 +60,22 @@ public class RewardComputationService {
     @Transactional
     public void computeProcessScore(PlanItem item, AgentResult result) {
         float score = calculateProcessScore(result, item);
+
+        // A2: Potential-based reward shaping (Ng et al. 1999) — policy-invariant bonus
+        if (potentialRewardShapingService != null) {
+            try {
+                var shapedReport = potentialRewardShapingService.shape(item.getWorkerType().name());
+                if (shapedReport != null && shapedReport.improvementRatio() > 0) {
+                    log.debug("Potential shaping for {} {}: improvementRatio={}, intrinsicBonus={}",
+                              item.getWorkerType(), item.getTaskKey(),
+                              String.format("%.4f", shapedReport.improvementRatio()),
+                              String.format("%.4f", shapedReport.totalIntrinsicBonus()));
+                }
+            } catch (Exception e) {
+                log.debug("Potential reward shaping failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
         item.setProcessScore(score);
         recomputeAggregatedReward(item);
         planItemRepository.save(item);

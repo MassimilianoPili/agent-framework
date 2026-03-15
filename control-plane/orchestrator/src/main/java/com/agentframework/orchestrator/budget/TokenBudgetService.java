@@ -1,6 +1,7 @@
 package com.agentframework.orchestrator.budget;
 
 import com.agentframework.gp.model.GpPrediction;
+import com.agentframework.orchestrator.analytics.ErgodicBudgetAnalyzer;
 import com.agentframework.orchestrator.api.dto.PlanRequest.Budget;
 import com.agentframework.orchestrator.budget.PortfolioOptimizer.PortfolioResult;
 import com.agentframework.orchestrator.domain.PlanTokenUsage;
@@ -8,6 +9,7 @@ import com.agentframework.orchestrator.repository.PlanTokenUsageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,11 +53,14 @@ public class TokenBudgetService {
 
     private final PlanTokenUsageRepository usageRepository;
     private final double alpha;
+    private final @Nullable ErgodicBudgetAnalyzer ergodicBudgetAnalyzer;
 
     public TokenBudgetService(PlanTokenUsageRepository usageRepository,
-                               @Value("${gp.budget.alpha:1.0}") double alpha) {
+                               @Value("${gp.budget.alpha:1.0}") double alpha,
+                               @Nullable ErgodicBudgetAnalyzer ergodicBudgetAnalyzer) {
         this.usageRepository = usageRepository;
         this.alpha = alpha;
+        this.ergodicBudgetAnalyzer = ergodicBudgetAnalyzer;
     }
 
     /**
@@ -91,6 +96,27 @@ public class TokenBudgetService {
         }
 
         long effectiveLimit = computeEffectiveLimit(limit, prediction);
+
+        // A2: Ergodic budget analysis — adjust effective limit using Kelly Criterion
+        if (ergodicBudgetAnalyzer != null) {
+            try {
+                var ergodicReport = ergodicBudgetAnalyzer.analyze(workerType);
+                if (ergodicReport != null && ergodicReport.recommendedBudgetShare() > 0) {
+                    // Scale effective limit by recommended share (Kelly fraction)
+                    double shareAdjustment = Math.max(0.5, Math.min(2.0, ergodicReport.recommendedBudgetShare() * 4));
+                    long adjustedLimit = (long) (effectiveLimit * shareAdjustment);
+                    log.debug("Ergodic budget for {}: regime={}, Kelly={}, share={}, limit {} → {}",
+                              workerType, ergodicReport.regime(),
+                              String.format("%.3f", ergodicReport.kellyFraction()),
+                              String.format("%.3f", ergodicReport.recommendedBudgetShare()),
+                              effectiveLimit, adjustedLimit);
+                    effectiveLimit = adjustedLimit;
+                }
+            } catch (Exception e) {
+                log.debug("Ergodic budget analysis failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
         long used = currentUsage(planId, workerType);
 
         if (used >= effectiveLimit) {

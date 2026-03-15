@@ -64,7 +64,7 @@ class QualityGateServiceTest {
             chatClient, promptLoader, planRepository, planItemRepository,
             reportRepository, objectMapper, rewardComputationService,
             eloRatingService, preferencePairGenerator, ralphLoopService,
-            null
+            null, null, null, null, null
         );
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callResponse = mock(ChatClient.CallResponseSpec.class);

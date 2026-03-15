@@ -1,6 +1,10 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.analytics.FixedPointAnalyzer;
 import com.agentframework.orchestrator.analytics.FunctorialSemanticsService;
+import com.agentframework.orchestrator.analytics.PetriNetAnalyzer;
+import com.agentframework.orchestrator.analytics.StateMachineVerifier;
+import com.agentframework.orchestrator.analytics.ViableSystemAuditor;
 import com.agentframework.orchestrator.domain.Plan;
 import com.agentframework.orchestrator.domain.PlanItem;
 import com.agentframework.orchestrator.domain.QualityGateReport;
@@ -47,6 +51,10 @@ public class QualityGateService {
     private final PreferencePairGenerator preferencePairGenerator;
     private final RalphLoopService ralphLoopService;
     private final @Nullable FunctorialSemanticsService functorialSemanticsService;
+    private final @Nullable PetriNetAnalyzer petriNetAnalyzer;
+    private final @Nullable StateMachineVerifier stateMachineVerifier;
+    private final @Nullable ViableSystemAuditor viableSystemAuditor;
+    private final @Nullable FixedPointAnalyzer fixedPointAnalyzer;
 
     @Value("${ralph-loop.min-score-threshold:80}")
     private int minScoreThreshold;
@@ -61,7 +69,11 @@ public class QualityGateService {
                               EloRatingService eloRatingService,
                               PreferencePairGenerator preferencePairGenerator,
                               RalphLoopService ralphLoopService,
-                              @Nullable FunctorialSemanticsService functorialSemanticsService) {
+                              @Nullable FunctorialSemanticsService functorialSemanticsService,
+                              @Nullable PetriNetAnalyzer petriNetAnalyzer,
+                              @Nullable StateMachineVerifier stateMachineVerifier,
+                              @Nullable ViableSystemAuditor viableSystemAuditor,
+                              @Nullable FixedPointAnalyzer fixedPointAnalyzer) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.planRepository = planRepository;
@@ -73,6 +85,10 @@ public class QualityGateService {
         this.preferencePairGenerator = preferencePairGenerator;
         this.ralphLoopService = ralphLoopService;
         this.functorialSemanticsService = functorialSemanticsService;
+        this.petriNetAnalyzer = petriNetAnalyzer;
+        this.stateMachineVerifier = stateMachineVerifier;
+        this.viableSystemAuditor = viableSystemAuditor;
+        this.fixedPointAnalyzer = fixedPointAnalyzer;
     }
 
     /**
@@ -110,6 +126,72 @@ public class QualityGateService {
                     }
                 } catch (Exception e) {
                     log.debug("Functorial semantics check failed (non-blocking): {}", e.getMessage());
+                }
+            }
+
+            // Petri net analysis: verify plan DAG structure
+            if (petriNetAnalyzer != null) {
+                try {
+                    List<PetriNetAnalyzer.PlanItemEdge> edges = items.stream()
+                            .filter(i -> i.getDependsOn() != null)
+                            .flatMap(i -> i.getDependsOn().stream()
+                                    .map(dep -> new PetriNetAnalyzer.PlanItemEdge(dep, i.getTaskKey())))
+                            .toList();
+                    var petriReport = petriNetAnalyzer.analyze(edges);
+                    if (petriReport != null) {
+                        log.info("Petri net for plan {}: reachable={}, deadlock={}, liveTransitions={}",
+                                 plan.getId(), petriReport.reachable(), petriReport.deadlockDetected(),
+                                 petriReport.liveTransitions().size());
+                    }
+                } catch (Exception e) {
+                    log.debug("Petri net analysis failed (non-blocking): {}", e.getMessage());
+                }
+            }
+
+            // State machine verification: check PlanItem state machine properties
+            if (stateMachineVerifier != null) {
+                try {
+                    var smResult = stateMachineVerifier.verify();
+                    log.info("State machine verification for plan {}: allSatisfied={}, {} properties checked",
+                             plan.getId(), smResult.allSatisfied(), smResult.properties().size());
+                } catch (Exception e) {
+                    log.debug("State machine verification failed (non-blocking): {}", e.getMessage());
+                }
+            }
+
+            // Viable System Model audit: check system health metrics
+            if (viableSystemAuditor != null) {
+                try {
+                    var vsmReport = viableSystemAuditor.audit();
+                    if (vsmReport != null) {
+                        log.info("VSM audit for plan {}: S1={}, S2={}, S3={}, tasks={}",
+                                 plan.getId(), vsmReport.s1Status(), vsmReport.s2Status(),
+                                 vsmReport.s3Status(), vsmReport.totalTasksAnalysed());
+                    }
+                } catch (Exception e) {
+                    log.debug("VSM audit failed (non-blocking): {}", e.getMessage());
+                }
+            }
+
+            // Fixed point analysis: check convergence per worker type
+            if (fixedPointAnalyzer != null) {
+                try {
+                    items.stream()
+                            .map(i -> i.getWorkerType().name())
+                            .distinct()
+                            .forEach(wt -> {
+                                try {
+                                    var fpReport = fixedPointAnalyzer.analyse(wt);
+                                    if (fpReport != null) {
+                                        log.debug("Fixed point for {}: converged={}, iterations={}",
+                                                  wt, fpReport.converged(), fpReport.iterations());
+                                    }
+                                } catch (Exception e) {
+                                    log.debug("Fixed point analysis for {} failed: {}", wt, e.getMessage());
+                                }
+                            });
+                } catch (Exception e) {
+                    log.debug("Fixed point analysis failed (non-blocking): {}", e.getMessage());
                 }
             }
 

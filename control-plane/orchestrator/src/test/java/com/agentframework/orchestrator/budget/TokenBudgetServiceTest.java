@@ -36,7 +36,7 @@ class TokenBudgetServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TokenBudgetService(usageRepository, 1.0);
+        service = new TokenBudgetService(usageRepository, 1.0, null);
     }
 
     private static final UUID PLAN_ID = UUID.randomUUID();

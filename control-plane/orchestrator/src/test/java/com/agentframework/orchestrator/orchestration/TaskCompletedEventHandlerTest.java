@@ -46,7 +46,7 @@ class TaskCompletedEventHandlerTest {
         handler = new TaskCompletedEventHandler(
                 planItemRepository, rewardComputationService,
                 gpTaskOutcomeService, serendipityService, null, hookManagerService,
-                tokenLedgerService, shapleyDagService, null);
+                tokenLedgerService, shapleyDagService, null, null, null, null, null);
     }
 
     @Test

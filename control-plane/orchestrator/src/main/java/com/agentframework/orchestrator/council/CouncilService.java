@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import com.agentframework.gp.model.GpPrediction;
 import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import jakarta.annotation.PreDestroy;
+import org.springframework.lang.Nullable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -62,6 +63,7 @@ public class CouncilService {
     private final Optional<PlanDecompositionPredictor> decompositionPredictor;
     private final CouncilCommitmentRepository commitmentRepository;
     private final QuadraticVotingService quadraticVotingService;
+    private final @Nullable com.agentframework.orchestrator.analytics.sycophancy.SycophancyDetectorService sycophancyDetectorService;
 
     public CouncilService(ChatClient chatClient,
                           CouncilPromptLoader promptLoader,
@@ -70,7 +72,8 @@ public class CouncilService {
                           Optional<CouncilRagEnricher> ragEnricher,
                           Optional<PlanDecompositionPredictor> decompositionPredictor,
                           CouncilCommitmentRepository commitmentRepository,
-                          QuadraticVotingService quadraticVotingService) {
+                          QuadraticVotingService quadraticVotingService,
+                          @Nullable com.agentframework.orchestrator.analytics.sycophancy.SycophancyDetectorService sycophancyDetectorService) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.properties = properties;
@@ -79,6 +82,7 @@ public class CouncilService {
         this.decompositionPredictor = decompositionPredictor;
         this.commitmentRepository = commitmentRepository;
         this.quadraticVotingService = quadraticVotingService;
+        this.sycophancyDetectorService = sycophancyDetectorService;
     }
 
     @PreDestroy
@@ -130,6 +134,9 @@ public class CouncilService {
                      qvAggregation.fallbackMembers().size());
         }
 
+        // Sycophancy detection: check if council members are echoing each other
+        checkSycophancy(verifiedViews, "PRE_PLANNING");
+
         CouncilReport report = synthesize(enrichedSpec, verifiedViews, qvAggregation);
 
         // Enrich with GP taste-profile prediction (informational, does not alter LLM decisions)
@@ -178,10 +185,35 @@ public class CouncilService {
                 verifiedViews, properties.baseVoiceCredits());
         }
 
+        // Sycophancy detection
+        checkSycophancy(verifiedViews, "TASK");
+
         CouncilReport report = synthesize(enrichedContext, verifiedViews, qvAggregation);
 
         log.info("Task council session complete for: {}", taskTitle);
         return report;
+    }
+
+    /**
+     * Checks council member outputs for sycophancy (groupthink detection).
+     * Non-blocking: logs warning if sycophancy is detected, does not alter the flow.
+     */
+    private void checkSycophancy(Map<String, String> verifiedViews, String sessionType) {
+        if (sycophancyDetectorService == null || verifiedViews.size() < 2) return;
+        try {
+            var report = sycophancyDetectorService.analyze(
+                    new ArrayList<>(verifiedViews.values()), null);
+            if (report.requiresIntervention()) {
+                log.warn("Sycophancy detected in {} council session: score={}, signals={}, recommendation={}",
+                         sessionType, report.sycophancyScore(),
+                         report.activeSignals().size(), report.recommendation());
+            } else {
+                log.debug("Sycophancy check passed for {} session: score={}",
+                          sessionType, report.sycophancyScore());
+            }
+        } catch (Exception e) {
+            log.debug("Sycophancy check failed (non-blocking): {}", e.getMessage());
+        }
     }
 
     // ─── Private Helpers ───────────────────────────────────────────────────────
