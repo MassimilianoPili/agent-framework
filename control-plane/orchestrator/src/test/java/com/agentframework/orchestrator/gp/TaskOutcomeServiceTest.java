@@ -52,7 +52,7 @@ class TaskOutcomeServiceTest {
     void setUp() {
         service = new TaskOutcomeService(
                 outcomeRepository, eloStatsRepository,
-                gpEngine, embeddingModel, PROPS);
+                gpEngine, embeddingModel, PROPS, null);
     }
 
     // ── embedTask ───────────────────────────────────────────────────────────

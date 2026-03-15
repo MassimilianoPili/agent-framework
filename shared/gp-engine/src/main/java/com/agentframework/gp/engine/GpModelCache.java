@@ -49,6 +49,19 @@ public class GpModelCache {
         cache.remove(key);
     }
 
+    /** Removes all entries whose key starts with the given prefix. */
+    public int invalidateByPrefix(String prefix) {
+        int removed = 0;
+        var it = cache.keySet().iterator();
+        while (it.hasNext()) {
+            if (it.next().startsWith(prefix)) {
+                it.remove();
+                removed++;
+            }
+        }
+        return removed;
+    }
+
     /** Removes all entries. */
     public void invalidateAll() {
         cache.clear();

@@ -6,12 +6,14 @@ import com.agentframework.gp.engine.GpModelCache;
 import com.agentframework.gp.model.GpPosterior;
 import com.agentframework.gp.model.GpPrediction;
 import com.agentframework.gp.model.TrainingPoint;
+import com.agentframework.orchestrator.analytics.bocpd.BocpdService;
 import com.agentframework.orchestrator.reward.WorkerEloStats;
 import com.agentframework.orchestrator.reward.WorkerEloStatsRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,17 +47,21 @@ public class TaskOutcomeService {
     private final EmbeddingModel embeddingModel;
     private final GpProperties properties;
     private final GpModelCache cache;
+    // C4: BOCPD changepoint detection on reward residuals
+    private final @Nullable BocpdService bocpdService;
 
     public TaskOutcomeService(TaskOutcomeRepository outcomeRepository,
                               WorkerEloStatsRepository eloStatsRepository,
                               GaussianProcessEngine gpEngine,
                               EmbeddingModel embeddingModel,
-                              GpProperties properties) {
+                              GpProperties properties,
+                              @Nullable BocpdService bocpdService) {
         this.outcomeRepository = outcomeRepository;
         this.eloStatsRepository = eloStatsRepository;
         this.gpEngine = gpEngine;
         this.embeddingModel = embeddingModel;
         this.properties = properties;
+        this.bocpdService = bocpdService;
 
         var cacheConfig = properties.cache();
         int ttl = cacheConfig != null ? cacheConfig.ttlMinutes() : 5;
@@ -136,6 +142,8 @@ public class TaskOutcomeService {
 
     /**
      * Updates actual reward after task completion. Invalidates the GP cache for this profile.
+     * If BOCPD is enabled, feeds the reward residual (|actual - predicted|) into changepoint
+     * detection. On confirmed changepoint, invalidates all GP caches for the workerType.
      */
     @Transactional
     public void updateReward(UUID planItemId, double reward, String workerType, String profile) {
@@ -144,6 +152,24 @@ public class TaskOutcomeService {
             cache.invalidate(GpModelCache.cacheKey(workerType, profile));
             log.debug("Updated actual_reward={} for planItemId={}, invalidated cache for {}:{}",
                       String.format("%.4f", reward), planItemId, workerType, profile);
+
+            // C4: Feed reward residual into BOCPD for changepoint detection
+            if (bocpdService != null) {
+                try {
+                    outcomeRepository.findGpMuByPlanItemId(planItemId).ifPresent(gpMu -> {
+                        double residual = Math.abs(reward - gpMu);
+                        boolean changepoint = bocpdService.observeRewardResidual(
+                                workerType, profile, residual);
+                        if (changepoint) {
+                            int evicted = cache.invalidateByPrefix(workerType + ":");
+                            log.warn("BOCPD changepoint: invalidated {} GP cache entries for workerType={}",
+                                    evicted, workerType);
+                        }
+                    });
+                } catch (Exception e) {
+                    log.debug("BOCPD reward residual check failed (non-blocking): {}", e.getMessage());
+                }
+            }
         }
     }
 

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -73,6 +74,17 @@ public interface TaskOutcomeRepository extends JpaRepository<TaskOutcome, UUID> 
             """, nativeQuery = true)
     int updateActualReward(@Param("planItemId") UUID planItemId,
                            @Param("reward") double reward);
+
+    /**
+     * Returns the GP prediction (gp_mu) stored at dispatch time for a plan item.
+     * Used to compute the reward residual for BOCPD changepoint detection.
+     */
+    @Query(value = """
+            SELECT gp_mu FROM task_outcomes
+            WHERE plan_item_id = :planItemId
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<Double> findGpMuByPlanItemId(@Param("planItemId") UUID planItemId);
 
     /**
      * Count outcomes per worker type/profile (for diagnostics).

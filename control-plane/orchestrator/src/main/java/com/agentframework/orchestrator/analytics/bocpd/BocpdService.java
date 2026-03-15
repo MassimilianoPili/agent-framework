@@ -134,6 +134,51 @@ public class BocpdService {
     }
 
     /**
+     * Observes a GP reward residual for a worker profile and checks for changepoints.
+     *
+     * <p>Unlike the SLI polling path, this is called on-demand from
+     * {@link com.agentframework.orchestrator.gp.TaskOutcomeService#updateReward}
+     * after each task completion. The residual (|actual_reward − gp_mu|) feeds
+     * into a separate BOCPD stream keyed as {@code "reward:workerType:profile"}.</p>
+     *
+     * <p>When a changepoint is detected in reward residuals, it indicates the GP model's
+     * predictions have become unreliable (regime change in task characteristics or
+     * worker performance). The caller should respond by invalidating the GP cache
+     * broadly (all profiles for the affected workerType).</p>
+     *
+     * @param workerType the worker type (e.g. "BE")
+     * @param profile    the worker profile (e.g. "be-java")
+     * @param residual   |actual_reward − gp_mu| — the GP prediction surprise
+     * @return true if a changepoint was confirmed (GP should reset/decay old data)
+     */
+    public boolean observeRewardResidual(String workerType, String profile, double residual) {
+        String streamKey = "reward:" + workerType + ":" + profile;
+        Instant now = Instant.now();
+
+        BocpdMultiscaleAggregator aggregator = aggregators.computeIfAbsent(
+                streamKey, k -> new BocpdMultiscaleAggregator(streamKey, config));
+
+        BocpdMultiscaleAggregator.MultiscaleResult result = aggregator.observe(residual, now);
+
+        if (result.confirmed()) {
+            log.warn("BOCPD reward changepoint confirmed: {} profile={} residual={} votes={}/{}",
+                    workerType, profile,
+                    String.format("%.4f", residual),
+                    result.votesFor(), result.totalScales());
+
+            String extraJson = String.format(
+                    "{\"workerType\":\"%s\",\"profile\":\"%s\",\"residual\":%.4f,\"stream\":\"reward\",\"votes\":%d,\"scales\":%d}",
+                    workerType, profile, residual,
+                    result.votesFor(), result.totalScales());
+            eventPublisher.publishEvent(
+                    SpringPlanEvent.forSystem(CHANGEPOINT_DETECTED, extraJson));
+
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * A detected and confirmed changepoint.
      *
      * @param workerType  the worker type whose SLI changed
