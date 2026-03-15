@@ -2,6 +2,7 @@ package com.agentframework.orchestrator.leader;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
@@ -49,7 +50,7 @@ public class LeaderElectionService {
     /** Volatile: read by other threads (e.g. OrchestrationService dispatch thread). */
     private volatile boolean leader = false;
 
-    public LeaderElectionService(StringRedisTemplate redisTemplate,
+    public LeaderElectionService(@Qualifier("redisMessagingTemplate") StringRedisTemplate redisTemplate,
                                   ApplicationEventPublisher eventPublisher) {
         this.redisTemplate = redisTemplate;
         this.eventPublisher = eventPublisher;

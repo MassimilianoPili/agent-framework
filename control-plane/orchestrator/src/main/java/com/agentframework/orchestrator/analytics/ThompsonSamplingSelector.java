@@ -3,6 +3,7 @@ package com.agentframework.orchestrator.analytics;
 import com.agentframework.orchestrator.gp.TaskOutcomeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -61,9 +62,10 @@ public class ThompsonSamplingSelector {
     @Value("${thompson-sampling.max-samples-per-type:200}")
     private int maxSamplesPerType;
 
+    @Autowired
     public ThompsonSamplingSelector(TaskOutcomeRepository taskOutcomeRepository) {
         this.taskOutcomeRepository = taskOutcomeRepository;
-        this.rng = RandomGenerator.getDefault();
+        this.rng = new Random();
     }
 
     /** Constructor for testing with injected RNG. */

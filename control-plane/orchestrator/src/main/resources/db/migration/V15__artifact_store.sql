@@ -1,6 +1,8 @@
 -- #48 Content-Addressable Storage for worker artifacts
 -- SHA-256 keyed store with automatic deduplication and integrity verification.
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE artifact_store (
     content_hash  VARCHAR(64)  PRIMARY KEY,
     content       TEXT         NOT NULL,
@@ -18,7 +20,7 @@ ALTER TABLE plan_items
 -- Backfill: hash existing non-null results into artifact_store
 INSERT INTO artifact_store (content_hash, content, size_bytes, created_at, access_count)
 SELECT
-    encode(sha256(result::bytea), 'hex'),
+    encode(sha256(convert_to(result, 'UTF8')), 'hex'),
     result,
     octet_length(result),
     COALESCE(completed_at, NOW()),
@@ -30,5 +32,5 @@ ON CONFLICT (content_hash) DO UPDATE
 
 -- Set result_hash for existing items
 UPDATE plan_items
-SET result_hash = encode(sha256(result::bytea), 'hex')
+SET result_hash = encode(sha256(convert_to(result, 'UTF8')), 'hex')
 WHERE result IS NOT NULL;
