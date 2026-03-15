@@ -1098,6 +1098,27 @@ public class OrchestrationService {
             }
         }
 
+        // Spin Glass: optimize dispatch ordering via simulated annealing
+        if (spinGlassDispatchService != null && dispatchable.size() >= 2) {
+            try {
+                var spinGlassReport = spinGlassDispatchService.optimise(planId);
+                if (spinGlassReport != null) {
+                    // Reorder dispatchable list according to optimal ordering
+                    Map<String, Integer> orderIndex = new HashMap<>();
+                    List<String> optimal = spinGlassReport.optimalOrder();
+                    for (int i = 0; i < optimal.size(); i++) {
+                        orderIndex.put(optimal.get(i), i);
+                    }
+                    dispatchable.sort(Comparator.comparingInt(
+                            item -> orderIndex.getOrDefault(item.getTaskKey(), Integer.MAX_VALUE)));
+                    log.debug("SpinGlass reordered {} tasks for plan {} (energy={})",
+                              dispatchable.size(), planId, spinGlassReport.finalEnergy());
+                }
+            } catch (Exception e) {
+                log.debug("SpinGlass optimization failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
         Map<String, String> completedResults = loadCompletedResults(planId);
         String planSpec = plan.getSpec();
         PlanRequest.Budget budget = deserializeBudget(plan.getBudgetJson());

@@ -117,7 +117,8 @@ class OrchestrationServiceTest {
                 Optional.empty(),
                 Optional.empty(),
                 new com.agentframework.orchestrator.graph.DagHashService(),
-                Optional.empty());
+                Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty());
 
         ReflectionTestUtils.setField(service, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(service, "defaultBackoffMs", 5000L);
@@ -1619,7 +1620,8 @@ class OrchestrationServiceTest {
                 tokenLedgerService, Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(),
                 new com.agentframework.orchestrator.graph.DagHashService(),
-                Optional.of(ltlVerifier));
+                Optional.of(ltlVerifier),
+                Optional.empty(), Optional.empty(), Optional.empty());
         ReflectionTestUtils.setField(ltlService, "defaultMaxAttempts", 3);
         ReflectionTestUtils.setField(ltlService, "defaultBackoffMs", 5000L);
         ReflectionTestUtils.setField(ltlService, "defaultAttemptsBeforePause", 2);

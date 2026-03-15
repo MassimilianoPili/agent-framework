@@ -172,8 +172,8 @@ public class TaskCompletedEventHandler {
             }
         });
 
-        // 10. BFT consensus: detect Byzantine workers on items with multiple retry attempts
-        if (bftService != null && item.getRetryCount() > 0) {
+        // 10. BFT consensus: detect Byzantine workers on items with multiple dispatch attempts
+        if (bftService != null) {
             runSafely("bftConsensus", result.taskKey(), () -> {
                 var bftReport = bftService.analyseItem(event.itemId());
                 if (!bftReport.byzantineWorkers().isEmpty()) {
