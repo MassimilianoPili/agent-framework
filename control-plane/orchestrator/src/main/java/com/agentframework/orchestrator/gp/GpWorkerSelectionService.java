@@ -2,6 +2,7 @@ package com.agentframework.orchestrator.gp;
 
 import com.agentframework.gp.engine.GaussianProcessEngine;
 import com.agentframework.gp.model.GpPrediction;
+import com.agentframework.orchestrator.analytics.CognitiveTaskType;
 import com.agentframework.orchestrator.analytics.DescriptionLogicMatcher;
 import com.agentframework.orchestrator.analytics.EdgeOfChaosService;
 import com.agentframework.orchestrator.analytics.HInfinityRobustService;
@@ -10,6 +11,7 @@ import com.agentframework.orchestrator.analytics.InformationBottleneckService;
 import com.agentframework.orchestrator.analytics.PACBayesService;
 import com.agentframework.orchestrator.analytics.ProspectTheoryService;
 import com.agentframework.orchestrator.analytics.ReflectiveDispatchService;
+import com.agentframework.orchestrator.analytics.TaskTypeClassifier;
 import com.agentframework.orchestrator.analytics.WorkerDriftMonitor;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.orchestration.WorkerProfileRegistry;
@@ -49,6 +51,8 @@ public class GpWorkerSelectionService {
     private final Optional<HInfinityRobustService> hInfinityRobustService;
     private final Optional<EdgeOfChaosService> edgeOfChaosService;
     private final Optional<ReflectiveDispatchService> reflectiveDispatchService;
+    // C3: Cognitive task-type classifier
+    private final TaskTypeClassifier taskTypeClassifier;
 
     public GpWorkerSelectionService(TaskOutcomeService outcomeService,
                                      WorkerProfileRegistry profileRegistry,
@@ -61,7 +65,8 @@ public class GpWorkerSelectionService {
                                      Optional<PACBayesService> pacBayesService,
                                      Optional<HInfinityRobustService> hInfinityRobustService,
                                      Optional<EdgeOfChaosService> edgeOfChaosService,
-                                     Optional<ReflectiveDispatchService> reflectiveDispatchService) {
+                                     Optional<ReflectiveDispatchService> reflectiveDispatchService,
+                                     TaskTypeClassifier taskTypeClassifier) {
         this.outcomeService = outcomeService;
         this.profileRegistry = profileRegistry;
         this.greeksService = greeksService;
@@ -74,6 +79,7 @@ public class GpWorkerSelectionService {
         this.hInfinityRobustService = hInfinityRobustService;
         this.edgeOfChaosService = edgeOfChaosService;
         this.reflectiveDispatchService = reflectiveDispatchService;
+        this.taskTypeClassifier = taskTypeClassifier;
     }
 
     /**
@@ -95,12 +101,15 @@ public class GpWorkerSelectionService {
         List<String> candidates = profileRegistry.profilesForWorkerType(workerType);
         String defaultProfile = profileRegistry.resolveDefaultProfile(workerType);
 
+        // C3: Classify task cognitive type
+        CognitiveTaskType taskType = taskTypeClassifier.classify(title, description);
+
         // Trivial case: 0 or 1 profiles — no selection needed
         if (candidates.size() <= 1) {
             String profile = candidates.isEmpty()
                     ? (defaultProfile != null ? defaultProfile : workerType.name().toLowerCase())
                     : candidates.get(0);
-            return new ProfileSelection(profile, null, Map.of());
+            return new ProfileSelection(profile, null, Map.of(), taskType);
         }
 
         // A2: Description Logic pre-filter — remove candidates that don't satisfy capability requirements
@@ -180,7 +189,7 @@ public class GpWorkerSelectionService {
                              workerType, robustReport.robustChoice(),
                              String.format("%.4f", robustReport.worstCaseReward()));
                     GpPrediction robustPred = predictions.get(robustReport.robustChoice());
-                    return new ProfileSelection(robustReport.robustChoice(), robustPred, predictions);
+                    return new ProfileSelection(robustReport.robustChoice(), robustPred, predictions, taskType);
                 }
             } catch (Exception e) {
                 log.debug("H∞ robust fallback failed (non-blocking): {}", e.getMessage());
@@ -337,25 +346,30 @@ public class GpWorkerSelectionService {
 
         GpPrediction selectedPrediction = predictions.get(bestProfile);
 
-        log.info("GP worker selection for {} '{}': selected '{}' (mu={}, sigma={}) from {} candidates",
+        log.info("GP worker selection for {} '{}': selected '{}' (mu={}, sigma={}, taskType={}) from {} candidates",
                  workerType, title, bestProfile,
                  String.format("%.4f", selectedPrediction.mu()),
                  String.format("%.4f", selectedPrediction.sigma()),
-                 candidates.size());
+                 taskType, candidates.size());
 
         // Record outcome at dispatch time
         outcomeService.recordOutcomeAtDispatch(
                 null, null, "", workerType.name(), bestProfile, embedding, selectedPrediction);
 
-        return new ProfileSelection(bestProfile, selectedPrediction, predictions);
+        return new ProfileSelection(bestProfile, selectedPrediction, predictions, taskType);
     }
 
     /**
-     * Result of profile selection, including all per-profile predictions.
+     * Result of profile selection, including all per-profile predictions and cognitive task type.
+     *
+     * @param taskType C3: cognitive classification — consumers can use
+     *                 {@link CognitiveTaskType#sigmaThreshold()} and
+     *                 {@link CognitiveTaskType#reviewMandatory()} for dispatch decisions
      */
     public record ProfileSelection(
             String selectedProfile,
             GpPrediction selectedPrediction,
-            Map<String, GpPrediction> allPredictions
+            Map<String, GpPrediction> allPredictions,
+            CognitiveTaskType taskType
     ) {}
 }

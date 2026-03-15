@@ -1,9 +1,11 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.analytics.CognitiveTaskType;
 import com.agentframework.orchestrator.analytics.FixedPointAnalyzer;
 import com.agentframework.orchestrator.analytics.FunctorialSemanticsService;
 import com.agentframework.orchestrator.analytics.PetriNetAnalyzer;
 import com.agentframework.orchestrator.analytics.StateMachineVerifier;
+import com.agentframework.orchestrator.analytics.TaskTypeClassifier;
 import com.agentframework.orchestrator.analytics.ViableSystemAuditor;
 import com.agentframework.orchestrator.domain.Plan;
 import com.agentframework.orchestrator.domain.PlanItem;
@@ -55,6 +57,8 @@ public class QualityGateService {
     private final @Nullable StateMachineVerifier stateMachineVerifier;
     private final @Nullable ViableSystemAuditor viableSystemAuditor;
     private final @Nullable FixedPointAnalyzer fixedPointAnalyzer;
+    // C3: Cognitive task type classification
+    private final TaskTypeClassifier taskTypeClassifier;
 
     @Value("${ralph-loop.min-score-threshold:80}")
     private int minScoreThreshold;
@@ -73,7 +77,8 @@ public class QualityGateService {
                               @Nullable PetriNetAnalyzer petriNetAnalyzer,
                               @Nullable StateMachineVerifier stateMachineVerifier,
                               @Nullable ViableSystemAuditor viableSystemAuditor,
-                              @Nullable FixedPointAnalyzer fixedPointAnalyzer) {
+                              @Nullable FixedPointAnalyzer fixedPointAnalyzer,
+                              TaskTypeClassifier taskTypeClassifier) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.planRepository = planRepository;
@@ -89,6 +94,7 @@ public class QualityGateService {
         this.stateMachineVerifier = stateMachineVerifier;
         this.viableSystemAuditor = viableSystemAuditor;
         this.fixedPointAnalyzer = fixedPointAnalyzer;
+        this.taskTypeClassifier = taskTypeClassifier;
     }
 
     /**
@@ -110,8 +116,16 @@ public class QualityGateService {
             .entrySet().stream()
             .map(e -> e.getKey() + "=" + e.getValue())
             .collect(Collectors.joining(", "));
-        log.info("Generating quality gate report for plan {} ({} items, profiles: [{}])",
-                 plan.getId(), items.size(), profileSummary.isEmpty() ? "none" : profileSummary);
+        // C3: Classify tasks by cognitive type — REASONING items require extra scrutiny
+        Map<CognitiveTaskType, Long> taskTypeDist = items.stream()
+                .collect(Collectors.groupingBy(
+                        i -> taskTypeClassifier.classify(i.getTaskKey(), i.getDescription()),
+                        Collectors.counting()));
+        long reasoningCount = taskTypeDist.getOrDefault(CognitiveTaskType.REASONING, 0L);
+
+        log.info("Generating quality gate report for plan {} ({} items, profiles: [{}], taskTypes: {})",
+                 plan.getId(), items.size(), profileSummary.isEmpty() ? "none" : profileSummary,
+                 taskTypeDist);
 
         try {
             // Functorial compositionality check: verify GP predictions compose across dependency paths

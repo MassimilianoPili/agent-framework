@@ -915,4 +915,22 @@ public class AnalyticsController {
         }
         return ResponseEntity.ok(report);
     }
+
+    /**
+     * GET /api/v1/analytics/mcts-dispatch-config
+     *
+     * <p>Returns MCTS dispatch service configuration and availability.
+     * The service uses PUCT (Kocsis &amp; Szepesvári 2006, Silver et al. 2017)
+     * for plan-level task→profile assignment optimization.</p>
+     */
+    @GetMapping("/mcts-dispatch-config")
+    public ResponseEntity<Map<String, Object>> getMctsDispatchConfig() {
+        if (mctsDispatchService.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(Map.of(
+                "available", true,
+                "service", "MctsDispatchService",
+                "algorithm", "PUCT (AlphaZero-style MCTS with GP prior)"));
+    }
 }

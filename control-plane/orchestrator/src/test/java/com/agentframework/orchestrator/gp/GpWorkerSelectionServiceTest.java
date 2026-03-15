@@ -1,6 +1,8 @@
 package com.agentframework.orchestrator.gp;
 
 import com.agentframework.gp.model.GpPrediction;
+import com.agentframework.orchestrator.analytics.CognitiveTaskType;
+import com.agentframework.orchestrator.analytics.TaskTypeClassifier;
 import com.agentframework.orchestrator.domain.WorkerType;
 import com.agentframework.orchestrator.orchestration.WorkerProfileRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +35,7 @@ class GpWorkerSelectionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new GpWorkerSelectionService(outcomeService, profileRegistry, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+        service = new GpWorkerSelectionService(outcomeService, profileRegistry, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), new TaskTypeClassifier());
     }
 
     // ── Single profile (skip GP) ────────────────────────────────────────────
@@ -49,6 +51,7 @@ class GpWorkerSelectionServiceTest {
         assertThat(result.selectedProfile()).isEqualTo("fe-react");
         assertThat(result.selectedPrediction()).isNull();
         assertThat(result.allPredictions()).isEmpty();
+        assertThat(result.taskType()).isNotNull();
         verifyNoInteractions(outcomeService);
     }
 

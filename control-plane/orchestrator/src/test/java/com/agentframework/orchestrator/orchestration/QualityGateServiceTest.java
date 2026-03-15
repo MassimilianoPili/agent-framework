@@ -64,7 +64,8 @@ class QualityGateServiceTest {
             chatClient, promptLoader, planRepository, planItemRepository,
             reportRepository, objectMapper, rewardComputationService,
             eloRatingService, preferencePairGenerator, ralphLoopService,
-            null, null, null, null, null
+            null, null, null, null, null,
+            new com.agentframework.orchestrator.analytics.TaskTypeClassifier()
         );
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
         callResponse = mock(ChatClient.CallResponseSpec.class);
