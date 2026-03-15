@@ -960,7 +960,123 @@ Documentazione completa: `docs/agent-framework/research-domains-ext.md` (§86-§
 
 Claude Code patterns coperti: P2, P3, P5, P7, P8, P10, P14, P15, P18, P21, P22, P26, P28 (13/17 gap chiusi)
 
+### Sintesi ricerca accademica Fase 17 (S26, 2026-03-15)
+
+10 report Template F completati. 37 riferimenti validati, 1 fabbricato, ~60 paper aggiuntivi identificati.
+
+#### Per-item summaries
+
+**#147** — SWE-Agent: **claim "tool filtering per phase" ERRATO** (ACI statico). Hard tool allowlist per fase = contributo novel. Paper chiave: AFlow (ICLR 2025 Oral), MCP-Zero.
+
+**#148** — 4 riferimenti validati. Git worktree: no T1-T3, solo practitioner. Paper chiave: FIDES (Microsoft), MAGIS (NeurIPS 2024).
+
+**#149** — **Lea: cit 549 (non 1400)**. Paper chiave: **LLMCompiler (ICML 2024, 3.7x speedup)**, W&D (~3 tool paralleli ottimali).
+
+**#150** — **Settles: confusione libro 2012 (~695) vs survey 2009 (~6564)**. Paper chiave: **KnowNo (CoRL 2023 Best Paper)**, HULA (ICSE SEIP 2025).
+
+**#151** — **Lin: cit 1698 (non 3500)**. **Park: cit 3003 (sottostimate)**. Paper chiave: **CER (ACL 2025)**, MemGPT, CoALA.
+
+**#152** — **Hoare: cit 1727 (non 6500, sovrastima 3.8x)**. Paper chiave: **Wink (Microsoft, 90% singolo intervento)**, AgentIF (NeurIPS 2025).
+
+**#153** — **Gruschka (arXiv:2311.11438): FABBRICATA** (= fisica nucleare). Sostituto: Basak (ESEM 2023). Paper chiave: **FIDES (100% block injection)**.
+
+**#154** — **Rothermel: cit 815 (non 1700)**. Ralph-Loop validato da **LLMLOOP (ICSME 2025, +9.2%)**. MuTAP: +28%.
+
+**#155** — **Little: cit 2556 (non 6500)**. EVM per AI agent: territorio inesplorato. Paper chiave: **BRIDGE IRT**, **AgentBoard (NeurIPS 2024)**.
+
+**#156** — **Papazoglou: cit 1184 (non 3800)**. Paper chiave: **MCP-Zero (architettura identica)**, **Tool2Vec (+27%)**, **ToolRet (ACL 2025)**.
+
+#### Citazione fabbricata
+
+| # | Paper | Problema | Sostituto |
+|---|-------|----------|-----------|
+| 153 | Gruschka et al. (arXiv:2311.11438) | arXiv ID = paper fisica nucleare | Basak et al. (ESEM 2023, arXiv:2307.00714) |
+
+#### Correzioni algoritmiche
+
+| # | Claim | Correzione |
+|---|-------|------------|
+| 147 | SWE-Agent "tool filtering per phase" | ACI statico; filtering per fase = contributo novel |
+| 150 | Settles 2012 ~6500 cit | ~6500 = survey 2009; libro 2012 = ~695 |
+
+#### Tabella correzioni citazioni (S2 vs claim, solo delta significativi)
+
+| Paper | Claim | S2 | Delta | Item |
+|-------|-------|----|-------|------|
+| Lea | ~1400 | 549 | **-61%** | 149 |
+| Settles (book) | ~6500 | 695 | **-89%** | 150 |
+| Lin | ~3500 | 1,698 | -51% | 151 |
+| Park | ~2000 | 3,003 | **+50%** | 151 |
+| Hoare | ~6500 | 1,727 | **-73%** | 152 |
+| Rothermel | ~1700 | 815 | -52% | 154 |
+| Little | ~6500 | 2,556 | **-61%** | 155 |
+| Boehm | ~3800 | 1,937 | -49% | 155 |
+| Papazoglou | ~3800 | 1,184 | **-69%** | 156 |
+| Toolformer | ~1500 | 2,625 | **+75%** | 156 |
+
+21/25 sovrastimati (media -37%). 3 sottostimati (Anderson, Park, Toolformer).
+
+#### Paper chiave scoperti (T1 top-10)
+
+| Paper | Venue | Item | Perché |
+|-------|-------|------|--------|
+| LLMCompiler (Kim) | ICML 2024 | 149 | DAG planning, 3.7x speedup |
+| KnowNo (Ren) | CoRL 2023 Best | 150 | Conformal prediction "when to ask" |
+| HULA | ICSE SEIP 2025 | 150 | Coding agents in produzione (Atlassian) |
+| CER (Liu) | ACL 2025 | 151 | Ponte Lin 1992 → LLM agents |
+| AgentIF (Qi) | NeurIPS 2025 | 152 | GPT-4o 87→58.5 su vincoli agentic |
+| LLMLOOP (Ravi) | ICSME 2025 | 154 | Stesso pattern pipeline (+9.2%) |
+| Meta ACH | FSE 2025 | 154 | 10K classi, 93.4% fault detection |
+| AgentBoard (Ma) | NeurIPS 2024 | 155 | Progress Rate ≈ SPI |
+| AnyTool (Du) | ICML 2024 | 156 | Retrieval gerarchico 16K API |
+| ToolRet | ACL 2025 | 156 | Retriever generici inadeguati |
+
+#### Cross-connessioni dalla ricerca
+
+| Connessione | Implicazione |
+|-------------|-------------|
+| FIDES ≈ #153 | Design quasi identico — differenziare su secret scanning + reversibilità |
+| MCP-Zero ≈ #156 | Architettura quasi identica — validazione empirica |
+| LLMLOOP ≈ #154 | Stesso feedback loop — validazione indipendente |
+| Tool2Vec → #156 | Description-based subottimale; usage-driven +27% |
+| Wink → #152 | 90% con singolo intervento — valida rate-limiting |
+| BRIDGE → #155 | IRT più rigoroso del k-NN |
+| MuTAP → #154 | Surviving mutants +28% test quality |
+
+Report: `docs/research/{phased-execution-147,workspace-isolation-148,parallel-tools-149,human-interaction-150,persistent-memory-151,project-constraints-152,information-flow-153,validation-pipeline-154,progress-estimation-155,tool-discovery-156}.md`
+
 ---
+
+
+### Ordine implementazione Fase 18
+
+```
+Fase 18a (collaboration, 8.0g):              #157 → #165 → #158
+Fase 18b (production feedback, 4.5g):        #159 → #162
+Fase 18c (economics, 7.0g):                  #160 → #161 → #164
+Fase 18d (resilience, 4.5g):                 #163 → #166
+```
+
+### Riepilogo Fase 18 — Production Intelligence & Collaborative Coordination (#157-#166)
+
+| # | Titolo | Service | Sforzo | Valore | Tier |
+|---|--------|---------|--------|--------|------|
+| 157 | Shared Workspace Blackboard | `SharedBlackboardService` | 2.5g | Alto | 0 |
+| 158 | Worker Negotiation Protocol | `WorkerNegotiationService` | 3.0g | Alto | 0 |
+| 159 | Production Feedback Collector | `ProductionFeedbackService` | 2.5g | Alto | 0 |
+| 160 | Cost Accounting & Budget Controller | `PlanCostAccountingService` | 2.0g | Alto | 0 |
+| 161 | Adaptive Pipeline Configurator | `PipelineConfiguratorService` | 2.5g | Alto | 1 |
+| 162 | Worker Self-Assessment | `WorkerSelfAssessmentService` | 2.0g | Alto | 0 |
+| 163 | Conflict Resolution Arbiter | `ConflictResolutionArbiterService` | 2.5g | Alto | 1 |
+| 164 | Canary Execution Strategy | `CanaryExecutionService` | 2.5g | Medio-Alto | 1 |
+| 165 | Collaborative Code Understanding | `SharedCodeModelService` | 2.5g | Alto | 0 |
+| 166 | Pipeline Degradation Manager | `DegradationManagerService` | 2.0g | Medio-Alto | 1 |
+|   |     | **Totale Fase 18** | | **24.0g** | |
+
+Documentazione completa: `docs/agent-framework/research-domains-ext.md` (§96-§105)
+
+Claude Code patterns coperti (cumulativo Fasi 17-18): P2, P3, P5, P7, P8, P10, P14, P15, P18, P21, P22, P24, P26, P28 (14/17 gap chiusi)
+
 
 # Execution Sandbox (#44)
 
