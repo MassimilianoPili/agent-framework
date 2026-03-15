@@ -80,7 +80,7 @@ jobs:
 
       - name: Verify migration count
         run: |
-          EXPECTED=36
+          EXPECTED=38
           ACTUAL=$(PGPASSWORD=ci psql -h localhost -U ci -d agentframework_ci -t -c \
             "SELECT count(*) FROM flyway_schema_history WHERE success = true;")
           ACTUAL=$(echo "$ACTUAL" | xargs)  # trim whitespace

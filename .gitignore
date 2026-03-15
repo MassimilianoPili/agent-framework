@@ -56,6 +56,9 @@ docker-compose.override.yml
 # Claude Code
 .claude/audit.jsonl
 
+# jqwik property-based testing
+.jqwik-database
+
 # Misc
 *.bak
 *.tmp
