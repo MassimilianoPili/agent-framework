@@ -50,7 +50,7 @@
 | P21 | Human-in-the-loop | ❌ | Stato WAITING_INPUT + SSE |
 | P22 | Progress reporting | 🔧 parziale | SSE per cambio stato, no visibilita' interna worker |
 | P23 | Output styles | ❌ | Non rilevante per agenti autonomi |
-| P24 | Insight blocks | ❌ | Campo `reasoning` in risultato |
+| P24 | Insight blocks | 🔧 parziale | `selfAssessment` in WorkerResult (#162) — insight block strutturato |
 
 ## 6. Tool Architecture
 

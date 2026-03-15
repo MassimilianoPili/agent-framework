@@ -789,6 +789,51 @@ observability-sli:
   burn-rate-threshold-warning: 1.0  # burn rate >= 1.0 → WARNING
   burn-rate-threshold-critical: 2.0 # burn rate >= 2.0 → CRITICAL
 
+# ── Fase 14: Adaptive Operations & Online Learning ──────────────────────────
+
+# BOCPD (#117, Adams & MacKay 2007) — Bayesian Online Changepoint Detection on SLI streams
+agent-framework:
+  bocpd:
+    enabled: false
+    hazard-lambda: 200             # expected run length between changepoints
+    threshold: 0.6                 # P(r=0) above this → changepoint declared
+    max-run-length: 500            # memory bound for run-length posterior
+    poll-interval-ms: 30000        # SLI polling interval
+    scales: 60,300,900             # multiscale aggregation (1min, 5min, 15min)
+
+  # MCTS Online (#119) — online policy learning with EMA, RAVE, BAMCP
+  mcts-online:
+    enabled: false
+    ema-alpha: 0.3                 # EMA decay factor (higher = faster adaptation)
+    rave-k: 500                    # RAVE equivalence parameter
+    bamcp-samples: 10              # GP posterior samples for root initialization
+    exploration-c: 1.41            # PUCT exploration constant
+    decay-interval-ms: 60000       # EMA decay sweep interval
+
+  # Self-Refine (#120, Huang 2023) — gated self-refinement with flip-rate monitoring
+  self-refine:
+    enabled: false
+    max-iterations: 3              # max self-refine iterations before escalation
+    flip-rate-threshold: 0.5       # oscillation detection threshold
+    allowed-worker-types: BE,FE,CONTRACT,DBA  # worker types with objective metrics
+    flip-rate-window: 5            # recent iterations for flip-rate calculation
+
+  # Causal Shapley (#124, Heskes 2020) — do-calculus interventional attribution
+  causal-shapley:
+    enabled: false
+    max-coalitions: 1000           # Monte Carlo coalition samples
+    min-data-points: 10            # minimum data for reliable estimation
+    intervention-type: remove      # intervention type: remove or counterfactual
+
+  # MAST (#126) — Multi-Agent System failure Taxonomy + Self-Healing Router
+  mast:
+    enabled: false
+    oscillation-window: 5          # iterations to check for oscillation (FM11)
+    cascade-depth: 3               # max dependency chain for cascading failure (FM10)
+    min-spec-length: 30            # spec below this → FM1 ambiguous
+    elo-collapse-threshold: 800.0  # ELO below this → FM9 trust degradation
+    partial-completion-threshold: 0.3  # done ratio above this with failures → FM13
+
 logging:
   level:
     com.agentframework: INFO

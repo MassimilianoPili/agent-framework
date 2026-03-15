@@ -56,6 +56,7 @@ public record SpringPlanEvent(
     public static final String SYSTEM_CRITICALITY   = "SYSTEM_CRITICALITY";
     public static final String WORKER_DRIFT_DETECTED = "WORKER_DRIFT_DETECTED";
     public static final String CALIBRATION_DRIFT    = "CALIBRATION_DRIFT";
+    public static final String CHANGEPOINT_DETECTED = "CHANGEPOINT_DETECTED";
     // G6: Worker-originated real-time events
     public static final String TOOL_CALL_START      = "TOOL_CALL_START";
     public static final String TOOL_CALL_END        = "TOOL_CALL_END";

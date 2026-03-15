@@ -3,50 +3,95 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agent Framework — Monitoring</title>
+  <title>Agent Framework — Dashboard</title>
   <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
   <style>
     /* ── Reset & base ─────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #cdd6f4; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-    a { color: #89b4fa; }
+    a { color: #89b4fa; text-decoration: none; }
+    button { font-family: inherit; }
 
     /* ── Header ──────────────────────────────────── */
     header { background: #181825; border-bottom: 1px solid #313244; padding: 0.5rem 1rem; display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
-    header h1 { font-size: 1rem; color: #cba6f7; letter-spacing: 0.05em; }
-    #plan-input { background: #1e1e2e; border: 1px solid #313244; border-radius: 6px; color: #cdd6f4; padding: 0.35rem 0.6rem; font-size: 0.85rem; width: 320px; }
-    #plan-input::placeholder { color: #585b70; }
+    header h1 { font-size: 1rem; color: #cba6f7; letter-spacing: 0.05em; white-space: nowrap; }
     .btn { background: #313244; border: 1px solid #45475a; border-radius: 6px; color: #cdd6f4; cursor: pointer; font-size: 0.8rem; padding: 0.35rem 0.75rem; transition: background 0.15s; }
     .btn:hover { background: #45475a; }
     .btn-primary { background: #7f5af0; border-color: #7f5af0; color: #fff; }
     .btn-primary:hover { background: #6d48e5; }
     .btn-danger { background: #f38ba8; border-color: #f38ba8; color: #1e1e2e; }
     .btn-danger:hover { background: #e87b98; }
-    #recent-plans { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-    .recent-chip { background: #181825; border: 1px solid #313244; border-radius: 4px; color: #89b4fa; cursor: pointer; font-size: 0.75rem; padding: 0.2rem 0.5rem; }
-    .recent-chip:hover { border-color: #89b4fa; }
+    .btn-success { background: #a6e3a1; border-color: #a6e3a1; color: #1e1e2e; }
+    .btn-success:hover { background: #8fd68a; }
+    .btn-warn { background: #fab387; border-color: #fab387; color: #1e1e2e; }
+    .btn-warn:hover { background: #e8a070; }
+    .btn-sm { font-size: 0.7rem; padding: 0.2rem 0.5rem; }
     #status-badge { margin-left: auto; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 10px; border: 1px solid #313244; background: #1e1e2e; }
+    #connection-dot { width: 8px; height: 8px; border-radius: 50%; background: #585b70; display: inline-block; margin-left: 0.3rem; }
+    #connection-dot.connected { background: #a6e3a1; }
 
     /* ── Main grid ───────────────────────────────── */
-    main { flex: 1; display: grid; grid-template-columns: 1fr 340px; grid-template-rows: 1fr 1fr; overflow: hidden; gap: 1px; background: #313244; }
+    main { flex: 1; display: grid; grid-template-columns: 200px 1fr 300px; grid-template-rows: 1fr 1fr; overflow: hidden; gap: 1px; background: #313244; }
     .panel { background: #1e1e2e; display: flex; flex-direction: column; overflow: hidden; }
     .panel-header { background: #181825; padding: 0.4rem 0.75rem; font-size: 0.75rem; color: #a6adc8; text-transform: uppercase; letter-spacing: 0.07em; flex-shrink: 0; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid #313244; }
     .panel-body { flex: 1; overflow: auto; padding: 0.75rem; }
 
-    /* ── DAG ─────────────────────────────────────── */
-    #dag-panel { grid-row: 1; grid-column: 1; }
+    /* ── Sidebar (plan list) ─────────────────────── */
+    #sidebar { grid-row: 1 / 3; grid-column: 1; border-right: 1px solid #313244; }
+    #sidebar .panel-body { padding: 0.4rem; }
+    .plan-item { padding: 0.4rem 0.5rem; border-radius: 4px; cursor: pointer; margin-bottom: 2px; border-left: 3px solid transparent; transition: background 0.15s; }
+    .plan-item:hover { background: #24243e; }
+    .plan-item.active { background: #24243e; border-left-color: #89b4fa; }
+    .plan-item .plan-uuid { font-size: 0.75rem; color: #89b4fa; font-family: monospace; }
+    .plan-item .plan-spec { font-size: 0.7rem; color: #585b70; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+    .plan-item .plan-meta { font-size: 0.65rem; color: #45475a; margin-top: 2px; display: flex; justify-content: space-between; }
+    .plan-status { font-size: 0.6rem; font-weight: 600; padding: 0.1rem 0.3rem; border-radius: 3px; display: inline-block; }
+    .ps-RUNNING { background: #89b4fa; color: #1e1e2e; }
+    .ps-COMPLETED { background: #a6e3a1; color: #1e1e2e; }
+    .ps-FAILED { background: #f38ba8; color: #1e1e2e; }
+    .ps-PAUSED { background: #f9e2af; color: #1e1e2e; }
+    .ps-PENDING { background: #585b70; color: #cdd6f4; }
+    .ps-CANCELLED { background: #6c7086; color: #cdd6f4; }
+    @keyframes pulse-border { 0%,100% { border-left-color: #89b4fa; } 50% { border-left-color: transparent; } }
+    .plan-item.running { border-left-color: #89b4fa; animation: pulse-border 2s infinite; }
+
+    /* New plan form */
+    #new-plan-form { display: none; padding: 0.4rem; border-top: 1px solid #313244; }
+    #new-plan-form textarea { width: 100%; background: #181825; border: 1px solid #313244; border-radius: 4px; color: #cdd6f4; padding: 0.3rem; font-size: 0.75rem; resize: vertical; min-height: 60px; font-family: inherit; }
+    #new-plan-form textarea::placeholder { color: #585b70; }
+
+    /* ── DAG / Timeline ─────────────────────────── */
+    #main-panel { grid-row: 1; grid-column: 2; }
     #dag-container { width: 100%; height: 100%; display: flex; align-items: flex-start; justify-content: flex-start; overflow: auto; }
     #dag-container svg { max-width: none !important; }
     .dag-placeholder { color: #585b70; font-size: 0.85rem; padding: 2rem; }
+    .view-toggle { display: flex; gap: 0; margin-left: auto; }
+    .view-toggle .btn { border-radius: 0; border-right-width: 0; font-size: 0.65rem; padding: 0.15rem 0.5rem; }
+    .view-toggle .btn:first-child { border-radius: 4px 0 0 4px; }
+    .view-toggle .btn:last-child { border-radius: 0 4px 4px 0; border-right-width: 1px; }
+    .view-toggle .btn.active { background: #7f5af0; border-color: #7f5af0; color: #fff; }
+
+    /* ── Timeline ─────────────────────────────────── */
+    #timeline-container { display: none; width: 100%; height: 100%; overflow: auto; position: relative; padding: 0.5rem; }
+    .tl-row { display: flex; align-items: center; height: 32px; margin-bottom: 4px; }
+    .tl-label { width: 110px; flex-shrink: 0; font-size: 0.7rem; color: #a6adc8; text-align: right; padding-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tl-track { flex: 1; position: relative; height: 24px; background: #181825; border-radius: 4px; overflow: hidden; }
+    .tl-bar { position: absolute; height: 100%; border-radius: 3px; cursor: pointer; min-width: 4px; transition: opacity 0.15s; display: flex; align-items: center; padding-left: 4px; font-size: 0.6rem; color: #1e1e2e; font-weight: 600; overflow: hidden; white-space: nowrap; }
+    .tl-bar:hover { opacity: 0.85; }
+    @keyframes pulse-bg { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .tl-bar.running { animation: pulse-bg 1.5s infinite; }
+    .tl-tooltip { position: absolute; background: #313244; border: 1px solid #45475a; border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.72rem; color: #cdd6f4; z-index: 100; pointer-events: none; white-space: nowrap; display: none; }
 
     /* ── Event stream ────────────────────────────── */
-    #events-panel { grid-row: 1; grid-column: 2; }
+    #events-panel { grid-row: 1; grid-column: 3; }
     #event-feed { font-size: 0.75rem; display: flex; flex-direction: column; gap: 0.25rem; overflow-y: auto; height: 100%; }
     .event-row { padding: 0.25rem 0.4rem; border-radius: 4px; border-left: 3px solid #313244; background: #181825; word-break: break-all; }
     .event-row:hover { background: #24243e; }
     .badge { font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 3px; font-weight: 600; margin-right: 0.3rem; display: inline-block; }
     .badge-PLAN_STARTED      { background:#a6e3a1; color:#1e1e2e; }
     .badge-PLAN_COMPLETED    { background:#89b4fa; color:#1e1e2e; }
+    .badge-PLAN_PAUSED       { background:#f9e2af; color:#1e1e2e; }
+    .badge-PLAN_RESUMED      { background:#94e2d5; color:#1e1e2e; }
     .badge-PLAN_CANCELLED    { background:#f38ba8; color:#1e1e2e; }
     .badge-TASK_DISPATCHED   { background:#fab387; color:#1e1e2e; }
     .badge-TASK_COMPLETED    { background:#a6e3a1; color:#1e1e2e; }
@@ -57,13 +102,13 @@
     .badge-TOOL_CALL_END     { background:#94e2d5; color:#1e1e2e; }
     .badge-TOKEN_UPDATE      { background:#f5c2e7; color:#1e1e2e; }
     .badge-default           { background:#45475a; color:#cdd6f4; }
-    #filter-bar { display: flex; gap: 0.4rem; flex-wrap: wrap; padding: 0.4rem 0.75rem; border-bottom: 1px solid #313244; flex-shrink: 0; }
-    .filter-chip { font-size: 0.7rem; cursor: pointer; padding: 0.15rem 0.4rem; border-radius: 3px; border: 1px solid #313244; background: #181825; color: #a6adc8; user-select: none; }
+    #filter-bar { display: flex; gap: 0.3rem; flex-wrap: wrap; padding: 0.3rem 0.5rem; border-bottom: 1px solid #313244; flex-shrink: 0; }
+    .filter-chip { font-size: 0.6rem; cursor: pointer; padding: 0.1rem 0.35rem; border-radius: 3px; border: 1px solid #313244; background: #181825; color: #a6adc8; user-select: none; }
     .filter-chip.active { border-color: #89b4fa; color: #89b4fa; }
     #events-panel .panel-body { padding: 0; }
 
     /* ── Worker detail ───────────────────────────── */
-    #detail-panel { grid-row: 2; grid-column: 1; }
+    #detail-panel { grid-row: 2; grid-column: 2; }
     #detail-content { font-size: 0.8rem; }
     #detail-content .field { margin-bottom: 0.3rem; }
     #detail-content .label { color: #a6adc8; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -73,7 +118,8 @@
     .status-DONE, .status-COMPLETED { color: #a6e3a1; }
     .status-FAILED, .status-CANCELLED { color: #f38ba8; }
     .status-RUNNING, .status-DISPATCHED { color: #89b4fa; }
-    .status-WAITING { color: #fab387; }
+    .status-WAITING, .status-AWAITING_APPROVAL { color: #fab387; }
+    .status-TO_DISPATCH { color: #cba6f7; }
     .detail-placeholder { color: #585b70; font-size: 0.85rem; }
     .detail-tabs { display: flex; gap: 0; border-bottom: 1px solid #313244; margin-bottom: 0.5rem; }
     .detail-tab { padding: 0.3rem 0.7rem; font-size: 0.7rem; cursor: pointer; color: #a6adc8; border-bottom: 2px solid transparent; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -89,8 +135,11 @@
     .file-path { color: #89b4fa; word-break: break-all; }
     .conv-block { background: #181825; border-radius: 4px; padding: 0.5rem; margin-top: 0.4rem; font-size: 0.72rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #a6adc8; }
 
+    /* ── Action buttons ──────────────────────────── */
+    .action-bar { display: flex; gap: 0.4rem; margin: 0.5rem 0; flex-wrap: wrap; }
+
     /* ── Stats ───────────────────────────────────── */
-    #stats-panel { grid-row: 2; grid-column: 2; }
+    #stats-panel { grid-row: 2; grid-column: 3; }
     .stat-block { margin-bottom: 0.8rem; }
     .stat-label { color: #a6adc8; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.25rem; }
     .progress-bar-wrap { background: #313244; border-radius: 4px; height: 8px; overflow: hidden; }
@@ -100,6 +149,7 @@
     .elo-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
     .elo-table th { color: #a6adc8; text-align: left; padding: 0.2rem 0.3rem; border-bottom: 1px solid #313244; }
     .elo-table td { padding: 0.2rem 0.3rem; color: #cdd6f4; }
+    .council-json { background: #181825; border-radius: 4px; padding: 0.5rem; font-size: 0.7rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #a6adc8; font-family: monospace; }
 
     /* ── Scrollbar ───────────────────────────────── */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -109,46 +159,60 @@
 </head>
 <body>
 
-<!-- ── Header / plan selector ──────────────────────────── -->
 <header>
-  <h1>Agent Monitor</h1>
-  <input id="plan-input" type="text" placeholder="Plan UUID…" autocomplete="off" />
-  <button class="btn btn-primary" onclick="loadPlanFromInput()">Load</button>
-  <button class="btn btn-danger" id="btn-cancel" style="display:none" onclick="cancelCurrentPlan()">Cancel</button>
-  <div id="recent-plans"></div>
-  <span id="status-badge">—</span>
+  <h1>Agent Dashboard</h1>
+  <button class="btn btn-danger" id="btn-cancel" style="display:none" onclick="cancelCurrentPlan()">Cancel Plan</button>
+  <button class="btn" id="btn-resume" style="display:none" onclick="resumeCurrentPlan()">Resume</button>
+  <span id="status-badge">&mdash;</span>
+  <span id="connection-dot" title="SSE connection"></span>
 </header>
 
 <main>
-  <!-- DAG -->
-  <div class="panel" id="dag-panel">
+  <div class="panel" id="sidebar">
     <div class="panel-header">
-      DAG Live
-      <span id="dag-status-text" style="color:#585b70;font-size:0.7rem;margin-left:auto">No plan loaded</span>
+      Plans
+      <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="toggleNewPlanForm()">+ New</button>
     </div>
-    <div class="panel-body" style="padding:0">
-      <div id="dag-container"><p class="dag-placeholder">Load a plan to see the live task graph.</p></div>
+    <div id="new-plan-form">
+      <textarea id="new-plan-spec" placeholder="Build a REST API for user management with JWT authentication..." rows="3"></textarea>
+      <div style="display:flex;gap:0.3rem;margin-top:0.3rem">
+        <button class="btn btn-primary btn-sm" onclick="createPlan()">Create</button>
+        <button class="btn btn-sm" onclick="toggleNewPlanForm()">Cancel</button>
+      </div>
+    </div>
+    <div class="panel-body" id="plan-list"></div>
+  </div>
+
+  <div class="panel" id="main-panel">
+    <div class="panel-header">
+      <span id="main-title">Task Graph</span>
+      <div class="view-toggle">
+        <button class="btn active" id="btn-dag" onclick="switchView('dag')">DAG</button>
+        <button class="btn" id="btn-timeline" onclick="switchView('timeline')">Timeline</button>
+      </div>
+    </div>
+    <div class="panel-body" style="padding:0;position:relative">
+      <div id="dag-container"><p class="dag-placeholder">Select a plan to see the task graph.</p></div>
+      <div id="timeline-container"></div>
+      <div class="tl-tooltip" id="tl-tooltip"></div>
     </div>
   </div>
 
-  <!-- Event stream -->
   <div class="panel" id="events-panel">
-    <div class="panel-header">Event Stream</div>
+    <div class="panel-header">Event Stream <span id="event-count" style="color:#585b70;font-size:0.65rem;margin-left:auto">0</span></div>
     <div id="filter-bar"></div>
     <div class="panel-body">
       <div id="event-feed"></div>
     </div>
   </div>
 
-  <!-- Worker detail -->
   <div class="panel" id="detail-panel">
     <div class="panel-header">Worker Detail</div>
     <div class="panel-body">
-      <div id="detail-content"><p class="detail-placeholder">Click a node in the DAG to see details.</p></div>
+      <div id="detail-content"><p class="detail-placeholder">Click a node in the DAG or timeline to see details.</p></div>
     </div>
   </div>
 
-  <!-- Stats -->
   <div class="panel" id="stats-panel">
     <div class="panel-header">Stats</div>
     <div class="panel-body">
@@ -169,6 +233,10 @@
             <tbody id="elo-body"></tbody>
           </table>
         </div>
+        <div class="stat-block" id="council-block" style="display:none">
+          <div class="stat-label">Council Report</div>
+          <div class="council-json" id="council-content"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -176,31 +244,35 @@
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────────────
-const API = '';   // same origin — relative paths
-const STATUS_COLORS = {
-  QUEUED: '#585b70', WAITING: '#f9e2af',
-  DISPATCHED: '#fab387', RUNNING: '#89b4fa',
-  COMPLETED: '#a6e3a1', DONE: '#a6e3a1',
+var API = window.__AGENT_API_BASE || '';
+var STATUS_COLORS = {
+  WAITING: '#f9e2af', AWAITING_APPROVAL: '#fab387',
+  DISPATCHED: '#fab387', RUNNING: '#89b4fa', TO_DISPATCH: '#cba6f7',
+  DONE: '#a6e3a1', COMPLETED: '#a6e3a1',
   FAILED: '#f38ba8', CANCELLED: '#6c7086'
 };
-const FILTER_TYPES = [
+var FILTER_TYPES = [
   'PLAN_STARTED','TASK_DISPATCHED','TASK_COMPLETED','TASK_FAILED',
   'ITEM_STATUS_CHANGED','BUDGET_UPDATE','PLAN_COMPLETED','PLAN_CANCELLED',
-  'TOOL_CALL_START','TOOL_CALL_END','TOKEN_UPDATE'
+  'PLAN_PAUSED','PLAN_RESUMED','TOOL_CALL_START','TOOL_CALL_END','TOKEN_UPDATE'
 ];
 
 // ── State ────────────────────────────────────────────────────────────────────
-let currentPlanId = null;
-let eventSource = null;
-let itemMap = {};          // taskKey → { id, workerType, workerProfile, status }
-let statusMap = {};        // taskKey → current ItemStatus string
-let dagRerenderTimer = null;
-let autoScroll = true;
-let activeFilters = new Set(FILTER_TYPES);
-let budgetMap = {};        // workerType → { consumed, total }
-let tokenMap = {};         // taskKey → { prompt, completion, total }
-let statsInterval = null;
-let eloInterval = null;
+var currentPlanId = null;
+var currentPlanData = null;
+var eventSource = null;
+var itemMap = {};
+var statusMap = {};
+var dagRerenderTimer = null;
+var autoScroll = true;
+var activeFilters = new Set(FILTER_TYPES);
+var budgetMap = {};
+var tokenMap = {};
+var statsInterval = null;
+var eloInterval = null;
+var planListInterval = null;
+var eventCount = 0;
+var activeView = 'dag';
 
 // ── Mermaid init ─────────────────────────────────────────────────────────────
 mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose',
@@ -208,15 +280,45 @@ mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose',
     primaryBorderColor: '#45475a', lineColor: '#a6adc8', edgeLabelBackground: '#1e1e2e' }
 });
 
+// ── Utilities ────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  var d = Date.now() - new Date(iso).getTime();
+  if (d < 60000) return Math.floor(d / 1000) + 's ago';
+  if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
+  if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
+  return Math.floor(d / 86400000) + 'd ago';
+}
+
+function formatDuration(ms) {
+  if (typeof ms !== 'number') return String(ms);
+  if (ms < 1000) return ms + 'ms';
+  if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+  return Math.floor(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's';
+}
+
+function tryParse(s) { try { return JSON.parse(s); } catch (e) { return null; } }
+
+function createEl(tag, cls, text) {
+  var el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text) el.textContent = text;
+  return el;
+}
+
 // ── Filter bar ───────────────────────────────────────────────────────────────
 (function initFilters() {
-  const bar = document.getElementById('filter-bar');
-  FILTER_TYPES.forEach(t => {
-    const chip = document.createElement('span');
-    chip.className = 'filter-chip active';
-    chip.textContent = t.replace(/_/g, ' ');
+  var bar = document.getElementById('filter-bar');
+  FILTER_TYPES.forEach(function(t) {
+    var chip = createEl('span', 'filter-chip active', t.replace(/_/g, ' ').toLowerCase());
     chip.dataset.type = t;
-    chip.addEventListener('click', () => {
+    chip.addEventListener('click', function() {
       if (activeFilters.has(t)) { activeFilters.delete(t); chip.classList.remove('active'); }
       else { activeFilters.add(t); chip.classList.add('active'); }
     });
@@ -224,123 +326,157 @@ mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose',
   });
 })();
 
-// ── Recent plans ─────────────────────────────────────────────────────────────
-async function loadRecentPlans() {
-  try {
-    const res = await fetch(`${API}/api/v1/plans?limit=8`);
-    if (!res.ok) return;
-    const plans = await res.json();
-    const container = document.getElementById('recent-plans');
-    container.innerHTML = '';
-    plans.forEach(p => {
-      const chip = document.createElement('span');
-      chip.className = 'recent-chip';
-      chip.title = p.id;
-      chip.textContent = p.id.substring(0, 8) + '…';
-      chip.addEventListener('click', () => loadPlan(p.id));
-      container.appendChild(chip);
-    });
-  } catch (e) { /* server not running */ }
+// ── Plan list sidebar ────────────────────────────────────────────────────────
+function loadPlanList() {
+  fetch(API + '/api/v1/plans?limit=20')
+    .then(function(res) { return res.ok ? res.json() : []; })
+    .then(function(plans) {
+      var container = document.getElementById('plan-list');
+      container.textContent = '';
+      plans.forEach(function(p) {
+        var div = createEl('div', 'plan-item' + (p.id === currentPlanId ? ' active' : '') + (p.status === 'RUNNING' ? ' running' : ''));
+
+        var header = createEl('div');
+        header.style.cssText = 'display:flex;justify-content:space-between;align-items:center';
+        var uuid = createEl('span', 'plan-uuid', p.id.substring(0, 8));
+        var st = createEl('span', 'plan-status ps-' + p.status, p.status);
+        header.append(uuid, st);
+        div.appendChild(header);
+
+        var spec = createEl('div', 'plan-spec', (p.spec || '').substring(0, 60));
+        div.appendChild(spec);
+
+        var meta = createEl('div', 'plan-meta');
+        meta.appendChild(createEl('span', '', timeAgo(p.createdAt)));
+        div.appendChild(meta);
+
+        div.addEventListener('click', function() { loadPlan(p.id); });
+        container.appendChild(div);
+      });
+      // Auto-load first RUNNING plan
+      if (!currentPlanId) {
+        var running = plans.find(function(p) { return p.status === 'RUNNING'; });
+        if (running) loadPlan(running.id);
+      }
+    })
+    .catch(function() { /* server not running */ });
 }
 
-// ── Plan loader ───────────────────────────────────────────────────────────────
-function loadPlanFromInput() {
-  const id = document.getElementById('plan-input').value.trim();
-  if (id) loadPlan(id);
+function toggleNewPlanForm() {
+  var form = document.getElementById('new-plan-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  if (form.style.display === 'block') document.getElementById('new-plan-spec').focus();
 }
 
-document.getElementById('plan-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') loadPlanFromInput();
-});
+function createPlan() {
+  var spec = document.getElementById('new-plan-spec').value.trim();
+  if (!spec) return;
+  fetch(API + '/api/v1/plans', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ spec: spec })
+  })
+  .then(function(res) {
+    if (res.ok) return res.json();
+    throw new Error('HTTP ' + res.status);
+  })
+  .then(function(plan) {
+    document.getElementById('new-plan-spec').value = '';
+    document.getElementById('new-plan-form').style.display = 'none';
+    loadPlan(plan.id);
+    loadPlanList();
+  })
+  .catch(function(e) { alert('Create failed: ' + e.message); });
+}
 
-async function loadPlan(planId) {
+// ── Plan loader ──────────────────────────────────────────────────────────────
+function loadPlan(planId) {
   currentPlanId = planId;
-  document.getElementById('plan-input').value = planId;
-  itemMap = {}; statusMap = {}; budgetMap = {};
-  document.getElementById('detail-content').innerHTML = '<p class="detail-placeholder">Click a node in the DAG to see details.</p>';
-  document.getElementById('event-feed').innerHTML = '';
+  itemMap = {}; statusMap = {}; budgetMap = {}; tokenMap = {};
+  eventCount = 0;
+  document.getElementById('event-count').textContent = '0';
+  document.getElementById('detail-content').textContent = '';
+  document.getElementById('detail-content').appendChild(createEl('p', 'detail-placeholder', 'Click a node in the DAG or timeline to see details.'));
+  document.getElementById('event-feed').textContent = '';
 
-  // Stop existing SSE
   if (eventSource) { eventSource.close(); eventSource = null; }
   clearInterval(statsInterval); clearInterval(eloInterval);
 
-  // Load DAG + plan detail
-  await Promise.all([renderDag(planId), fetchPlanStats(planId)]);
-  startSse(planId);
-  statsInterval = setInterval(() => fetchPlanStats(planId), 5000);
-  eloInterval = setInterval(fetchElo, 30000);
-  fetchElo();
-  document.getElementById('btn-cancel').style.display = 'inline-block';
+  Promise.all([renderDag(planId), fetchPlanDetail(planId)]).then(function() {
+    if (activeView === 'timeline') renderTimeline();
+    startSse(planId);
+    statsInterval = setInterval(function() { fetchPlanDetail(planId); }, 5000);
+    eloInterval = setInterval(fetchElo, 30000);
+    fetchElo();
+    loadPlanList();
+    updatePlanButtons();
+  });
 }
 
-// ── DAG ───────────────────────────────────────────────────────────────────────
-async function renderDag(planId) {
-  const container = document.getElementById('dag-container');
-  const statusEl = document.getElementById('dag-status-text');
-  try {
-    const [mermaidRes, planRes] = await Promise.all([
-      fetch(`${API}/api/v1/plans/${planId}/graph?format=mermaid`),
-      fetch(`${API}/api/v1/plans/${planId}`)
-    ]);
+function updatePlanButtons() {
+  var s = currentPlanData ? currentPlanData.status : null;
+  document.getElementById('btn-cancel').style.display = (s === 'RUNNING' || s === 'PAUSED') ? 'inline-block' : 'none';
+  document.getElementById('btn-resume').style.display = s === 'PAUSED' ? 'inline-block' : 'none';
+}
 
-    if (!mermaidRes.ok || !planRes.ok) {
-      statusEl.textContent = 'Plan not found';
-      container.innerHTML = '<p class="dag-placeholder">Plan not found.</p>';
-      return;
-    }
+// ── View toggle ──────────────────────────────────────────────────────────────
+function switchView(view) {
+  activeView = view;
+  document.getElementById('btn-dag').classList.toggle('active', view === 'dag');
+  document.getElementById('btn-timeline').classList.toggle('active', view === 'timeline');
+  document.getElementById('dag-container').style.display = view === 'dag' ? 'flex' : 'none';
+  document.getElementById('timeline-container').style.display = view === 'timeline' ? 'block' : 'none';
+  if (view === 'timeline') renderTimeline();
+}
 
-    const planData = await planRes.json();
-    statusEl.textContent = planData.status;
-    document.getElementById('status-badge').textContent = planData.status;
-
-    // Build itemMap from plan response
-    (planData.items || []).forEach(item => {
-      itemMap[item.taskKey] = item;
-      statusMap[item.taskKey] = item.status;
+// ── DAG ──────────────────────────────────────────────────────────────────────
+function renderDag(planId) {
+  var container = document.getElementById('dag-container');
+  return fetch(API + '/api/v1/plans/' + planId + '/graph?format=mermaid')
+    .then(function(res) {
+      if (!res.ok) { container.textContent = ''; container.appendChild(createEl('p', 'dag-placeholder', 'Plan not found.')); return; }
+      return res.text();
+    })
+    .then(function(mermaidText) {
+      if (!mermaidText) return;
+      var styledText = applyStatusColors(mermaidText);
+      container.textContent = '';
+      container.appendChild(createEl('div'));
+      return mermaid.render('mermaid-graph-' + Date.now(), styledText);
+    })
+    .then(function(result) {
+      if (!result) return;
+      // Mermaid render returns SVG string; we need to parse it safely
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(result.svg, 'image/svg+xml');
+      var svg = doc.documentElement;
+      container.textContent = '';
+      container.appendChild(document.adoptNode(svg));
+      attachDagClickHandlers();
+    })
+    .catch(function(e) {
+      container.textContent = '';
+      container.appendChild(createEl('p', 'dag-placeholder', 'Error: ' + e.message));
     });
-
-    const mermaidText = await mermaidRes.text();
-    const styledText = applyStatusColors(mermaidText);
-    container.innerHTML = `<div id="mermaid-render"></div>`;
-    const { svg } = await mermaid.render('mermaid-graph', styledText);
-    container.innerHTML = svg;
-
-    // Attach click handlers to DAG nodes
-    attachDagClickHandlers();
-
-  } catch (e) {
-    statusEl.textContent = 'Error';
-    container.innerHTML = `<p class="dag-placeholder">Error loading DAG: ${e.message}</p>`;
-  }
 }
 
 function applyStatusColors(mermaidText) {
-  // Append classDef for each status, then mark nodes whose taskKey is in statusMap
-  let text = mermaidText;
-  const classDefs = Object.entries(STATUS_COLORS).map(([s, c]) =>
-    `  classDef st_${s} fill:${c},color:#1e1e2e,stroke:#313244`).join('\n');
-
-  // Add class assignments based on current statusMap
-  const classAssignments = Object.entries(statusMap).map(([taskKey, status]) => {
-    const nodeId = taskKey.replace(/-/g, '_');
-    return `  class ${nodeId} st_${status}`;
+  var classDefs = Object.entries(STATUS_COLORS).map(function(pair) {
+    return '  classDef st_' + pair[0] + ' fill:' + pair[1] + ',color:#1e1e2e,stroke:#313244';
   }).join('\n');
-
-  return text + '\n' + classDefs + '\n' + classAssignments;
+  var classAssigns = Object.entries(statusMap).map(function(pair) {
+    return '  class ' + pair[0].replace(/-/g, '_') + ' st_' + pair[1];
+  }).join('\n');
+  return mermaidText + '\n' + classDefs + '\n' + classAssigns;
 }
 
 function attachDagClickHandlers() {
-  const container = document.getElementById('dag-container');
-  // Mermaid nodes have g elements with id "flowchart-<nodeId>-N"
-  container.querySelectorAll('g[id^="flowchart-"]').forEach(g => {
+  document.getElementById('dag-container').querySelectorAll('g[id^="flowchart-"]').forEach(function(g) {
     g.style.cursor = 'pointer';
-    g.addEventListener('click', () => {
-      // Extract nodeId from "flowchart-CM_001-0" → "CM_001" → "CM-001"
-      const parts = g.id.split('-');
+    g.addEventListener('click', function() {
+      var parts = g.id.split('-');
       if (parts.length < 2) return;
-      const rawKey = parts.slice(1, -1).join('-');
-      const taskKey = rawKey.replace(/_/g, '-');
-      const item = itemMap[taskKey];
+      var rawKey = parts.slice(1, -1).join('-').replace(/_/g, '-');
+      var item = itemMap[rawKey];
       if (item) showWorkerDetail(item);
     });
   });
@@ -348,176 +484,246 @@ function attachDagClickHandlers() {
 
 function scheduleDagRerender(planId) {
   if (dagRerenderTimer) return;
-  dagRerenderTimer = setTimeout(() => {
+  dagRerenderTimer = setTimeout(function() {
     dagRerenderTimer = null;
-    renderDag(planId);
+    if (activeView === 'dag') renderDag(planId);
+    else renderTimeline();
   }, 2000);
 }
 
-// ── SSE ───────────────────────────────────────────────────────────────────────
-function startSse(planId) {
-  eventSource = new EventSource(`${API}/api/v1/plans/${planId}/events`);
+// ── Timeline / Swimlane ──────────────────────────────────────────────────────
+function renderTimeline() {
+  var container = document.getElementById('timeline-container');
+  var items = Object.values(itemMap);
+  if (items.length === 0) { container.textContent = ''; container.appendChild(createEl('p', 'dag-placeholder', 'No items.')); return; }
 
-  eventSource.onmessage = (e) => {
-    let event;
-    try { event = JSON.parse(e.data); } catch { return; }
+  var planStart = currentPlanData ? new Date(currentPlanData.createdAt).getTime() : Date.now();
+  var maxTime = Date.now();
+  items.forEach(function(it) { if (it.completedAt) maxTime = Math.max(maxTime, new Date(it.completedAt).getTime()); });
+  var duration = Math.max(maxTime - planStart, 10000);
+
+  var groups = {};
+  items.forEach(function(it) {
+    var wt = it.workerType || 'UNKNOWN';
+    if (!groups[wt]) groups[wt] = [];
+    groups[wt].push(it);
+  });
+
+  var sortedTypes = Object.keys(groups).sort(function(a, b) {
+    var aMin = Math.min.apply(null, groups[a].map(function(i) { return i.dispatchedAt ? new Date(i.dispatchedAt).getTime() : Infinity; }));
+    var bMin = Math.min.apply(null, groups[b].map(function(i) { return i.dispatchedAt ? new Date(i.dispatchedAt).getTime() : Infinity; }));
+    return aMin - bMin;
+  });
+
+  container.textContent = '';
+  sortedTypes.forEach(function(wt) {
+    var row = createEl('div', 'tl-row');
+    var label = createEl('div', 'tl-label', wt);
+    label.title = wt;
+    var track = createEl('div', 'tl-track');
+
+    groups[wt].forEach(function(it) {
+      var start = it.dispatchedAt ? new Date(it.dispatchedAt).getTime() : null;
+      if (!start) return;
+      var end = it.completedAt ? new Date(it.completedAt).getTime() : Date.now();
+      var leftPct = ((start - planStart) / duration * 100).toFixed(2);
+      var widthPct = Math.max(((end - start) / duration * 100), 0.5).toFixed(2);
+      var status = statusMap[it.taskKey] || it.status || 'WAITING';
+      var color = STATUS_COLORS[status] || '#585b70';
+
+      var bar = createEl('div', 'tl-bar' + (status === 'RUNNING' || status === 'DISPATCHED' ? ' running' : ''), it.taskKey);
+      bar.style.left = leftPct + '%';
+      bar.style.width = widthPct + '%';
+      bar.style.background = color;
+      bar.addEventListener('click', function() { showWorkerDetail(it); });
+      bar.addEventListener('mouseenter', function(e) { showTooltip(e, it, start, end); });
+      bar.addEventListener('mouseleave', hideTooltip);
+      track.appendChild(bar);
+    });
+
+    row.append(label, track);
+    container.appendChild(row);
+  });
+
+  // Waiting items
+  var waiting = items.filter(function(it) { return !it.dispatchedAt; });
+  if (waiting.length > 0) {
+    var wRow = createEl('div', 'tl-row');
+    var wLabel = createEl('div', 'tl-label', 'WAITING');
+    wLabel.style.color = '#f9e2af';
+    var wTrack = createEl('div', 'tl-track');
+    wTrack.style.cssText = 'display:flex;gap:4px;padding:2px 4px';
+    waiting.forEach(function(it) {
+      var chip = createEl('span', '', it.taskKey);
+      chip.style.cssText = 'font-size:0.6rem;background:#f9e2af;color:#1e1e2e;padding:0.1rem 0.3rem;border-radius:3px;cursor:pointer';
+      chip.addEventListener('click', function() { showWorkerDetail(it); });
+      wTrack.appendChild(chip);
+    });
+    wRow.append(wLabel, wTrack);
+    container.appendChild(wRow);
+  }
+}
+
+function showTooltip(e, item, start, end) {
+  var tt = document.getElementById('tl-tooltip');
+  var dur = end - start;
+  var tk = tokenMap[item.taskKey];
+  tt.textContent = '';
+  var line1 = createEl('strong', '', item.taskKey);
+  tt.appendChild(line1);
+  tt.appendChild(document.createTextNode(' \u00b7 ' + (item.workerProfile || item.workerType)));
+  tt.appendChild(createEl('br'));
+  tt.appendChild(document.createTextNode('Status: ' + (statusMap[item.taskKey] || item.status)));
+  tt.appendChild(createEl('br'));
+  tt.appendChild(document.createTextNode('Duration: ' + formatDuration(dur)));
+  if (tk) { tt.appendChild(createEl('br')); tt.appendChild(document.createTextNode('Tokens: ' + tk.total)); }
+  tt.style.display = 'block';
+  var rect = e.target.getBoundingClientRect();
+  var parent = document.getElementById('main-panel').querySelector('.panel-body').getBoundingClientRect();
+  tt.style.left = (rect.left - parent.left + rect.width / 2) + 'px';
+  tt.style.top = (rect.top - parent.top - 60) + 'px';
+}
+
+function hideTooltip() { document.getElementById('tl-tooltip').style.display = 'none'; }
+
+// ── SSE ──────────────────────────────────────────────────────────────────────
+function startSse(planId) {
+  eventSource = new EventSource(API + '/api/v1/plans/' + planId + '/events');
+  document.getElementById('connection-dot').classList.add('connected');
+
+  eventSource.onmessage = function(e) {
+    var event;
+    try { event = JSON.parse(e.data); } catch (err) { return; }
     handleSseEvent(event, planId);
   };
 
-  eventSource.onerror = () => {
-    if (eventSource.readyState === EventSource.CLOSED) {
-      document.getElementById('dag-status-text').textContent = 'Stream closed';
-    }
+  eventSource.onerror = function() {
+    document.getElementById('connection-dot').classList.remove('connected');
   };
 }
 
 function handleSseEvent(event, planId) {
-  const type = event.eventType || event.type || '';
-  // extra is now a parsed JSON object (from SseEmitterRegistry), fallback to extraJson string
-  const extra = event.extra || (event.extraJson ? tryParse(event.extraJson) : null);
+  var type = event.eventType || event.type || '';
+  var extra = event.extra || (event.extraJson ? tryParse(event.extraJson) : null);
 
-  // Append to feed
-  if (activeFilters.has(type) || activeFilters.size === 0) {
+  if (activeFilters.has(type)) {
     appendEventRow(type, event, extra);
+    eventCount++;
+    document.getElementById('event-count').textContent = String(eventCount);
   }
 
-  // Update statusMap on item status changes
-  if (type === 'ITEM_STATUS_CHANGED' && event.taskKey && extra) {
-    if (extra.status) {
-      statusMap[event.taskKey] = extra.status;
-      scheduleDagRerender(planId);
-    }
+  if (type === 'ITEM_STATUS_CHANGED' && event.taskKey && extra && extra.status) {
+    statusMap[event.taskKey] = extra.status;
+    scheduleDagRerender(planId);
   }
 
   if (type === 'TASK_DISPATCHED' || type === 'TASK_COMPLETED' || type === 'TASK_FAILED') {
     scheduleDagRerender(planId);
   }
 
-  // Budget updates
-  if (type === 'BUDGET_UPDATE' && extra) {
-    if (extra.workerType) {
-      budgetMap[extra.workerType] = { consumed: extra.consumed, total: extra.total };
-      renderBudget();
-    }
+  if (type === 'BUDGET_UPDATE' && extra && extra.workerType) {
+    budgetMap[extra.workerType] = { consumed: extra.consumed, total: extra.total };
+    renderBudget();
   }
 
-  // G6: TOKEN_UPDATE — accumulate token usage for real-time display
   if (type === 'TOKEN_UPDATE' && extra) {
-    const tk = event.taskKey || extra.taskKey;
-    if (tk) {
-      tokenMap[tk] = { prompt: +extra.promptTokens || 0, completion: +extra.completionTokens || 0, total: +extra.totalTokens || 0 };
-    }
+    var tk = event.taskKey || extra.taskKey;
+    if (tk) tokenMap[tk] = { prompt: +extra.promptTokens || 0, completion: +extra.completionTokens || 0, total: +extra.totalTokens || 0 };
   }
 
-  // Plan terminal events
-  if (type === 'PLAN_COMPLETED' || type === 'PLAN_CANCELLED') {
-    document.getElementById('dag-status-text').textContent = type === 'PLAN_COMPLETED' ? 'COMPLETED' : 'CANCELLED';
-    document.getElementById('status-badge').textContent = type === 'PLAN_COMPLETED' ? 'COMPLETED' : 'CANCELLED';
+  if (type === 'PLAN_COMPLETED' || type === 'PLAN_CANCELLED' || type === 'PLAN_PAUSED') {
+    var st = type.replace('PLAN_', '');
+    document.getElementById('status-badge').textContent = st;
+    if (currentPlanData) currentPlanData.status = st;
+    updatePlanButtons();
     scheduleDagRerender(planId);
+    loadPlanList();
+  }
+
+  if (type === 'PLAN_RESUMED') {
+    document.getElementById('status-badge').textContent = 'RUNNING';
+    if (currentPlanData) currentPlanData.status = 'RUNNING';
+    updatePlanButtons();
   }
 }
 
-function tryParse(s) { try { return JSON.parse(s); } catch { return null; } }
-
-// ── Event feed ────────────────────────────────────────────────────────────────
+// ── Event feed ───────────────────────────────────────────────────────────────
 function appendEventRow(type, event, extra) {
-  const feed = document.getElementById('event-feed');
-  const row = document.createElement('div');
-  row.className = 'event-row';
+  var feed = document.getElementById('event-feed');
+  var row = createEl('div', 'event-row');
 
-  const badge = document.createElement('span');
-  badge.className = `badge badge-${type}`;
-  badge.textContent = type.replace(/_/g, ' ');
-  row.appendChild(badge);
+  var badgeCls = FILTER_TYPES.indexOf(type) >= 0 ? type : 'default';
+  row.appendChild(createEl('span', 'badge badge-' + badgeCls, type.replace(/_/g, ' ').substring(0, 16)));
 
   if (event.taskKey) {
-    const tk = document.createElement('span');
-    tk.style.color = '#89b4fa';
-    tk.textContent = event.taskKey + ' ';
-    row.appendChild(tk);
+    var tkSpan = createEl('span', '', event.taskKey + ' ');
+    tkSpan.style.color = '#89b4fa';
+    row.appendChild(tkSpan);
   }
 
   if (extra) {
-    const det = document.createElement('span');
+    var det = createEl('span');
     if (type === 'TOOL_CALL_START') {
-      det.style.color = '#74c7ec';
-      det.textContent = extra.toolName || '?';
+      det.style.color = '#74c7ec'; det.textContent = extra.toolName || '?';
     } else if (type === 'TOOL_CALL_END') {
-      const ok = extra.success !== false;
+      var ok = extra.success !== false;
       det.style.color = ok ? '#a6e3a1' : '#f38ba8';
-      let t = (ok ? '\u2713 ' : '\u2717 ') + (extra.toolName || '?');
-      if (extra.durationMs != null) t += ' ' + extra.durationMs + 'ms';
-      det.textContent = t;
+      det.textContent = (ok ? '\u2713 ' : '\u2717 ') + (extra.toolName || '?') + (extra.durationMs != null ? ' ' + extra.durationMs + 'ms' : '');
     } else if (type === 'TOKEN_UPDATE') {
-      det.style.color = '#f5c2e7';
-      det.textContent = '+' + (extra.totalTokens || 0) + ' tok';
+      det.style.color = '#f5c2e7'; det.textContent = '+' + (extra.totalTokens || 0) + ' tok';
     } else if (type === 'ITEM_STATUS_CHANGED' && extra.status) {
-      det.className = 'status-' + extra.status;
-      det.textContent = extra.status;
+      det.className = 'status-' + extra.status; det.textContent = extra.status;
     } else {
       det.style.color = '#585b70';
-      const s = JSON.stringify(extra);
-      det.textContent = s.length > 80 ? s.substring(0, 80) + '\u2026' : s;
+      var s = JSON.stringify(extra);
+      det.textContent = s.length > 60 ? s.substring(0, 60) + '\u2026' : s;
     }
     row.appendChild(det);
   }
 
   feed.prepend(row);
-  while (feed.children.length > 300) feed.removeChild(feed.lastChild);
+  while (feed.children.length > 500) feed.removeChild(feed.lastChild);
 }
 
-// ── Worker detail ─────────────────────────────────────────────────────────────
-async function showWorkerDetail(item) {
-  const el = document.getElementById('detail-content');
+// ── Worker detail ────────────────────────────────────────────────────────────
+function showWorkerDetail(item) {
+  var el = document.getElementById('detail-content');
   el.textContent = '';
 
-  // Header fields
-  const fields = [
+  var fields = [
     ['Task Key', item.taskKey],
-    ['Worker Type', item.workerType],
-    ['Worker Profile', item.workerProfile || '\u2014'],
-    ['Status', item.status],
+    ['Worker', (item.workerType || '') + ' \u00b7 ' + (item.workerProfile || '\u2014')],
+    ['Status', statusMap[item.taskKey] || item.status],
     ['Description', item.description || '\u2014']
   ];
-  fields.forEach(([label, value]) => {
-    const f = document.createElement('div');
-    f.className = 'field';
-    const l = document.createElement('div');
-    l.className = 'label';
-    l.textContent = label;
-    const v = document.createElement('div');
-    v.className = label === 'Status' ? 'value status-' + item.status : 'value';
-    v.textContent = value;
-    f.append(l, v);
+  fields.forEach(function(pair) {
+    var f = createEl('div', 'field');
+    f.appendChild(createEl('div', 'label', pair[0]));
+    var v = createEl('div', pair[0] === 'Status' ? 'value status-' + (statusMap[item.taskKey] || item.status) : 'value', pair[1]);
+    f.appendChild(v);
     el.appendChild(f);
   });
 
-  // Token usage from live SSE
-  const tk = tokenMap[item.taskKey];
+  // Live tokens
+  var tk = tokenMap[item.taskKey];
   if (tk) {
-    const f = document.createElement('div');
-    f.className = 'field';
-    const l = document.createElement('div');
-    l.className = 'label';
-    l.textContent = 'Tokens (live)';
-    const v = document.createElement('div');
-    v.className = 'value';
+    var f = createEl('div', 'field');
+    f.appendChild(createEl('div', 'label', 'Tokens (live)'));
+    var v = createEl('div', 'value', 'prompt: ' + tk.prompt + ' | completion: ' + tk.completion + ' | total: ' + tk.total);
     v.style.color = '#f5c2e7';
-    v.textContent = 'prompt: ' + tk.prompt + ' | completion: ' + tk.completion + ' | total: ' + tk.total;
-    f.append(l, v);
+    f.appendChild(v);
     el.appendChild(f);
   }
 
-  // Tabs
-  const tabs = document.createElement('div');
-  tabs.className = 'detail-tabs';
-  const tabNames = ['Attempts', 'Files', 'Conversation'];
-  const panels = {};
+  // Action buttons
+  renderActionButtons(el, item);
 
+  // Tabs
+  var tabs = createEl('div', 'detail-tabs');
+  var tabNames = ['Attempts', 'Files', 'Conversation'];
+  var panels = {};
   tabNames.forEach(function(name, i) {
-    const tab = document.createElement('div');
-    tab.className = 'detail-tab' + (i === 0 ? ' active' : '');
-    tab.textContent = name;
+    var tab = createEl('div', 'detail-tab' + (i === 0 ? ' active' : ''), name);
     tab.addEventListener('click', function() {
       tabs.querySelectorAll('.detail-tab').forEach(function(t) { t.classList.remove('active'); });
       tab.classList.add('active');
@@ -525,205 +731,265 @@ async function showWorkerDetail(item) {
       panels[name].classList.add('active');
     });
     tabs.appendChild(tab);
-
-    const panel = document.createElement('div');
-    panel.className = 'detail-tab-content' + (i === 0 ? ' active' : '');
-    panels[name] = panel;
+    panels[name] = createEl('div', 'detail-tab-content' + (i === 0 ? ' active' : ''));
   });
-
   el.appendChild(tabs);
   tabNames.forEach(function(name) { el.appendChild(panels[name]); });
 
   if (!currentPlanId || !item.id) return;
-
-  // Load Attempts + Conversation
   loadAttempts(panels['Attempts'], panels['Conversation'], item);
-  // Load Files (G3)
   loadFiles(panels['Files'], item);
 }
 
-async function loadAttempts(attPanel, convPanel, item) {
+// ── Action buttons ───────────────────────────────────────────────────────────
+function renderActionButtons(el, item) {
+  var status = statusMap[item.taskKey] || item.status;
+  var actions = [];
+
+  if (status === 'WAITING') actions.push({ label: 'Skip', cls: 'btn-sm', endpoint: 'skip' });
+  if (status === 'AWAITING_APPROVAL') {
+    actions.push({ label: 'Approve', cls: 'btn-success btn-sm', endpoint: 'approve' });
+    actions.push({ label: 'Reject', cls: 'btn-danger btn-sm', endpoint: 'reject' });
+  }
+  if (status === 'DISPATCHED' || status === 'RUNNING') {
+    actions.push({ label: 'Kill', cls: 'btn-danger btn-sm', endpoint: 'kill' });
+  }
+  if (status === 'FAILED') {
+    actions.push({ label: 'Retry', cls: 'btn-primary btn-sm', endpoint: 'retry' });
+    actions.push({ label: 'Redispatch', cls: 'btn-warn btn-sm', endpoint: 'redispatch' });
+    actions.push({ label: 'Skip', cls: 'btn-sm', endpoint: 'skip' });
+  }
+  if (status === 'DONE') {
+    actions.push({ label: 'Redispatch', cls: 'btn-sm', endpoint: 'redispatch' });
+  }
+
+  if (actions.length === 0) return;
+
+  var bar = createEl('div', 'action-bar');
+  actions.forEach(function(a) {
+    var btn = createEl('button', 'btn ' + a.cls, a.label);
+    btn.addEventListener('click', function() {
+      if (btn.dataset.confirming) {
+        executeAction(item, a.endpoint);
+        btn.textContent = a.label;
+        btn.dataset.confirming = '';
+      } else {
+        btn.textContent = 'Confirm?';
+        btn.dataset.confirming = '1';
+        setTimeout(function() { btn.textContent = a.label; btn.dataset.confirming = ''; }, 3000);
+      }
+    });
+    bar.appendChild(btn);
+  });
+  el.appendChild(bar);
+}
+
+function executeAction(item, endpoint) {
+  var url = API + '/api/v1/plans/' + currentPlanId + '/items/' + item.id + '/' + endpoint;
+  fetch(url, { method: 'POST' })
+    .then(function(res) {
+      if (res.ok || res.status === 202 || res.status === 204) {
+        fetchPlanDetail(currentPlanId);
+      } else {
+        return res.json().then(function(body) { alert('Action failed: ' + (body.error || body.message || res.status)); });
+      }
+    })
+    .catch(function(e) { alert('Error: ' + e.message); });
+}
+
+// ── Load attempts + files ────────────────────────────────────────────────────
+function loadAttempts(attPanel, convPanel, item) {
   attPanel.textContent = 'Loading\u2026';
   convPanel.textContent = 'Loading\u2026';
-  try {
-    const res = await fetch(API + '/api/v1/plans/' + currentPlanId + '/items/' + item.id + '/attempts');
-    const attempts = res.ok ? await res.json() : [];
-    attPanel.textContent = '';
-    convPanel.textContent = '';
-
-    if (attempts.length === 0) {
-      attPanel.textContent = 'No attempts yet.';
-      convPanel.textContent = 'No conversation data.';
-      return;
-    }
-
-    attempts.forEach(function(a) {
-      var row = document.createElement('div');
-      row.className = 'attempt-row';
-      var st = document.createElement('span');
-      st.className = 'att-status status-' + (a.success ? 'COMPLETED' : (a.completedAt ? 'FAILED' : 'RUNNING'));
-      st.textContent = '#' + a.attemptNumber + ' ' + (a.success ? 'OK' : (a.completedAt ? 'FAIL' : 'RUNNING'));
-      var time = document.createElement('span');
-      time.textContent = a.dispatchedAt ? new Date(a.dispatchedAt).toLocaleTimeString() : '\u2014';
-      var dur = document.createElement('span');
-      dur.textContent = a.durationMs != null ? a.durationMs + 'ms' : '\u2014';
-      row.append(st, time, dur);
-      attPanel.appendChild(row);
-
-      if (a.failureReason) {
-        var err = document.createElement('div');
-        err.style.cssText = 'color:#f38ba8;font-size:0.72rem;word-break:break-all;padding:0.2rem 0.5rem';
-        err.textContent = a.failureReason.substring(0, 200);
-        attPanel.appendChild(err);
+  fetch(API + '/api/v1/plans/' + currentPlanId + '/items/' + item.id + '/attempts')
+    .then(function(res) { return res.ok ? res.json() : []; })
+    .then(function(attempts) {
+      attPanel.textContent = ''; convPanel.textContent = '';
+      if (attempts.length === 0) {
+        attPanel.textContent = 'No attempts yet.';
+        convPanel.textContent = 'No conversation data.';
+        return;
       }
-    });
 
-    // Conversation tab — show latest attempt's conversationLog
-    var latest = null;
-    for (var i = attempts.length - 1; i >= 0; i--) {
-      if (attempts[i].conversationLog) { latest = attempts[i]; break; }
-    }
-
-    if (latest && latest.conversationLog) {
-      try {
-        var conv = typeof latest.conversationLog === 'string' ? JSON.parse(latest.conversationLog) : latest.conversationLog;
-        if (Array.isArray(conv)) {
-          conv.forEach(function(msg) {
-            var block = document.createElement('div');
-            block.className = 'conv-block';
-            var role = document.createElement('strong');
-            role.style.color = msg.role === 'assistant' ? '#a6e3a1' : (msg.role === 'user' ? '#89b4fa' : '#cba6f7');
-            role.textContent = (msg.role || 'unknown').toUpperCase();
-            block.appendChild(role);
-            var content = document.createElement('div');
-            var raw = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-            content.textContent = raw.substring(0, 2000);
-            block.appendChild(content);
-            convPanel.appendChild(block);
-          });
-        } else {
-          var block = document.createElement('div');
-          block.className = 'conv-block';
-          block.textContent = JSON.stringify(conv, null, 2).substring(0, 5000);
-          convPanel.appendChild(block);
+      attempts.forEach(function(a) {
+        var row = createEl('div', 'attempt-row');
+        var stCls = a.success ? 'COMPLETED' : (a.completedAt ? 'FAILED' : 'RUNNING');
+        var stText = '#' + a.attemptNumber + ' ' + (a.success ? 'OK' : (a.completedAt ? 'FAIL' : 'RUN'));
+        row.appendChild(createEl('span', 'att-status status-' + stCls, stText));
+        row.appendChild(createEl('span', '', a.dispatchedAt ? new Date(a.dispatchedAt).toLocaleTimeString() : '\u2014'));
+        row.appendChild(createEl('span', '', a.durationMs != null ? formatDuration(a.durationMs) : '\u2014'));
+        attPanel.appendChild(row);
+        if (a.failureReason) {
+          var err = createEl('div', '', a.failureReason.substring(0, 300));
+          err.style.cssText = 'color:#f38ba8;font-size:0.72rem;word-break:break-all;padding:0.2rem 0.5rem';
+          attPanel.appendChild(err);
         }
-      } catch (pe) {
-        var block2 = document.createElement('div');
-        block2.className = 'conv-block';
-        block2.textContent = latest.conversationLog.substring(0, 5000);
-        convPanel.appendChild(block2);
+      });
+
+      // Conversation — latest attempt with log
+      var latest = null;
+      for (var i = attempts.length - 1; i >= 0; i--) {
+        if (attempts[i].conversationLog) { latest = attempts[i]; break; }
       }
-    } else {
-      convPanel.textContent = 'No conversation log captured for this task.';
-    }
-  } catch (e) {
-    attPanel.textContent = 'Error: ' + e.message;
-    convPanel.textContent = 'Error loading conversation.';
-  }
+      if (latest && latest.conversationLog) {
+        try {
+          var conv = typeof latest.conversationLog === 'string' ? JSON.parse(latest.conversationLog) : latest.conversationLog;
+          if (Array.isArray(conv)) {
+            conv.forEach(function(msg) {
+              var block = createEl('div', 'conv-block');
+              var role = createEl('strong', '', (msg.role || 'unknown').toUpperCase());
+              role.style.color = msg.role === 'assistant' ? '#a6e3a1' : (msg.role === 'user' ? '#89b4fa' : '#cba6f7');
+              block.appendChild(role);
+              var raw = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+              block.appendChild(createEl('div', '', raw.substring(0, 2000)));
+              convPanel.appendChild(block);
+            });
+          } else {
+            convPanel.appendChild(createEl('div', 'conv-block', JSON.stringify(conv, null, 2).substring(0, 5000)));
+          }
+        } catch (pe) {
+          convPanel.textContent = latest.conversationLog.substring(0, 5000);
+        }
+      } else {
+        convPanel.textContent = 'No conversation log captured.';
+      }
+    })
+    .catch(function(e) {
+      attPanel.textContent = 'Error: ' + e.message;
+      convPanel.textContent = 'Error loading conversation.';
+    });
 }
 
-async function loadFiles(panel, item) {
+function loadFiles(panel, item) {
   panel.textContent = 'Loading\u2026';
-  try {
-    var res = await fetch(API + '/api/v1/plans/' + currentPlanId + '/items/' + item.id + '/files');
-    var files = res.ok ? await res.json() : [];
-    panel.textContent = '';
-
-    if (files.length === 0) {
-      panel.textContent = 'No file modifications recorded.';
-      return;
-    }
-
-    files.forEach(function(f) {
-      var row = document.createElement('div');
-      row.className = 'file-row';
-      var op = document.createElement('span');
-      op.className = 'file-op file-op-' + (f.operation || 'MODIFIED');
-      op.textContent = f.operation || '?';
-      var path = document.createElement('span');
-      path.className = 'file-path';
-      path.textContent = f.filePath;
-      var time = document.createElement('span');
-      time.style.cssText = 'color:#585b70;font-size:0.65rem;margin-left:auto';
-      time.textContent = f.occurredAt ? new Date(f.occurredAt).toLocaleTimeString() : '';
-      row.append(op, path, time);
-      panel.appendChild(row);
-    });
-  } catch (e) {
-    panel.textContent = 'Error: ' + e.message;
-  }
+  fetch(API + '/api/v1/plans/' + currentPlanId + '/items/' + item.id + '/files')
+    .then(function(res) { return res.ok ? res.json() : []; })
+    .then(function(files) {
+      panel.textContent = '';
+      if (files.length === 0) { panel.textContent = 'No file modifications recorded.'; return; }
+      files.forEach(function(f) {
+        var row = createEl('div', 'file-row');
+        row.appendChild(createEl('span', 'file-op file-op-' + (f.operation || 'MODIFIED'), f.operation || '?'));
+        row.appendChild(createEl('span', 'file-path', f.filePath));
+        var time = createEl('span', '', f.occurredAt ? new Date(f.occurredAt).toLocaleTimeString() : '');
+        time.style.cssText = 'color:#585b70;font-size:0.65rem;margin-left:auto';
+        row.appendChild(time);
+        panel.appendChild(row);
+      });
+    })
+    .catch(function(e) { panel.textContent = 'Error: ' + e.message; });
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
-async function fetchPlanStats(planId) {
-  try {
-    const res = await fetch(`${API}/api/v1/plans/${planId}`);
-    if (!res.ok) return;
-    const plan = await res.json();
-    const items = plan.items || [];
-    const done = items.filter(i => ['DONE','COMPLETED','FAILED','CANCELLED'].includes(i.status)).length;
-    const total = items.length;
-    const pct = total > 0 ? Math.round(done / total * 100) : 0;
-    document.getElementById('prog-bar').style.width = pct + '%';
-    document.getElementById('prog-text').textContent = `${done} / ${total} (${pct}%)`;
-    document.getElementById('status-badge').textContent = plan.status;
+// ── Stats ────────────────────────────────────────────────────────────────────
+function fetchPlanDetail(planId) {
+  return fetch(API + '/api/v1/plans/' + planId)
+    .then(function(res) { return res.ok ? res.json() : null; })
+    .then(function(plan) {
+      if (!plan) return;
+      currentPlanData = plan;
+      var items = plan.items || [];
+      var done = items.filter(function(i) { return ['DONE','COMPLETED','FAILED','CANCELLED'].indexOf(i.status) >= 0; }).length;
+      var total = items.length;
+      var pct = total > 0 ? Math.round(done / total * 100) : 0;
+      document.getElementById('prog-bar').style.width = pct + '%';
+      document.getElementById('prog-text').textContent = done + ' / ' + total + ' (' + pct + '%)';
+      document.getElementById('status-badge').textContent = plan.status;
+      items.forEach(function(item) { itemMap[item.taskKey] = item; statusMap[item.taskKey] = item.status; });
+      updatePlanButtons();
 
-    // Update itemMap
-    items.forEach(item => {
-      itemMap[item.taskKey] = item;
-      statusMap[item.taskKey] = item.status;
-    });
-  } catch { /* ignore */ }
+      // Council report
+      if (plan.councilReport) {
+        document.getElementById('council-block').style.display = 'block';
+        try {
+          var cr = typeof plan.councilReport === 'string' ? JSON.parse(plan.councilReport) : plan.councilReport;
+          document.getElementById('council-content').textContent = JSON.stringify(cr, null, 2);
+        } catch (e) { document.getElementById('council-content').textContent = plan.councilReport; }
+      } else {
+        document.getElementById('council-block').style.display = 'none';
+      }
+    })
+    .catch(function() { /* ignore */ });
 }
 
 function renderBudget() {
-  const el = document.getElementById('budget-rows');
-  el.innerHTML = Object.entries(budgetMap).map(([wt, { consumed, total }]) => {
-    const pct = total > 0 ? Math.round(consumed / total * 100) : 0;
-    return `<div class="budget-row"><span>${wt}</span><span>${consumed.toLocaleString()} / ${total.toLocaleString()}</span></div>
-      <div class="progress-bar-wrap" style="margin-bottom:0.4rem">
-        <div class="progress-bar-fill" style="width:${pct}%;background:#cba6f7"></div>
-      </div>`;
-  }).join('') || '<span style="color:#585b70;font-size:0.75rem">No budget data yet.</span>';
-}
-
-async function fetchElo() {
-  try {
-    const res = await fetch(`${API}/api/v1/rewards/stats`);
-    if (!res.ok) return;
-    const data = await res.json();
-    const profiles = (data.profiles || data).slice(0, 5);
-    const tbody = document.getElementById('elo-body');
-    tbody.innerHTML = profiles.map(p =>
-      `<tr><td>${p.workerProfile}</td><td>${Math.round(p.eloRating ?? p.elo ?? 0)}</td><td>${p.wins ?? 0}</td></tr>`
-    ).join('');
-  } catch { /* rewards API optional */ }
-}
-
-// ── Cancel plan ───────────────────────────────────────────────────────────────
-async function cancelCurrentPlan() {
-  if (!currentPlanId) return;
-  if (!confirm(`Cancel plan ${currentPlanId.substring(0,8)}…?`)) return;
-  try {
-    const res = await fetch(`${API}/api/v1/plans/${currentPlanId}/cancel`, { method: 'POST' });
-    if (res.ok || res.status === 204) {
-      document.getElementById('status-badge').textContent = 'CANCELLED';
-    } else {
-      const body = await res.json().catch(() => ({}));
-      alert('Cancel failed: ' + (body.error || res.status));
-    }
-  } catch (e) {
-    alert('Cancel error: ' + e.message);
+  var el = document.getElementById('budget-rows');
+  var entries = Object.entries(budgetMap);
+  el.textContent = '';
+  if (entries.length === 0) {
+    el.appendChild(createEl('span', '', 'No budget data yet.'));
+    el.firstChild.style.cssText = 'color:#585b70;font-size:0.75rem';
+    return;
   }
+  entries.forEach(function(pair) {
+    var wt = pair[0], consumed = pair[1].consumed, total = pair[1].total;
+    var pct = total > 0 ? Math.round(consumed / total * 100) : 0;
+    var bRow = createEl('div', 'budget-row');
+    bRow.appendChild(createEl('span', '', wt));
+    bRow.appendChild(createEl('span', '', consumed.toLocaleString() + ' / ' + total.toLocaleString()));
+    el.appendChild(bRow);
+    var wrap = createEl('div', 'progress-bar-wrap');
+    wrap.style.marginBottom = '0.4rem';
+    var fill = createEl('div', 'progress-bar-fill');
+    fill.style.width = pct + '%';
+    fill.style.background = '#cba6f7';
+    wrap.appendChild(fill);
+    el.appendChild(wrap);
+  });
 }
 
-// ── Hover scroll lock ─────────────────────────────────────────────────────────
-const feedEl = document.getElementById('event-feed');
-feedEl.addEventListener('mouseenter', () => { autoScroll = false; });
-feedEl.addEventListener('mouseleave', () => { autoScroll = true; });
+function fetchElo() {
+  fetch(API + '/api/v1/rewards/stats')
+    .then(function(res) { return res.ok ? res.json() : null; })
+    .then(function(data) {
+      if (!data) return;
+      var profiles = (data.profiles || data).slice(0, 5);
+      var tbody = document.getElementById('elo-body');
+      tbody.textContent = '';
+      profiles.forEach(function(p) {
+        var tr = document.createElement('tr');
+        tr.appendChild(createEl('td', '', p.workerProfile || ''));
+        tr.appendChild(createEl('td', '', String(Math.round(p.eloRating || p.elo || 0))));
+        tr.appendChild(createEl('td', '', String(p.wins || 0)));
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(function() { /* optional */ });
+}
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
-loadRecentPlans();
+// ── Plan actions ─────────────────────────────────────────────────────────────
+function cancelCurrentPlan() {
+  if (!currentPlanId || !confirm('Cancel plan ' + currentPlanId.substring(0, 8) + '\u2026?')) return;
+  fetch(API + '/api/v1/plans/' + currentPlanId + '/cancel', { method: 'POST' })
+    .then(function(res) {
+      if (res.ok || res.status === 204) {
+        document.getElementById('status-badge').textContent = 'CANCELLED';
+        loadPlanList();
+      } else { alert('Cancel failed: ' + res.status); }
+    })
+    .catch(function(e) { alert('Error: ' + e.message); });
+}
+
+function resumeCurrentPlan() {
+  if (!currentPlanId) return;
+  fetch(API + '/api/v1/plans/' + currentPlanId + '/resume', { method: 'POST' })
+    .then(function(res) {
+      if (res.ok) {
+        document.getElementById('status-badge').textContent = 'RUNNING';
+        updatePlanButtons();
+        loadPlanList();
+      } else { alert('Resume failed: ' + res.status); }
+    })
+    .catch(function(e) { alert('Error: ' + e.message); });
+}
+
+// ── Hover scroll lock ────────────────────────────────────────────────────────
+var feedEl = document.getElementById('event-feed');
+feedEl.addEventListener('mouseenter', function() { autoScroll = false; });
+feedEl.addEventListener('mouseleave', function() { autoScroll = true; });
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+loadPlanList();
+planListInterval = setInterval(loadPlanList, 10000);
 </script>
 </body>
 </html>
