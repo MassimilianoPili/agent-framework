@@ -274,6 +274,26 @@ class WorkerProfileRegistryTest {
         assertThat(registry.resolveTopic(WorkerType.FE, "fe-react")).isEqualTo("agent-tasks");
     }
 
+    // ── Profile capabilities ──
+
+    @Test
+    void profileEntry_withCapabilities_returnsCorrectData() {
+        ProfileEntry entry = new ProfileEntry("BE", "agent-tasks", "be-java-worker-sub",
+                "Backend Java", List.of("git", "repo-fs", "bash"), List.of("backend/", "templates/be/"));
+
+        assertThat(entry.getMcpServers()).containsExactly("git", "repo-fs", "bash");
+        assertThat(entry.getOwnsPaths()).containsExactly("backend/", "templates/be/");
+        assertThat(entry.getDisplayName()).isEqualTo("Backend Java");
+    }
+
+    @Test
+    void profileEntry_emptyCapabilities_defaultToEmptyLists() {
+        ProfileEntry entry = new ProfileEntry("BE", "agent-tasks", "be-java-worker-sub", "Backend Java");
+
+        assertThat(entry.getMcpServers()).isEmpty();
+        assertThat(entry.getOwnsPaths()).isEmpty();
+    }
+
     // ── Helpers ──
 
     private WorkerProfileRegistry validRegistry() {
