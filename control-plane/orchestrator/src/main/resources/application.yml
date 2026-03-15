@@ -834,6 +834,59 @@ agent-framework:
     elo-collapse-threshold: 800.0  # ELO below this → FM9 trust degradation
     partial-completion-threshold: 0.3  # done ratio above this with failures → FM13
 
+  # ── Fase 15: Reflective Intelligence & Decision Transparency ──────────
+  prm:
+    enabled: false
+    objective-weight: 0.6       # weight for objective metrics (compile/test) in PRM score
+    gp-weight: 0.4              # weight for GP posterior mu (auto = 1 - objective-weight)
+    decay-factor: 0.95          # temporal decay for trajectory scoring
+
+  decision-trace:
+    enabled: false
+    max-alternatives: 5         # max alternative workers to show in trace
+    trace-depth: 3              # 1=what, 2=why, 3=counterfactual
+
+  sycophancy:
+    enabled: false
+    cosine-lower: 0.85          # cosine similarity lower bound for sycophancy
+    cosine-upper: 0.90          # cosine similarity upper bound
+    entropy-threshold: 0.3      # normalized entropy below which collapse is flagged
+    kendall-threshold: 0.7      # avg Kendall tau above which similarity is flagged
+    anchoring-window: 3         # first N responses to check for first-mover anchoring
+
+  recovery-router:
+    enabled: false
+    max-path-length: 10         # max hops in Dijkstra recovery path
+    infinity-weight: 1.0E9      # weight for failed edges
+    llm-fallback-enabled: false # LLM-based recovery when no feasible path
+
+  plan-archetype:
+    enabled: false
+    max-archetypes: 200         # max archetypes in registry
+    similarity-threshold: 0.7   # min cosine for retrieval match
+    min-success-rate: 0.5       # min success rate for positive archetype
+    deduplication-threshold: 0.95  # above this similarity → merge, not duplicate
+
+  pareto:
+    enabled: false
+    quality-threshold: 0.7      # GP mu above which cost-efficient cascade activates
+    sigma-threshold: 0.3        # GP sigma below which cost-efficient is safe
+    cost-weight: 0.3            # weight for cost in multi-objective scoring
+    cascade-enabled: true       # cascade (cheap first) vs Pareto frontier
+
+  ids:
+    enabled: false
+    min-data-points: 20         # below this → Thompson Sampling fallback
+    regret-weight: 1.0          # scaling for regret² in information ratio
+    ts-fallback: true           # enable TS fallback for sparse data
+
+  sandbox:
+    enabled: false
+    timeout-seconds: 60         # max execution time per sandbox run
+    memory-limit-mb: 512        # container memory limit
+    network-enabled: false      # containers get no network (security)
+    max-output-bytes: 65536     # stdout/stderr capture limit (64KB)
+
 logging:
   level:
     com.agentframework: INFO

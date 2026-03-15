@@ -200,6 +200,7 @@ public class SandboxExecutionService {
      * @param env              environment variables
      * @param timeoutMs        maximum execution time in milliseconds (0 = use config default)
      * @param memoryLimitBytes memory limit in bytes (0 = use config default)
+     * @param workspacePath    host path to mount as /workspace (null = no mount)
      */
     public record SandboxSpec(
             String image,
@@ -207,27 +208,16 @@ public class SandboxExecutionService {
             List<String> files,
             Map<String, String> env,
             long timeoutMs,
-            long memoryLimitBytes
+            long memoryLimitBytes,
+            String workspacePath
     ) {
-        public SandboxSpec withWorkspacePath(String workspacePath) {
-            return new SandboxSpecWithWorkspace(image, command, files, env, timeoutMs, memoryLimitBytes, workspacePath);
+        public SandboxSpec(String image, String command, List<String> files,
+                           Map<String, String> env, long timeoutMs, long memoryLimitBytes) {
+            this(image, command, files, env, timeoutMs, memoryLimitBytes, null);
         }
 
-        public String workspacePath() { return null; }
-    }
-
-    /** Internal extension of SandboxSpec that carries a workspace path. */
-    static final class SandboxSpecWithWorkspace extends SandboxSpec {
-        private final String workspace;
-
-        SandboxSpecWithWorkspace(String image, String command, List<String> files,
-                                 Map<String, String> env, long timeoutMs, long memoryLimitBytes,
-                                 String workspace) {
-            super(image, command, files, env, timeoutMs, memoryLimitBytes);
-            this.workspace = workspace;
+        public SandboxSpec withWorkspacePath(String workspace) {
+            return new SandboxSpec(image, command, files, env, timeoutMs, memoryLimitBytes, workspace);
         }
-
-        @Override
-        public String workspacePath() { return workspace; }
     }
 }
