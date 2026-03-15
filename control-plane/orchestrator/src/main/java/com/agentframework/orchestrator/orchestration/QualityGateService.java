@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.analytics.FunctorialSemanticsService;
 import com.agentframework.orchestrator.domain.Plan;
 import com.agentframework.orchestrator.domain.PlanItem;
 import com.agentframework.orchestrator.domain.QualityGateReport;
@@ -16,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -44,6 +46,7 @@ public class QualityGateService {
     private final EloRatingService eloRatingService;
     private final PreferencePairGenerator preferencePairGenerator;
     private final RalphLoopService ralphLoopService;
+    private final @Nullable FunctorialSemanticsService functorialSemanticsService;
 
     @Value("${ralph-loop.min-score-threshold:80}")
     private int minScoreThreshold;
@@ -57,7 +60,8 @@ public class QualityGateService {
                               RewardComputationService rewardComputationService,
                               EloRatingService eloRatingService,
                               PreferencePairGenerator preferencePairGenerator,
-                              RalphLoopService ralphLoopService) {
+                              RalphLoopService ralphLoopService,
+                              @Nullable FunctorialSemanticsService functorialSemanticsService) {
         this.chatClient = chatClient;
         this.promptLoader = promptLoader;
         this.planRepository = planRepository;
@@ -68,6 +72,7 @@ public class QualityGateService {
         this.eloRatingService = eloRatingService;
         this.preferencePairGenerator = preferencePairGenerator;
         this.ralphLoopService = ralphLoopService;
+        this.functorialSemanticsService = functorialSemanticsService;
     }
 
     /**
@@ -93,6 +98,21 @@ public class QualityGateService {
                  plan.getId(), items.size(), profileSummary.isEmpty() ? "none" : profileSummary);
 
         try {
+            // Functorial compositionality check: verify GP predictions compose across dependency paths
+            if (functorialSemanticsService != null) {
+                try {
+                    var functorialReport = functorialSemanticsService.compute(plan.getId());
+                    if (functorialReport != null) {
+                        log.info("Functorial semantics for plan {}: compositional={}, L∞ error={}, {} objects, {} morphisms",
+                                 plan.getId(), functorialReport.isCompositional(),
+                                 functorialReport.maxCompositionalityError(),
+                                 functorialReport.numObjects(), functorialReport.numMorphisms());
+                    }
+                } catch (Exception e) {
+                    log.debug("Functorial semantics check failed (non-blocking): {}", e.getMessage());
+                }
+            }
+
             String allResultsJson = serializeResults(items);
 
             String systemPrompt = promptLoader.load("prompts/review.agent.md");

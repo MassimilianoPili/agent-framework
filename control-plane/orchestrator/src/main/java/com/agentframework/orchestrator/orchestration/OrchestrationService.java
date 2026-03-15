@@ -37,7 +37,10 @@ import com.agentframework.orchestrator.reward.RewardComputationService;
 import com.agentframework.gp.model.GpPrediction;
 import com.agentframework.orchestrator.gp.BayesianSuccessPredictorService;
 import com.agentframework.orchestrator.gp.GpWorkerSelectionService;
+import com.agentframework.orchestrator.analytics.ChandyLamportSnapshotter;
+import com.agentframework.orchestrator.analytics.CSPChannelVerifier;
 import com.agentframework.orchestrator.analytics.LTLPolicyVerifier;
+import com.agentframework.orchestrator.analytics.SpinGlassDispatchService;
 import com.agentframework.orchestrator.gp.PlanDecompositionPredictor;
 import com.agentframework.orchestrator.gp.SerendipityService;
 import com.agentframework.orchestrator.gp.SuccessPrediction;
@@ -143,6 +146,12 @@ public class OrchestrationService {
     private final com.agentframework.orchestrator.graph.DagHashService dagHashService;
     // #38: LTL policy verifier — finite-trace verification at plan completion
     private final LTLPolicyVerifier ltlPolicyVerifier;
+    // A2: Chandy-Lamport consistent snapshot for state coherence verification
+    private final ChandyLamportSnapshotter chandyLamportSnapshotter;
+    // A2: CSP channel verifier for protocol adherence checking
+    private final CSPChannelVerifier cspChannelVerifier;
+    // A2: Spin Glass simulated annealing for dispatch ordering optimization
+    private final SpinGlassDispatchService spinGlassDispatchService;
 
     public OrchestrationService(PlanRepository planRepository,
                                 PlanItemRepository planItemRepository,
@@ -182,7 +191,10 @@ public class OrchestrationService {
                                 Optional<GlobalAssignmentSolver> globalAssignmentSolver,
                                 Optional<com.agentframework.orchestrator.reward.ReputationStakingService> reputationStakingService,
                                 com.agentframework.orchestrator.graph.DagHashService dagHashService,
-                                Optional<LTLPolicyVerifier> ltlPolicyVerifier) {
+                                Optional<LTLPolicyVerifier> ltlPolicyVerifier,
+                                Optional<ChandyLamportSnapshotter> chandyLamportSnapshotter,
+                                Optional<CSPChannelVerifier> cspChannelVerifier,
+                                Optional<SpinGlassDispatchService> spinGlassDispatchService) {
         this.planRepository = planRepository;
         this.planItemRepository = planItemRepository;
         this.attemptRepository = attemptRepository;
@@ -222,6 +234,9 @@ public class OrchestrationService {
         this.reputationStakingService = reputationStakingService.orElse(null);
         this.dagHashService = dagHashService;
         this.ltlPolicyVerifier = ltlPolicyVerifier.orElse(null);
+        this.chandyLamportSnapshotter = chandyLamportSnapshotter.orElse(null);
+        this.cspChannelVerifier = cspChannelVerifier.orElse(null);
+        this.spinGlassDispatchService = spinGlassDispatchService.orElse(null);
         this.capabilitySpec = new CompositeSpec(
                 new ToolAvailabilitySpec(),
                 new PathOwnershipSpec());
@@ -1018,6 +1033,34 @@ public class OrchestrationService {
             log.trace("Not leader — skipping dispatch cycle for plan {}", planId);
             return;
         }
+        // Chandy-Lamport: verify state consistency before dispatch cycle
+        if (chandyLamportSnapshotter != null) {
+            try {
+                var snapshot = chandyLamportSnapshotter.snapshot(planId);
+                if (snapshot != null && !snapshot.isConsistent()) {
+                    log.warn("Chandy-Lamport snapshot for plan {} detected {} coherence violations",
+                             planId, snapshot.coherenceViolations().size());
+                }
+            } catch (Exception e) {
+                log.debug("Chandy-Lamport snapshot failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
+        // CSP: verify protocol adherence for task event traces
+        if (cspChannelVerifier != null) {
+            try {
+                var cspReport = cspChannelVerifier.verify(planId);
+                if (cspReport != null && (!cspReport.protocolViolations().isEmpty()
+                        || !cspReport.livenessViolations().isEmpty())) {
+                    log.warn("CSP verification for plan {}: {} protocol violations, {} liveness violations, deadlock-free={}",
+                             planId, cspReport.protocolViolations().size(),
+                             cspReport.livenessViolations().size(), cspReport.deadlockFreedom());
+                }
+            } catch (Exception e) {
+                log.debug("CSP verification failed (non-blocking): {}", e.getMessage());
+            }
+        }
+
         List<PlanItem> dispatchable = planItemRepository.findDispatchableItems(planId);
 
         if (dispatchable.isEmpty()) {

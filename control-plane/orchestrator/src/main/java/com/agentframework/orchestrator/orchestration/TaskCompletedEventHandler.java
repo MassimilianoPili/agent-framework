@@ -1,5 +1,6 @@
 package com.agentframework.orchestrator.orchestration;
 
+import com.agentframework.orchestrator.analytics.ByzantineFaultToleranceService;
 import com.agentframework.orchestrator.analytics.ShapleyDagService;
 import com.agentframework.orchestrator.domain.ItemStatus;
 import com.agentframework.orchestrator.domain.Plan;
@@ -61,6 +62,7 @@ public class TaskCompletedEventHandler {
     private final HookManagerService hookManagerService;
     private final TokenLedgerService tokenLedgerService;
     private final ShapleyDagService shapleyDagService;
+    private final @Nullable ByzantineFaultToleranceService bftService;
 
     public TaskCompletedEventHandler(PlanItemRepository planItemRepository,
                                       RewardComputationService rewardComputationService,
@@ -69,7 +71,8 @@ public class TaskCompletedEventHandler {
                                       @Nullable ContextQualityService contextQualityService,
                                       HookManagerService hookManagerService,
                                       TokenLedgerService tokenLedgerService,
-                                      ShapleyDagService shapleyDagService) {
+                                      ShapleyDagService shapleyDagService,
+                                      @Nullable ByzantineFaultToleranceService bftService) {
         this.planItemRepository = planItemRepository;
         this.rewardComputationService = rewardComputationService;
         this.gpTaskOutcomeService = gpTaskOutcomeService;
@@ -78,6 +81,7 @@ public class TaskCompletedEventHandler {
         this.hookManagerService = hookManagerService;
         this.tokenLedgerService = tokenLedgerService;
         this.shapleyDagService = shapleyDagService;
+        this.bftService = bftService;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -167,6 +171,18 @@ public class TaskCompletedEventHandler {
                 shapleyDagService.computeForPlan(plan);
             }
         });
+
+        // 10. BFT consensus: detect Byzantine workers on items with multiple retry attempts
+        if (bftService != null && item.getRetryCount() > 0) {
+            runSafely("bftConsensus", result.taskKey(), () -> {
+                var bftReport = bftService.analyseItem(event.itemId());
+                if (!bftReport.byzantineWorkers().isEmpty()) {
+                    log.warn("BFT detected {} Byzantine attempts for task {} (consensus: {}, reached: {})",
+                             bftReport.byzantineWorkers().size(), result.taskKey(),
+                             bftReport.consensusOutcome(), bftReport.consensusReached());
+                }
+            });
+        }
     }
 
     private void runSafely(String label, String taskKey, Runnable action) {
