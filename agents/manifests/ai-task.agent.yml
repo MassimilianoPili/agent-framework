@@ -49,6 +49,12 @@ spec:
       - test
       - bash
       - python
+    builtinTools:
+      - Read
+      - Edit
+      - Write
+      - Bash
+      - LS
   ownership:
     ownsPaths:
       - cps4/

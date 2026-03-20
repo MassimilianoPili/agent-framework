@@ -49,6 +49,12 @@ spec:
       - repo-fs
       - openapi
 
+    builtinTools:
+      - Read
+      - Edit
+      - Write
+      - Bash
+      - LS
   ownership:
     ownsPaths:
       - contracts/

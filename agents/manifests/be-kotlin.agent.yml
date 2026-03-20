@@ -51,6 +51,12 @@ spec:
       - openapi
       - test
       - bash
+    builtinTools:
+      - Read
+      - Edit
+      - Write
+      - Bash
+      - LS
   ownership:
     ownsPaths:
       - backend/

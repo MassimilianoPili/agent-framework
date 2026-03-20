@@ -26,7 +26,7 @@ dover rileggere i README completi.
 |-----------|------|---------|
 | Mermaid sequence diagram | README.md | `## Architecture` |
 | Pipeline overview (ASCII) | README.md | `### Pipeline Overview` |
-| Worker profiles (41 manifest, 53 moduli) | README.md | `## Active Worker Profiles` |
+| Worker profiles (47 manifest, 62 moduli) | README.md | `## Active Worker Profiles` |
 | Agent manifest format | README.md | `## Agent Manifest Format` |
 | Polyglot header (SKILL.md) | README.md | `## Claude Code Subagents — Polyglot Header` |
 | Diagrammi dettagliati (8) | [docs/architecture/architecture-diagram.md](docs/architecture/architecture-diagram.md) | - |
@@ -36,7 +36,7 @@ dover rileggere i README completi.
 
 | Argomento | File | Sezione |
 |-----------|------|---------|
-| Endpoint table (20+) | README.md | `### API Endpoints` |
+| Endpoint table (116 endpoints, 14 controller) | README.md | `### API Endpoints` |
 | Endpoint dettagli | orchestrator/README.md | `## API Endpoints` |
 | Plan entity | orchestrator/README.md | `### Plan` |
 | PlanItem entity | orchestrator/README.md | `### PlanItem` |
@@ -137,7 +137,7 @@ Dettagli: [orchestrator/README.md](control-plane/orchestrator/README.md) → `##
 
 | Argomento | File | Sezione |
 |-----------|------|---------|
-| 8 GitHub Actions workflows | README.md | `## CI/CD` |
+| 11 Gitea workflows | README.md | `## CI/CD` |
 | Build pipeline (bootstrap + reactor) | README.md | `### Build Pipeline` |
 | 18 Docker images (ghcr.io) | README.md | `### Container Images` |
 | Worker Dockerfiles | [execution-plane/workers/README.md](execution-plane/workers/README.md) | `## Struttura generata` |
@@ -151,15 +151,17 @@ Dettagli: [orchestrator/README.md](control-plane/orchestrator/README.md) → `##
 
 ---
 
-## Test Coverage (416 test)
+## Test Coverage (1579 test)
 
 | Modulo | Test | Classi |
 |--------|------|--------|
-| Orchestrator | 255 | 17 |
-| RAG Engine | 113 | 21 |
+| Orchestrator | 1274 | ~204 |
+| RAG Engine | 117 | 22 |
 | GP Engine | 30 | 5 |
-| Compiler | 18 | 2 |
-| **Totale** | **416** | **35** |
+| Worker SDK | 76 | 9 |
+| Common | 60 | 2 |
+| Compiler | 22 | 2 |
+| **Totale** | **1579** | **~244** |
 
 Dettagli per classe: README.md → `## Test Coverage`
 
@@ -193,7 +195,7 @@ Dettagli: PIANO.md → `## Tabella priorità`
 | File | Contenuto |
 |------|-----------|
 | [execution-plane/worker-sdk/README.md](execution-plane/worker-sdk/README.md) | AbstractWorker API, interceptor, policy |
-| [execution-plane/workers/README.md](execution-plane/workers/README.md) | 53 moduli Maven (43 worker + 10 shared/infra), 18 Docker images, build con `build.sh` |
+| [execution-plane/workers/README.md](execution-plane/workers/README.md) | 62 moduli Maven (47 worker + 15 shared/infra/messaging), Docker images, build con `build.sh` |
 | [contracts/README.md](contracts/README.md) | JSON Schema, OpenAPI, AsyncAPI |
 | [config/README.md](config/README.md) | File YAML: profili, quality gate, policy |
 | [mcp/README.md](mcp/README.md) | Server MCP, allowlist, sandbox |

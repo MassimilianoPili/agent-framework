@@ -64,6 +64,12 @@ spec:
       - git
       - repo-fs
       - bash
+    builtinTools:
+      - Read
+      - Edit
+      - Write
+      - Bash
+      - LS
   ownership:
     ownsPaths:
       - database/

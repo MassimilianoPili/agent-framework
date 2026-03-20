@@ -111,6 +111,7 @@ public class AgentManifest {
         private List<String> dependencies;
         private List<String> allowlist;
         private List<String> mcpServers;
+        private List<String> builtinTools;
 
         public List<String> getDependencies() { return dependencies; }
         public void setDependencies(List<String> dependencies) { this.dependencies = dependencies; }
@@ -118,6 +119,8 @@ public class AgentManifest {
         public void setAllowlist(List<String> allowlist) { this.allowlist = allowlist; }
         public List<String> getMcpServers() { return mcpServers != null ? mcpServers : List.of(); }
         public void setMcpServers(List<String> mcpServers) { this.mcpServers = mcpServers; }
+        public List<String> getBuiltinTools() { return builtinTools != null ? builtinTools : List.of(); }
+        public void setBuiltinTools(List<String> builtinTools) { this.builtinTools = builtinTools; }
     }
 
     public static class Ownership {

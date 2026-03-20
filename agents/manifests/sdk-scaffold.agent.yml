@@ -62,6 +62,12 @@ spec:
     mcpServers:
       - repo-fs
 
+    builtinTools:
+      - Read
+      - Edit
+      - Write
+      - Bash
+      - LS
   ownership:
     ownsPaths:
       - generated/

@@ -238,9 +238,16 @@ public class GenerateRegistryMojo extends AbstractMojo {
                 ownsPaths.add("execution-plane/workers/" + m.getMetadata().getName() + "/");
             }
 
+            // Merge builtinTools (Claude Code built-in tools allowed for this worker type)
+            Set<String> builtinTools = new TreeSet<>();
+            for (AgentManifest m : workers) {
+                builtinTools.addAll(m.getSpec().getTools().getBuiltinTools());
+            }
+
             json.append("    \"").append(workerType).append("\": {\n");
             json.append("      \"mcpServers\": ").append(toJsonArray(mcpServers)).append(",\n");
-            json.append("      \"ownsPaths\": ").append(toJsonArray(ownsPaths)).append("\n");
+            json.append("      \"ownsPaths\": ").append(toJsonArray(ownsPaths)).append(",\n");
+            json.append("      \"builtinTools\": ").append(toJsonArray(builtinTools)).append("\n");
             json.append("    }");
             if (typeIterator.hasNext()) {
                 json.append(",");

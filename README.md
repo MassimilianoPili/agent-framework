@@ -4,7 +4,7 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 
 ## Status Snapshot
 
-- 41 worker profiles across 7 domain types (BE×14, FE×6, DBA×10, MOBILE×2, AI_TASK, CONTRACT, REVIEW) plus infrastructure workers (CONTEXT_MANAGER, SCHEMA_MANAGER, HOOK_MANAGER, AUDIT_MANAGER, EVENT_MANAGER, TASK_MANAGER, COMPENSATOR_MANAGER, SDK_SCAFFOLD).
+- 47 worker profiles across 7 domain types (BE×14, FE×6, DBA×10, MOBILE×2, AI_TASK, CONTRACT, REVIEW) plus infrastructure workers (CONTEXT_MANAGER, SCHEMA_MANAGER, HOOK_MANAGER, AUDIT_MANAGER, EVENT_MANAGER, TASK_MANAGER, COMPENSATOR_MANAGER, SDK_SCAFFOLD, RAG_MANAGER, INTEGRATION_MANAGER, RESEARCH_MANAGER, TOOL_MANAGER) and council layer (COUNCIL_MANAGER, MANAGER, SPECIALIST).
 - Worker modules generated compile-time from `agents/manifests/*.agent.yml` by `agent-compiler-maven-plugin`.
 - Middle-layer worker types (`CONTEXT_MANAGER`, `SCHEMA_MANAGER`) run as plan dependencies before domain workers; they explore the codebase and extract schemas, delivering enriched context via `contextJson` to BE/FE/DBA/MOBILE/AI_TASK workers.
 - Context-aware Read enforcement: domain workers may only Read files listed in the `CONTEXT_MANAGER` result (`relevant_files`); enforced at runtime by `PathOwnershipEnforcer.checkReadOwnership()`.
@@ -15,10 +15,10 @@ Multi-agent orchestration framework for AI-driven software delivery from natural
 - Tool access controlled by sealed `ToolAllowlist` interface (`All` | `Explicit`); at runtime `AbstractWorker.resolveToolAllowlist()` resolves the effective allowlist: planner `toolHints` (highest priority) → worker static config → `All` (default).
 - Policy enforcement layer active at runtime: path ownership, context-aware read access, audit logging, tool filtering, tool usage tracking.
 - Orchestrator routes by `workerType + workerProfile` using `WorkerProfileRegistry`.
-- Messaging is pluggable (`redis` default, `jms`, `servicebus`).
+- Messaging is pluggable (`redis` default, `jms`, `servicebus`, `inprocess`, `hybrid`).
 - Structured execution provenance (`Provenance` record) attached to every `AgentResult`: token usage, tools used, prompt/skills hashes, trace correlation, timing.
 - Dispatch metadata (`attemptNumber`, `dispatchAttemptId`, `traceId`, `dispatchedAt`) propagated from orchestrator to worker via `AgentTask`.
-- REST API with 20+ endpoints: plan CRUD, quality gate, retry, redispatch, dispatch attempts, snapshots, restore, SSE event streaming, resume, human approval, compensation, council report, issue snapshots, rewards, ELO stats, DPO pairs, cost breakdown.
+- REST API with 116 endpoints across 14 controllers: plan CRUD, quality gate, retry, redispatch, dispatch attempts, snapshots, restore, SSE event streaming, resume, human approval, compensation, council report, issue snapshots, rewards, ELO stats, DPO pairs, cost breakdown, analytics, benchmarks, artifacts, visualization, webhooks, worker keys, profiles, audit.
 - **Token Budget**: per-plan token ceiling via `PlanRequest.Budget` (onExceeded: `FAIL_FAST` | `NO_NEW_DISPATCH` | `SOFT_LIMIT`); PostgreSQL tracking via `plan_token_usage` table.
 - **SSE Event Streaming**: `GET /api/v1/plans/{id}/events` — Server-Sent Events with late-join replay via `Last-Event-ID`; backed by append-only `PlanEvent` log (hybrid event sourcing).
 - **Human Approval (AWAITING_APPROVAL)**: tasks with `riskLevel=CRITICAL` are held before dispatch; released via `POST .../items/{itemId}/approve` or failed via `POST .../items/{itemId}/reject`.
@@ -580,13 +580,15 @@ For full architecture diagrams and MCP server setup: [MCP Usage Guide](mcp/docs/
 
 ## Messaging SPI
 
-Transport-agnostic messaging with three provider implementations:
+Transport-agnostic messaging with five provider implementations:
 
 | Provider | Module | Activation |
 |---|---|---|
 | Redis Streams | `messaging/messaging-redis` | default (`messaging.provider=redis`) |
 | JMS (Artemis) | `messaging/messaging-jms` | `spring.profiles.active=jms` |
 | Azure Service Bus | `messaging/messaging-servicebus` | `spring.profiles.active=servicebus` |
+| In-Process | `messaging/messaging-inprocess` | `messaging.provider=inprocess` (single-JVM, worker auto-scan) |
+| Hybrid | `messaging/messaging-hybrid` | `messaging.provider=hybrid` (local + remote worker routing) |
 
 Core abstractions in `messaging/messaging-api`:
 
@@ -613,9 +615,16 @@ curl -N http://localhost:8080/api/v1/plans/{planId}/events
 curl -N -H "Last-Event-ID: 5" http://localhost:8080/api/v1/plans/{planId}/events
 ```
 
-Event types: `PLAN_STARTED`, `PLAN_PAUSED`, `PLAN_RESUMED`, `TASK_DISPATCHED`
-(includes `"redispatch":true` metadata for operator-initiated redispatch),
-`TASK_COMPLETED`, `TASK_FAILED`, `PLAN_COMPLETED`.
+Event types (25 total, defined in `SpringPlanEvent.java` + inline in `OrchestrationService`):
+
+- **Plan lifecycle**: `PLAN_STARTED`, `PLAN_COMPLETED`, `PLAN_PAUSED`, `PLAN_RESUMED`, `PLAN_CANCELLED`, `PLAN_COMPENSATION_STARTED`, `PLAN_UNDO_REQUESTED`, `PLAN_RETRY_REQUESTED`, `PLAN_AMENDMENT_REQUESTED`
+- **Task lifecycle**: `TASK_DISPATCHED` (includes `"redispatch":true` for operator-initiated), `TASK_COMPLETED`, `TASK_FAILED`, `TASK_AUTO_SPLIT`, `ITEM_STATUS_CHANGED`
+- **Sub-plan**: `SUB_PLAN_STARTED`
+- **Budget/token**: `BUDGET_UPDATE`, `TOKEN_UPDATE`
+- **Compensation**: `COMPENSATION_REQUESTED`
+- **Tool tracking**: `TOOL_CALL_START`, `TOOL_CALL_END`
+- **Monitoring/drift**: `SYSTEM_CRITICALITY`, `WORKER_DRIFT_DETECTED`, `CALIBRATION_DRIFT`, `CHANGEPOINT_DETECTED`
+- **Verification**: `LTL_VERIFICATION`
 
 ### Token Budget
 
@@ -1122,9 +1131,9 @@ hooks:
 
 ## Test Coverage
 
-~1097 unit tests across six modules (JUnit 5 + Mockito):
+~1579 unit tests across six modules (JUnit 5 + Mockito):
 
-### Orchestrator (862 tests, ~120 classes incl. inner)
+### Orchestrator (1274 tests, ~204 classes incl. inner)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
@@ -1199,7 +1208,7 @@ hooks:
 | `CholeskyDecompositionTest` | 5 | decompose, solve, positive-definite check |
 | `DenseMatrixTest` | 5 | multiply, transpose, toArray |
 
-### RAG Engine (116 tests, 22 classes)
+### RAG Engine (117 tests, 22 classes)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
@@ -1222,7 +1231,7 @@ hooks:
 | `GraphRagServiceTest` | 4 | parallel cross-graph, empty, null/blank query, correlate |
 | `CosineRerankerTest` | 3 | rescore + sort, topK limit, empty candidates |
 
-### Worker SDK (58 tests, 9 classes)
+### Worker SDK (76 tests, 9 classes)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
@@ -1243,7 +1252,7 @@ hooks:
 | `WorkerGeneratorTest` | 12 | module generation from manifests |
 | `ManifestLoaderTest` | 10 | YAML parsing, validation |
 
-### Common (9 tests, 2 classes)
+### Common (60 tests, 2 classes)
 
 | Test Class | Tests | Scope |
 |-----------|-------|-------|
@@ -1271,16 +1280,19 @@ cd execution-plane/worker-sdk && mvn test
 
 - `Provenance.model` field is populated as `null` — requires extracting model identifier from `ChatResponse` metadata (Spring AI does not expose it uniformly across providers yet).
 
-## CI/CD (GitHub Actions)
+## CI/CD (Gitea Actions)
 
-8 workflows in `.github/workflows/`, triggered on push to `main` or manually.
+11 workflows in `.gitea/workflows/`, triggered on push to `main` or manually.
 
 | Workflow | Trigger | Description |
 |----------|---------|-------------|
-| `build-images.yml` | push `main` | Build all JARs via `build.sh`, push 18 Docker images to `ghcr.io` |
+| `ci.yml` | push/PR | Build + test pipeline |
+| `build-images.yml` | push `main` | Build all JARs via `build.sh`, push Docker images to `ghcr.io` |
 | `branch-cascade.yml` | push `main` | Cascade `main → develop → test` (creates branches if missing) |
 | `pr-gates.yml` | PR to `main`/`develop` | Build + unit/integration tests + OpenAPI lint + schema validation |
 | `nightly-eval.yml` | cron 02:00 UTC | Run evaluation scenarios against planner and schema validation |
+| `mirror.yml` | push | Sync to GitHub mirror |
+| `release.yml` | tag `v*` | Maven Central release |
 | `deploy-develop.yml` | manual | Deploy to Azure Container Apps (dev) |
 | `deploy-test.yml` | manual | Deploy to Azure Container Apps (test) |
 | `deploy-collaudo.yml` | manual | Deploy to Azure Container Apps (collaudo/UAT) |
