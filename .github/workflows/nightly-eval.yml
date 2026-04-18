@@ -1,8 +1,8 @@
 name: Nightly Evaluation
 
 on:
-  schedule:
-    - cron: "0 2 * * *"  # 02:00 UTC every night
+#  schedule:
+#    - cron: "0 2 * * *"  # 02:00 UTC every night
   workflow_dispatch:      # Allow manual trigger
 
 jobs:
